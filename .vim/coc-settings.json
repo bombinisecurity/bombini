@@ -1,0 +1,3 @@
+{
+  "rust-analyzer.linkedProjects": ["Cargo.toml", "bombini-detectors-ebpf/Cargo.toml"]
+}

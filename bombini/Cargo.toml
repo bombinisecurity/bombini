@@ -1,0 +1,21 @@
+[package]
+name = "bombini"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+aya = "0.13"
+aya-log = "0.2"
+bombini-common = { path = "../bombini-common", features = ["user"] }
+anyhow = "1"
+bytes = "1"
+env_logger = "0.10"
+libc = "0.2"
+log = "0.4"
+procfs = "0.16"
+tokio = { version = "1.25", features = ["macros", "rt", "rt-multi-thread", "net", "signal", "sync"] }
+
+[[bin]]
+name = "bombini"
+path = "src/main.rs"
