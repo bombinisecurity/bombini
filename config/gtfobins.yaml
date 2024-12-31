@@ -1,0 +1,191 @@
+# Parameters for gtfobins detector
+---
+# Maps section. Parameters for gtfobins maps initialization
+maps:
+  # Map nane
+  gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
+    # Map entries
+    - key: aa-exec
+      value: 1
+    - key: ash
+      value: 1
+    - key: awk
+      value: 1
+    - key: bash
+      value: 1
+    - key: busctl
+      value: 1
+    - key: busybox
+      value: 1
+    - key: cabal
+      value: 1
+    - key: choom
+      value: 1
+    - key: cpio
+      value: 1
+    - key: csh
+      value: 1
+    - key: csvtool
+      value: 1
+    - key: dash
+      value: 1
+    - key: debugfs
+      value: 1
+    - key: distcc
+      value: 1
+    - key: docker
+      value: 1
+    - key: ed
+      value: 1
+    - key: elvish
+      value: 1
+    - key: emacs
+      value: 1
+    - key: env
+      value: 1
+    - key: expect
+      value: 1
+    - key: find
+      value: 1
+    - key: fish
+      value: 1
+    - key: flock
+      value: 1
+    - key: gawk
+      value: 1
+    - key: gdb
+      value: 1
+    - key: genie
+      value: 1
+    - key: gimp
+      value: 1
+    - key: gtester
+      value: 1
+    - key: hping3
+      value: 1
+    - key: ionice
+      value: 1
+    - key: ispell
+      value: 1
+    - key: jjs
+      value: 1
+    - key: jrunscript
+      value: 1
+    - key: julia
+      value: 1
+    - key: ksh
+      value: 1
+    - key: ld.so
+      value: 1
+    - key: less
+      value: 1
+    - key: logsave
+      value: 1
+    - key: lua
+      value: 1
+    - key: make
+      value: 1
+    - key: mawk
+      value: 1
+    - key: minicom
+      value: 1
+    - key: more
+      value: 1
+    - key: msgfilter
+      value: 1
+    - key: multitime
+      value: 1
+    - key: nawk
+      value: 1
+    - key: ncftp
+      value: 1
+    - key: nice
+      value: 1
+    - key: nmap
+      value: 1
+    - key: node
+      value: 1
+    - key: nohup
+      value: 1
+    - key: openvpn
+      value: 1
+    - key: pandoc
+      value: 1
+    - key: perf
+      value: 1
+    - key: perl
+      value: 1
+    - key: pexec
+      value: 1
+    - key: pg
+      value: 1
+    - key: php
+      value: 1
+    - key: python
+      value: 1
+    - key: rc
+      value: 1
+    - key: rlwrap
+      value: 1
+    - key: rsync
+      value: 1
+    - key: run-parts
+      value: 1
+    - key: rview
+      value: 1
+    - key: rvim
+      value: 1
+    - key: sash
+      value: 1
+    - key: scanmem
+      value: 1
+    - key: sed
+      value: 1
+    - key: setarch
+      value: 1
+    - key: setlock
+      value: 1
+    - key: softlimit
+      value: 1
+    - key: sqlite3
+      value: 1
+    - key: ssh-agent
+      value: 1
+    - key: sshpass
+      value: 1
+    - key: start-stop-daemon
+      value: 1
+    - key: stdbuf
+      value: 1
+    - key: strace
+      value: 1
+    - key: taskset
+      value: 1
+    - key: tclsh
+      value: 1
+    - key: time
+      value: 1
+    - key: timeout
+      value: 1
+    - key: unshare
+      value: 1
+    - key: vagrant
+      value: 1
+    - key: view
+      value: 1
+    - key: vim
+      value: 1
+    - key: vimdiff
+      value: 1
+    - key: watch
+      value: 1
+    - key: wget
+      value: 1
+    - key: xargs
+      value: 1
+    - key: xdotool
+      value: 1
+    - key: yash
+      value: 1
+    - key: zsh
+      value: 1

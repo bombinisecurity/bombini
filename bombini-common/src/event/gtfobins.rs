@@ -1,8 +1,6 @@
 //! GTFOBins event module
 
-pub const MAX_FILENAME: usize = 64;
-
-pub const MAX_ARGS_SIZE: usize = 256;
+use crate::config::gtfobins::{MAX_ARGS_SIZE, MAX_FILENAME};
 
 /// GTFOBins execution event
 #[derive(Clone, Debug)]

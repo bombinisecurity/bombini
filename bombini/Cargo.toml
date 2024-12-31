@@ -8,13 +8,16 @@ publish = false
 aya = "0.13"
 aya-log = "0.2"
 bombini-common = { path = "../bombini-common", features = ["user"] }
+clap = { version = "4.5", features = ["derive"] }
 anyhow = "1"
 bytes = "1"
 env_logger = "0.10"
+lazy_static = "1.5"
 libc = "0.2"
 log = "0.4"
 procfs = "0.16"
 tokio = { version = "1.25", features = ["macros", "rt", "rt-multi-thread", "net", "signal", "sync"] }
+yaml-rust2 = "0.9"
 
 [[bin]]
 name = "bombini"

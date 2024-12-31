@@ -3,12 +3,20 @@
 
 use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_uid_gid},
-    macros::kprobe,
+    macros::{kprobe, map},
+    maps::Array,
     programs::ProbeContext,
 };
 
-use bombini_common::event::{Event, MSG_SIMPLE};
+use bombini_common::{
+    config::simple::SimpleUIDFilter,
+    event::{Event, MSG_SIMPLE},
+};
+
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init};
+
+#[map]
+static SIMPLE_UID_FILTER: Array<SimpleUIDFilter> = Array::with_max_entries(1, 0);
 
 #[kprobe]
 pub fn simple(ctx: ProbeContext) -> u32 {
@@ -20,9 +28,14 @@ fn try_simple(_ctx: ProbeContext, event: &mut Event) -> Result<u32, u32> {
         return Err(0);
     };
 
+    let filter_uid = if let Some(filter) = SIMPLE_UID_FILTER.get_ptr(0) {
+        unsafe { (*filter).uid }
+    } else {
+        0
+    };
     event.uid = bpf_get_current_uid_gid() as u32;
-    event.pid = bpf_get_current_pid_tgid() as u32;
-    if event.pid % 9 == 0 {
+    if filter_uid == event.uid {
+        event.pid = bpf_get_current_pid_tgid() as u32;
         Ok(0)
     } else {
         Err(0)
