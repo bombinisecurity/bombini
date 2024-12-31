@@ -6,7 +6,8 @@ use aya_ebpf::{
         bpf_get_current_task, bpf_probe_read, bpf_probe_read_kernel_str_bytes,
         bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
-    macros::tracepoint,
+    macros::{map, tracepoint},
+    maps::lpm_trie::{Key, LpmTrie},
     programs::TracePointContext,
 };
 
@@ -14,11 +15,15 @@ use bombini_detectors_ebpf::vmlinux::{
     cred, file, inode, kernel_cap_t, kuid_t, mm_struct, path, qstr, task_struct, umode_t,
 };
 
-use bombini_common::event::{gtfobins::MAX_ARGS_SIZE, Event, MSG_GTFOBINS};
+use bombini_common::config::gtfobins::{GTFOBinsKey, MAX_ARGS_SIZE};
+use bombini_common::event::{Event, MSG_GTFOBINS};
 
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init};
 
 const S_ISUID: u16 = 0x0004000;
+
+#[map]
+static GTFOBINS: LpmTrie<GTFOBinsKey, u32> = LpmTrie::with_max_entries(128, 0);
 
 #[tracepoint]
 pub fn gtfobins_detect(ctx: TracePointContext) -> u32 {
@@ -79,7 +84,13 @@ fn try_detect(_ctx: TracePointContext, event: &mut Event) -> Result<u32, u32> {
             .map_err(|e| e as u32)?;
     } // check EUID or capability
     if event.euid == 0 || event.is_cap_set_uid {
-        Ok(0)
+        // Check if GTFO binary
+        let lookup = Key::new(32, event.filename);
+        if GTFOBINS.get(&lookup).is_some() {
+            Ok(0)
+        } else {
+            Err(0)
+        }
     } else {
         Err(0)
     }

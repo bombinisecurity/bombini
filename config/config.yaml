@@ -1,0 +1,18 @@
+# Global parameters for bombini agent
+---
+# Directory with bpf detector object files
+bpf_objs: /home/fedotoff/bombini/target/bpfel-unknown-none/debug
+
+# Path to pin bpf maps.
+maps_pin_path: /sys/fs/bpf/bombini
+
+# Event map size (ring buffer size in bytes)
+event_map_size: 65536
+
+# Raw event channel size (number of event messages)
+event_channel_size: 64
+
+# List of the detectors to load
+detectors:
+   - simple
+   - gtfobins

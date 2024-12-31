@@ -1,8 +1,8 @@
-//! Event module provide generic event message for all detectors.
+//! Event module provide generic event message for all detectors
 
+pub mod gtfobins;
 /// Event messages
 pub mod simple;
-pub mod gtfobins;
 
 /// Generic event for ring buffer
 #[allow(clippy::large_enum_variant)]
