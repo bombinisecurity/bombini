@@ -15,7 +15,7 @@ use bombini_detectors_ebpf::vmlinux::{
     cred, file, inode, kernel_cap_t, kuid_t, mm_struct, path, qstr, task_struct, umode_t,
 };
 
-use bombini_common::config::gtfobins::{GTFOBinsKey, MAX_ARGS_SIZE};
+use bombini_common::config::gtfobins::{GTFOBinsKey, MAX_ARGS_SIZE, MAX_FILENAME_SIZE};
 use bombini_common::event::{Event, MSG_GTFOBINS};
 
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init};
@@ -55,13 +55,15 @@ fn try_detect(_ctx: TracePointContext, event: &mut Event) -> Result<u32, u32> {
         let i_mode =
             bpf_probe_read::<umode_t>(&(*inode).i_mode as *const _).map_err(|e| e as u32)?;
 
+        aya_ebpf::memset(event.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
         bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.filename).map_err(|e| e as u32)?;
+        aya_ebpf::memset(event.args.as_mut_ptr(), 0, MAX_ARGS_SIZE);
 
         // Skip argv[0]
         let first_arg = bpf_probe_read_user_str_bytes(arg_start as *const u8, &mut event.args)
             .map_err(|e| e as u32)?;
 
-        arg_start += first_arg.len() as u64;
+        arg_start += 1 + first_arg.len() as u64;
 
         // Get cred
         let cred = bpf_probe_read::<*const cred>(&(*task).cred as *const *const _)
@@ -85,7 +87,7 @@ fn try_detect(_ctx: TracePointContext, event: &mut Event) -> Result<u32, u32> {
     } // check EUID or capability
     if event.euid == 0 || event.is_cap_set_uid {
         // Check if GTFO binary
-        let lookup = Key::new(32, event.filename);
+        let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.filename);
         if GTFOBINS.get(&lookup).is_some() {
             Ok(0)
         } else {

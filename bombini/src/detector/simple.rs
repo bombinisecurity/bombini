@@ -1,4 +1,4 @@
-//! Loader for simple detector
+//! Simple detector implementation
 
 use aya::maps::Array;
 use aya::programs::KProbe;
@@ -11,9 +11,9 @@ use bombini_common::config::simple::SimpleUIDFilter;
 
 use std::path::Path;
 
-use super::{load_ebpf_obj, Loader};
+use super::{load_ebpf_obj, Detector};
 
-pub struct SimpleLoader {
+pub struct SimpleDetector {
     ebpf: Ebpf,
     config: Option<SimpleConfig>,
 }
@@ -23,12 +23,15 @@ struct SimpleConfig {
     simple_uid_filter_entries: Vec<(u32, SimpleUIDFilter)>,
 }
 
-impl Loader for SimpleLoader {
+impl Detector for SimpleDetector {
     fn min_kenrel_verison(&self) -> Version {
         Version::new(5, 7, 0)
     }
 
-    async fn new<U: AsRef<Path>>(obj_path: U, config_path: Option<U>) -> Result<Self, anyhow::Error> {
+    async fn new<U: AsRef<Path>>(
+        obj_path: U,
+        config_path: Option<U>,
+    ) -> Result<Self, anyhow::Error> {
         let ebpf = load_ebpf_obj(obj_path).await?;
         if let Some(config_path) = config_path {
             // Get config
@@ -50,9 +53,12 @@ impl Loader for SimpleLoader {
                     ));
                 }
             }
-            Ok(SimpleLoader { ebpf, config: Some(config)})
+            Ok(SimpleDetector {
+                ebpf,
+                config: Some(config),
+            })
         } else {
-            Ok(SimpleLoader { ebpf, config: None})
+            Ok(SimpleDetector { ebpf, config: None })
         }
     }
 
@@ -67,7 +73,7 @@ impl Loader for SimpleLoader {
         Ok(())
     }
 
-    fn load_and_attach(&mut self) -> Result<(), EbpfError> {
+    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
         let program: &mut KProbe = self.ebpf.program_mut("simple").unwrap().try_into()?;
         program.load()?;
         program.attach("security_bprm_check", 0)?;
