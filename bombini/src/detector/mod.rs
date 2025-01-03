@@ -1,4 +1,4 @@
-//! Loader provides interface to load and configure eBPF detectors
+//! Detector provides interface to load and configure eBPF detectors
 
 use aya::{Ebpf, EbpfError, EbpfLoader};
 
@@ -11,15 +11,18 @@ use crate::config::{CONFIG, EVENT_MAP_NAME};
 pub mod gtfobins;
 pub mod simple;
 
-pub trait Loader {
-    /// Construct `Loader` from object file.
+pub trait Detector {
+    /// Construct `Detector` from object file.
     ///
     /// # Arguments
     ///
     /// * `obj_path` - file path to ebpf object file
     ///
     /// * `config_path` - file path to yaml initialization config.
-    async fn new<U: AsRef<Path>>(obj_path: U, config_path: Option<U>) -> Result<Self, anyhow::Error>
+    async fn new<U: AsRef<Path>>(
+        obj_path: U,
+        config_path: Option<U>,
+    ) -> Result<Self, anyhow::Error>
     where
         Self: Sized;
 
@@ -32,7 +35,14 @@ pub trait Loader {
     }
 
     /// Load and attach eBPF programs
-    fn load_and_attach(&mut self) -> Result<(), EbpfError>;
+    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError>;
+
+    /// Load Detector: load and attach all bpf programs and initialize all maps.
+    fn load(&mut self) -> Result<(), EbpfError> {
+        self.map_initialize()?;
+        self.load_and_attach_programs()?;
+        Ok(())
+    }
 }
 
 /// Load epbf object file.
