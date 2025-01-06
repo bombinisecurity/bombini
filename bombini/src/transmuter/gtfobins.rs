@@ -1,6 +1,6 @@
 //! Transmutes GTFOBinsEvent to serialized format
 
-use bombini_common::event::gtfobins;
+use bombini_common::event::gtfobins::GTFOBinsMsg;
 
 use serde::Serialize;
 
@@ -24,7 +24,7 @@ pub struct GTFOBinsEvent {
 
 impl GTFOBinsEvent {
     /// Constructs High level event representation from low eBPF
-    pub fn new(mut event: gtfobins::GTFOBinsEvent) -> Self {
+    pub fn new(mut event: GTFOBinsMsg) -> Self {
         let filename = if *event.filename.last().unwrap() == 0x0 {
             let zero = event.filename.iter().position(|e| *e == 0x0).unwrap();
             String::from_utf8_lossy(&event.filename[..zero]).to_string()

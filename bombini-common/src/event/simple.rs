@@ -2,7 +2,7 @@
 
 #[derive(Clone, Debug)]
 #[repr(C)]
-pub struct SimpleEvent {
+pub struct SimpleMsg {
     pub pid: u32,
     pub uid: u32,
 }

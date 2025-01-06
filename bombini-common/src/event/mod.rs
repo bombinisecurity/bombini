@@ -11,9 +11,9 @@ pub mod simple;
 pub enum Event {
     /// 0 - 31 reserved for common events
     /// Simple event type
-    Simple(simple::SimpleEvent) = 32,
+    Simple(simple::SimpleMsg) = 32,
     /// GTFOBins execution event type
-    GTFOBins(gtfobins::GTFOBinsEvent) = 33,
+    GTFOBins(gtfobins::GTFOBinsMsg) = 33,
 }
 
 // Event message codes

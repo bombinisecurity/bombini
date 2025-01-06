@@ -1,6 +1,6 @@
 //! Transmutes SimpleEvent to serialized representation
 
-use bombini_common::event::simple;
+use bombini_common::event::simple::SimpleMsg;
 
 use serde::Serialize;
 
@@ -14,7 +14,7 @@ pub struct SimpleEvent {
 
 impl SimpleEvent {
     /// Constructs High level event representation from low eBPF
-    pub fn new(event: simple::SimpleEvent) -> Self {
+    pub fn new(event: SimpleMsg) -> Self {
         Self {
             pid: event.pid,
             uid: event.uid,
