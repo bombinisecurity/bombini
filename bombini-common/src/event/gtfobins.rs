@@ -5,7 +5,7 @@ use crate::config::gtfobins::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE};
 /// GTFOBins execution event
 #[derive(Clone, Debug)]
 #[repr(C)]
-pub struct GTFOBinsEvent {
+pub struct GTFOBinsMsg {
     /// UID
     pub uid: u32,
     /// EUID
