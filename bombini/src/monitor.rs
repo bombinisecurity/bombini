@@ -6,12 +6,14 @@ use tokio::io::unix::AsyncFd;
 use tokio::sync::mpsc;
 
 use bytes::Bytes;
-use log::debug;
+use log::info;
 
 use std::convert::TryFrom;
 use std::path::Path;
 
 use bombini_common::event::Event;
+
+use crate::transmuter::Transmuter;
 
 pub struct Monitor<'a> {
     pub pin_path: &'a Path,
@@ -39,6 +41,7 @@ impl<'a> Monitor<'a> {
             aya::maps::MapData::from_pin(self.pin_path).unwrap(),
         ))
         .unwrap();
+        let transmuter = Transmuter;
 
         tokio::spawn(async move {
             let mut poll = AsyncFd::new(ring_buf).unwrap();
@@ -54,7 +57,7 @@ impl<'a> Monitor<'a> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let s: Event = unsafe { std::ptr::read(message.as_ptr() as *const _) };
-                debug!("GOT = {:?}", s);
+                info!("{}", transmuter.transmute(s).await.unwrap());
             }
         });
     }

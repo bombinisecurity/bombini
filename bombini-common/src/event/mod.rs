@@ -1,7 +1,7 @@
 //! Event module provide generic event message for all detectors
 
-pub mod gtfobins;
 /// Event messages
+pub mod gtfobins;
 pub mod simple;
 
 /// Generic event for ring buffer

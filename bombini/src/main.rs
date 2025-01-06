@@ -5,6 +5,7 @@ mod config;
 mod detector;
 mod monitor;
 mod registry;
+mod transmuter;
 
 use config::CONFIG;
 use monitor::Monitor;
