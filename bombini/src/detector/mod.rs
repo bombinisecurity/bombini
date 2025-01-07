@@ -6,6 +6,8 @@ use procfs::sys::kernel::Version;
 
 use std::path::Path;
 
+use anyhow::anyhow;
+
 use crate::config::{CONFIG, EVENT_MAP_NAME};
 
 pub mod gtfobins;
@@ -38,7 +40,16 @@ pub trait Detector {
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError>;
 
     /// Load Detector: load and attach all bpf programs and initialize all maps.
-    fn load(&mut self) -> Result<(), EbpfError> {
+    fn load(&mut self) -> Result<(), anyhow::Error> {
+        let kernel_ver = Version::current()?;
+        let min_ver = self.min_kenrel_verison();
+        if kernel_ver < min_ver {
+            return Err(anyhow!(
+                "To load detector kernel version ({:?}) must be >= {:?}",
+                kernel_ver,
+                min_ver
+            ));
+        }
         self.map_initialize()?;
         self.load_and_attach_programs()?;
         Ok(())
