@@ -5,11 +5,13 @@ mod config;
 mod detector;
 mod monitor;
 mod registry;
+mod transmitter;
 mod transmuter;
 
 use config::CONFIG;
 use monitor::Monitor;
 use registry::Registry;
+use transmitter::log::LogTransmitter;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -24,12 +26,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let _ = std::fs::create_dir(&config.maps_pin_path);
 
+    let transmitter = LogTransmitter;
+
     let mut registry = Registry::new();
     registry.load_detecors().await?;
 
     let event_pin_path = config.event_pin_path();
     let monitor = Monitor::new(event_pin_path.as_path(), config.event_channel_size);
-    monitor.monitor().await;
+    monitor.monitor(transmitter).await;
 
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;

@@ -16,7 +16,8 @@ lazy_static = "1.5"
 libc = "0.2"
 log = "0.4"
 procfs = "0.16"
-tokio = { version = "1.25", features = ["macros", "rt", "rt-multi-thread", "net", "signal", "sync"] }
+tokio = { version = "1.25", features = ["fs", "io-util", "macros", "rt", "rt-multi-thread", "net", "signal", "sync"] }
+futures-executor = "0.3"
 yaml-rust2 = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

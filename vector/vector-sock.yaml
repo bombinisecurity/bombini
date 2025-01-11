@@ -1,0 +1,35 @@
+#                                    __   __  __
+#                                    \ \ / / / /
+#                                     \ V / / /
+#                                      \_/  \/
+#
+#                                    V E C T O R
+#                                   Configuration
+#
+# ------------------------------------------------------------------------------
+# Website: https://vector.dev
+# Docs: https://vector.dev/docs
+# Chat: https://chat.vector.dev
+# ------------------------------------------------------------------------------
+
+# Change this to use a non-default directory for Vector data storage:
+data_dir: "/tmp/vector"
+
+sources:
+  bombini_sock:
+    type: "socket"
+    path: "/home/fedotoff/bombini/bombini.sock"
+    mode: "unix_stream"
+    framing:
+      method: "newline_delimited"
+    decoding:
+      codec: "json"
+
+sinks:
+  print:
+    type: "console"
+    inputs: ["bombini_sock"]
+    encoding:
+      codec: "json"
+      json:
+        pretty: true
