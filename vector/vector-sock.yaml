@@ -18,7 +18,7 @@ data_dir: "/tmp/vector"
 sources:
   bombini_sock:
     type: "socket"
-    path: "/home/fedotoff/bombini/bombini.sock"
+    path: "/tmp/bombini.sock"
     mode: "unix_stream"
     framing:
       method: "newline_delimited"

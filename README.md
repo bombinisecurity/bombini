@@ -53,5 +53,5 @@ vector --config ./vector/vector-sock.yaml
 Start bombini with events redirecting to unix socket:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --config-dir ./config --event-socket ./bombini.sock
+RUST_LOG=debug cargo xtask run -- --config-dir ./config --event-socket /tmp/bombini.sock
 ```
