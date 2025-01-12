@@ -40,7 +40,6 @@ impl Transmitter for USockTransmitter {
             self.stream.writable().await?;
             match self.stream.try_write(&data) {
                 Ok(_) => {
-                    debug!("send");
                     break;
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
