@@ -65,7 +65,7 @@ pub trait Detector {
 pub async fn load_ebpf_obj<U: AsRef<Path>>(obj_path: U) -> Result<Ebpf, EbpfError> {
     let config = CONFIG.read().await;
     EbpfLoader::new()
-        .map_pin_path(&config.maps_pin_path)
-        .set_max_entries(EVENT_MAP_NAME, config.event_map_size)
+        .map_pin_path(config.maps_pin_path.as_ref().unwrap())
+        .set_max_entries(EVENT_MAP_NAME, config.event_map_size.unwrap())
         .load_file(obj_path.as_ref())
 }

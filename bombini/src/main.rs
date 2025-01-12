@@ -8,10 +8,12 @@ mod registry;
 mod transmitter;
 mod transmuter;
 
-use config::CONFIG;
+use config::{Config, CONFIG};
 use monitor::Monitor;
 use registry::Registry;
+use transmitter::file::FileTransmitter;
 use transmitter::log::LogTransmitter;
+use transmitter::unix_sock::USockTransmitter;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -24,16 +26,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let config = CONFIG.read().await;
 
-    let _ = std::fs::create_dir(&config.maps_pin_path);
-
-    let transmitter = LogTransmitter;
+    let _ = std::fs::create_dir(config.maps_pin_path.as_ref().unwrap());
 
     let mut registry = Registry::new();
     registry.load_detecors().await?;
 
     let event_pin_path = config.event_pin_path();
-    let monitor = Monitor::new(event_pin_path.as_path(), config.event_channel_size);
-    monitor.monitor(transmitter).await;
+    let monitor = Monitor::new(event_pin_path.as_path(), config.event_channel_size.unwrap());
+    start_monitor(&config, &monitor).await?;
 
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;
@@ -41,4 +41,17 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Exiting...");
 
     Ok(())
+}
+
+async fn start_monitor(config: &Config, monitor: &Monitor<'_>) -> Result<(), anyhow::Error> {
+    if let Some(file) = &config.transmit_opts.event_log {
+        monitor.monitor(FileTransmitter::new(file).await?).await;
+        Ok(())
+    } else if let Some(file) = &config.transmit_opts.event_socket {
+        monitor.monitor(USockTransmitter::new(file).await?).await;
+        Ok(())
+    } else {
+        monitor.monitor(LogTransmitter).await;
+        Ok(())
+    }
 }

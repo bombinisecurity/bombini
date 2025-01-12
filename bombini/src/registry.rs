@@ -29,7 +29,7 @@ impl Registry {
             return Ok(());
         };
         let config = CONFIG.read().await;
-        let mut obj_path = PathBuf::from(&config.bpf_objs);
+        let mut obj_path = PathBuf::from(config.bpf_objs.as_ref().unwrap());
         let mut config_path = PathBuf::from(&config.config_dir);
         for name in names.iter().map(|e| e.as_str()) {
             obj_path.push(name);

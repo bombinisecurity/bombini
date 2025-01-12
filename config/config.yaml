@@ -1,7 +1,7 @@
 # Global parameters for bombini agent
 ---
 # Directory with bpf detector object files
-bpf_objs: /home/fedotoff/bombini/target/bpfel-unknown-none/debug
+bpf_objs: ./target/bpfel-unknown-none/debug
 
 # Path to pin bpf maps.
 maps_pin_path: /sys/fs/bpf/bombini
