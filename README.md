@@ -19,10 +19,39 @@ cargo xtask build
 
 ## Run
 
-It's inconvenient for now to launch, but if you really
-want it to try, then, please, change in **config/config.yaml** **bpf_objs** path
-to appropriate value and run the following command:
+You can try bombini agent this way:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --config-dir ./config
+RUST_LOG=debug cargo xtask run -- --config-dir ./config --stdout
+```
+
+Also you can use file as output or unix socket combining with
+[vector](https://github.com/vectordotdev/vector).
+
+### File
+
+Start vector agent:
+
+```bash
+vector --config ./vector/vector-file.yaml
+```
+
+Start bombini with events redirecting to file:
+
+```bash
+RUST_LOG=debug cargo xtask run -- --config-dir ./config --event-log ./bombini.log
+```
+
+### Unix socket
+
+Start vector agent with unix socket listner:
+
+```bash
+vector --config ./vector/vector-sock.yaml
+```
+
+Start bombini with events redirecting to unix socket:
+
+```bash
+RUST_LOG=debug cargo xtask run -- --config-dir ./config --event-socket ./bombini.sock
 ```

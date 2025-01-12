@@ -26,9 +26,9 @@ Transmuter converts (transmutes) low kernel event into serializable (json, for
 example) data structure. It also can enrich kernel event with some user mode
 data.
 
-### Transmiter (not implemented yet)
+### Transmiter
 
-Transmiter sends event to different sources (network, stdout, file).
+Transmiter sends serialized events (byte arrays) to different sources (unix socket, stdout, file, etc).
 
 ### Config
 
