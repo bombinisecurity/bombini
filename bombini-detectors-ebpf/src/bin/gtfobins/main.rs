@@ -35,6 +35,7 @@ fn try_detect(_ctx: TracePointContext, event: &mut Event) -> Result<u32, u32> {
         return Err(0);
     };
 
+    let total_cmd_len = event.command.len();
     // We need to read real executable name and get arguments from stack.
     let (arg_start, arg_end) = unsafe {
         let task = bpf_get_current_task() as *const task_struct;
@@ -55,15 +56,13 @@ fn try_detect(_ctx: TracePointContext, event: &mut Event) -> Result<u32, u32> {
         let i_mode =
             bpf_probe_read::<umode_t>(&(*inode).i_mode as *const _).map_err(|e| e as u32)?;
 
-        aya_ebpf::memset(event.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
-        bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.filename).map_err(|e| e as u32)?;
-        aya_ebpf::memset(event.args.as_mut_ptr(), 0, MAX_ARGS_SIZE);
-
         // Skip argv[0]
-        let first_arg = bpf_probe_read_user_str_bytes(arg_start as *const u8, &mut event.args)
+        let first_arg = bpf_probe_read_user_str_bytes(arg_start as *const u8, &mut event.command)
             .map_err(|e| e as u32)?;
-
         arg_start += 1 + first_arg.len() as u64;
+
+        aya_ebpf::memset(event.command.as_mut_ptr(), 0, total_cmd_len);
+        bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.command[..MAX_FILENAME_SIZE]).map_err(|e| e as u32)?;
 
         // Get cred
         let cred = bpf_probe_read::<*const cred>(&(*task).cred as *const *const _)
@@ -82,16 +81,17 @@ fn try_detect(_ctx: TracePointContext, event: &mut Event) -> Result<u32, u32> {
     };
     let arg_size = (arg_end - arg_start) & (MAX_ARGS_SIZE - 1) as u64;
     unsafe {
-        bpf_probe_read_user_buf(arg_start as *const u8, &mut event.args[..arg_size as usize])
+        bpf_probe_read_user_buf(arg_start as *const u8, &mut event.command[MAX_FILENAME_SIZE + 1..MAX_FILENAME_SIZE + 1 + arg_size as usize])
             .map_err(|e| e as u32)?;
     } // check EUID or capability
     if event.euid == 0 || event.is_cap_set_uid {
         // Check if GTFO binary
-        let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.filename);
+        let lookup = Key::new((total_cmd_len * 8) as u32, event.command);
         if GTFOBINS.get(&lookup).is_some() {
             Ok(0)
         } else {
-            Err(0)
+            Ok(0)
+            //Err(0)
         }
     } else {
         Err(0)

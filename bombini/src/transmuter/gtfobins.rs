@@ -16,34 +16,27 @@ pub struct GTFOBinsEvent {
     pub is_cap_set_uid: bool,
     /// if SETUID executable
     pub is_suid: bool,
-    /// executable name
-    pub filename: String,
-    /// command line arguments without argv[0]
-    pub args: String,
+    /// executable file name + command line arguments without argv[0]
+    pub cmd: String,
 }
 
 impl GTFOBinsEvent {
     /// Constructs High level event representation from low eBPF
     pub fn new(mut event: GTFOBinsMsg) -> Self {
-        let filename = if *event.filename.last().unwrap() == 0x0 {
-            let zero = event.filename.iter().position(|e| *e == 0x0).unwrap();
-            String::from_utf8_lossy(&event.filename[..zero]).to_string()
-        } else {
-            String::from_utf8_lossy(&event.filename).to_string()
-        };
-        event.args.iter_mut().for_each(|e| {
+        event.command.iter_mut().for_each(|e| {
             if *e == 0x00 {
                 *e = 0x20
             }
         });
-        let args = String::from_utf8_lossy(&event.args).trim_end().to_string();
+        let cmd = String::from_utf8_lossy(&event.command)
+            .trim_end()
+            .to_string();
         Self {
             uid: event.uid,
             euid: event.euid,
             is_cap_set_uid: event.is_cap_set_uid,
             is_suid: event.is_suid,
-            filename,
-            args,
+            cmd,
         }
     }
 

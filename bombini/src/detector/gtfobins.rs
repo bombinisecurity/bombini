@@ -7,7 +7,7 @@ use aya::{Ebpf, EbpfError};
 use procfs::sys::kernel::Version;
 use yaml_rust2::YamlLoader;
 
-use bombini_common::config::gtfobins::{GTFOBinsKey, MAX_FILENAME_SIZE};
+use bombini_common::config::gtfobins::{GTFOBinsKey, MAX_ARGS_SIZE, MAX_FILENAME_SIZE};
 
 use std::path::Path;
 
@@ -25,7 +25,7 @@ struct GTFOBinsConfig {
 
 impl Detector for GTFOBinsDetector {
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 7, 0)
+        Version::new(5, 8, 0)
     }
 
     async fn new<U: AsRef<Path>>(
@@ -47,15 +47,21 @@ impl Detector for GTFOBinsDetector {
             if let Some(entries) = doc["maps"]["gtfobins"].as_vec() {
                 for entry in entries {
                     let v = entry["value"].as_i64().unwrap() as u32;
-                    let mut k: GTFOBinsKey = [0; MAX_FILENAME_SIZE];
-                    let k_str = entry["key"].as_str().unwrap().as_bytes();
-                    let len = k_str.len();
-                    if len < MAX_FILENAME_SIZE {
-                        k[..len].clone_from_slice(k_str);
-                    } else {
-                        k.clone_from_slice(&k_str[..MAX_FILENAME_SIZE]);
+                    let mut k: GTFOBinsKey = [0; MAX_FILENAME_SIZE + 1 + MAX_ARGS_SIZE];
+                    let k_str = entry["key"].as_str().unwrap();
+                    let mut idx = 0;
+                    //TODO: deal with ', ", ` when parsing args.
+                    for s in k_str.split(' ') {
+                        let len = s.len();
+                        if idx + len < MAX_FILENAME_SIZE + 1 + MAX_ARGS_SIZE {
+                            k[idx..idx + len].clone_from_slice(s.as_bytes());
+                            if idx == 0 {
+                                idx += MAX_FILENAME_SIZE + 1;
+                            } else {
+                                idx += len + 1;
+                            }
+                        }
                     }
-
                     config.gtfobins_entries.push((k, v));
                 }
             }
@@ -73,7 +79,7 @@ impl Detector for GTFOBinsDetector {
             let mut file_names: LpmTrie<_, GTFOBinsKey, u32> =
                 LpmTrie::try_from(self.ebpf.map_mut("GTFOBINS").unwrap())?;
             for (k, v) in config.gtfobins_entries.iter() {
-                let key = Key::new((MAX_FILENAME_SIZE * 8) as u32, *k);
+                let key = Key::new(((MAX_FILENAME_SIZE + 1 + MAX_ARGS_SIZE) * 8) as u32, *k);
                 file_names.insert(&key, v, 0)?;
             }
         }

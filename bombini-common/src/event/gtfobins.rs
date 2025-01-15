@@ -14,8 +14,6 @@ pub struct GTFOBinsMsg {
     pub is_cap_set_uid: bool,
     /// if SETUID executable
     pub is_suid: bool,
-    /// executable name
-    pub filename: [u8; MAX_FILENAME_SIZE],
-    /// command line arguments without argv[0]
-    pub args: [u8; MAX_ARGS_SIZE],
+    ///  executable file name + command line arguments without argv[0]
+    pub command: [u8; MAX_FILENAME_SIZE + 1 + MAX_ARGS_SIZE],
 }
