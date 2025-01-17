@@ -25,7 +25,7 @@ struct SimpleConfig {
 
 impl Detector for SimpleDetector {
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 7, 0)
+        Version::new(5, 8, 0)
     }
 
     async fn new<U: AsRef<Path>>(

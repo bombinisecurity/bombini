@@ -9,6 +9,7 @@ pub struct LogTransmitter;
 
 impl Transmitter for LogTransmitter {
     async fn transmit(&mut self, data: Vec<u8>) -> Result<(), anyhow::Error> {
-        Ok(info!("{}", String::from_utf8(data)?))
+        info!("{}", String::from_utf8(data)?);
+        Ok(())
     }
 }
