@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::config::CONFIG;
 use crate::detector::gtfobins::GTFOBinsDetector;
+use crate::detector::procmon::ProcMon;
 use crate::detector::simple::SimpleDetector;
 use crate::detector::Detector;
 
@@ -44,6 +45,11 @@ impl Registry {
                     let mut detector = GTFOBinsDetector::new(&obj_path, Some(&config_path)).await?;
                     detector.load()?;
                     self.detectors.insert(name.to_string(), Box::new(detector));
+                }
+                "procmon" => {
+                    let mut procmon = ProcMon::new(&obj_path, None).await?;
+                    procmon.load()?;
+                    self.detectors.insert(name.to_string(), Box::new(procmon));
                 }
                 _ => return Err(anyhow!("{} unknown detector", name)),
             };
