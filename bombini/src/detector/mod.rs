@@ -11,6 +11,7 @@ use anyhow::anyhow;
 use crate::config::{CONFIG, EVENT_MAP_NAME};
 
 pub mod gtfobins;
+pub mod procmon;
 pub mod simple;
 
 pub trait Detector {

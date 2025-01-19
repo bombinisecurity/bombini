@@ -1,13 +1,14 @@
 //! GTFOBins detector
 
 use aya::maps::lpm_trie::{Key, LpmTrie};
-use aya::programs::TracePoint;
-use aya::{Ebpf, EbpfError};
+use aya::programs::Lsm;
+use aya::{Btf, Ebpf, EbpfError};
 
 use procfs::sys::kernel::Version;
 use yaml_rust2::YamlLoader;
 
-use bombini_common::config::gtfobins::{GTFOBinsKey, MAX_FILENAME_SIZE};
+use bombini_common::config::gtfobins::GTFOBinsKey;
+use bombini_common::event::process::MAX_FILENAME_SIZE;
 
 use std::path::Path;
 
@@ -81,13 +82,14 @@ impl Detector for GTFOBinsDetector {
     }
 
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
-        let program: &mut TracePoint = self
+        let program: &mut Lsm = self
             .ebpf
             .program_mut("gtfobins_detect")
             .unwrap()
             .try_into()?;
-        program.load()?;
-        program.attach("sched", "sched_process_exec")?;
+        let btf = Btf::from_sys_fs()?;
+        program.load("bprm_check_security", &btf)?;
+        program.attach()?;
         Ok(())
     }
 }

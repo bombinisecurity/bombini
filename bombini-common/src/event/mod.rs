@@ -1,5 +1,7 @@
 //! Event module provide generic event message for all detectors
 
+pub mod process;
+
 /// Event messages
 pub mod gtfobins;
 pub mod simple;

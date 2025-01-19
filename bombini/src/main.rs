@@ -37,7 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;
-    let _ = std::fs::remove_file(&event_pin_path);
+    let _ = std::fs::remove_dir_all(config.maps_pin_path.as_ref().unwrap());
     info!("Exiting...");
 
     Ok(())

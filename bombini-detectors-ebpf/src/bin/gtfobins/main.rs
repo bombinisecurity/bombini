@@ -3,93 +3,96 @@
 
 use aya_ebpf::{
     helpers::{
-        bpf_get_current_task, bpf_probe_read, bpf_probe_read_kernel_str_bytes,
-        bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
+        bpf_get_current_task, bpf_probe_read, bpf_probe_read_buf, bpf_probe_read_kernel_str_bytes,
     },
-    macros::{map, tracepoint},
-    maps::lpm_trie::{Key, LpmTrie},
-    programs::TracePointContext,
+    macros::{lsm, map},
+    maps::{
+        hash_map::HashMap,
+        lpm_trie::{Key, LpmTrie},
+    },
+    programs::LsmContext,
 };
 
-use bombini_detectors_ebpf::vmlinux::{
-    cred, file, inode, kernel_cap_t, kuid_t, mm_struct, path, qstr, task_struct, umode_t,
-};
+use bombini_detectors_ebpf::vmlinux::{file, linux_binprm, path, pid_t, qstr, task_struct};
 
-use bombini_common::config::gtfobins::{GTFOBinsKey, MAX_ARGS_SIZE, MAX_FILENAME_SIZE};
+use bombini_common::config::gtfobins::GTFOBinsKey;
+use bombini_common::event::process::{ProcInfo, MAX_FILENAME_SIZE};
 use bombini_common::event::{Event, MSG_GTFOBINS};
 
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init};
 
-const S_ISUID: u16 = 0x0004000;
-
 #[map]
 static GTFOBINS: LpmTrie<GTFOBinsKey, u32> = LpmTrie::with_max_entries(128, 0);
 
-#[tracepoint]
-pub fn gtfobins_detect(ctx: TracePointContext) -> u32 {
-    event_capture!(ctx, MSG_GTFOBINS, try_detect)
+#[map]
+static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
+
+#[lsm]
+pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_GTFOBINS, try_detect) as i32
 }
 
-fn try_detect(_ctx: TracePointContext, event: &mut Event) -> Result<u32, u32> {
+fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
     let Event::GTFOBins(event) = event else {
         return Err(0);
     };
 
-    // We need to read real executable name and get arguments from stack.
-    let (arg_start, arg_end) = unsafe {
+    let parent_pid = unsafe {
         let task = bpf_get_current_task() as *const task_struct;
-        let mm =
-            bpf_probe_read::<*mut mm_struct>(&(*task).mm as *const *mut _).map_err(|e| e as u32)?;
-        let mut arg_start = bpf_probe_read::<u64>(&(*mm).__bindgen_anon_1.arg_start as *const _)
+        let parent = bpf_probe_read::<*mut task_struct>(&(*task).real_parent as *const *mut _)
             .map_err(|e| e as u32)?;
-
-        let arg_end = bpf_probe_read::<u64>(&(*mm).__bindgen_anon_1.arg_end as *const _)
-            .map_err(|e| e as u32)?;
-        let file = bpf_probe_read::<*mut file>(&(*mm).__bindgen_anon_1.exe_file as *const *mut _)
-            .map_err(|e| e as u32)?;
-        let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|e| e as u32)?;
-        let d_name =
-            bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _).map_err(|e| e as u32)?;
-        let inode = bpf_probe_read::<*mut inode>(&(*file).f_inode as *const *mut _)
-            .map_err(|e| e as u32)?;
-        let i_mode =
-            bpf_probe_read::<umode_t>(&(*inode).i_mode as *const _).map_err(|e| e as u32)?;
-
-        aya_ebpf::memset(event.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
-        bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.filename).map_err(|e| e as u32)?;
-        aya_ebpf::memset(event.args.as_mut_ptr(), 0, MAX_ARGS_SIZE);
-
-        // Skip argv[0]
-        let first_arg = bpf_probe_read_user_str_bytes(arg_start as *const u8, &mut event.args)
-            .map_err(|e| e as u32)?;
-
-        arg_start += 1 + first_arg.len() as u64;
-
-        // Get cred
-        let cred = bpf_probe_read::<*const cred>(&(*task).cred as *const *const _)
-            .map_err(|e| e as u32)?;
-        let euid = bpf_probe_read::<kuid_t>(&(*cred).euid as *const _).map_err(|e| e as u32)?;
-        let uid = bpf_probe_read::<kuid_t>(&(*cred).uid as *const _).map_err(|e| e as u32)?;
-
-        event.uid = uid.val;
-        event.euid = euid.val;
-        let cap_e = bpf_probe_read::<kernel_cap_t>(&(*cred).cap_effective as *const _)
-            .map_err(|e| e as u32)?;
-
-        event.is_cap_set_uid = (cap_e.val & 128) != 0;
-        event.is_suid = (i_mode & S_ISUID) != 0;
-        (arg_start, arg_end)
+        bpf_probe_read::<pid_t>(&(*parent).pid as *const _).map_err(|e| e as u32)? as u32
     };
-    let arg_size = (arg_end - arg_start) & (MAX_ARGS_SIZE - 1) as u64;
-    unsafe {
-        bpf_probe_read_user_buf(arg_start as *const u8, &mut event.args[..arg_size as usize])
-            .map_err(|e| e as u32)?;
-    } // check EUID or capability
-    if event.euid == 0 || event.is_cap_set_uid {
-        // Check if GTFO binary
-        let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.filename);
-        if GTFOBINS.get(&lookup).is_some() {
-            Ok(0)
+    let parent_proc = unsafe { PROC_MAP.get(&parent_pid) };
+    let Some(parent_proc) = parent_proc else {
+        return Err(0);
+    };
+
+    if parent_proc.euid == 0 || parent_proc.is_cap_set_uid {
+        // Check if sh is executing
+        unsafe {
+            let binprm: *const linux_binprm = ctx.arg(0);
+            aya_ebpf::memset(event.process.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+            let file: *mut file = (*binprm).file;
+            let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|e| e as u32)?;
+            let d_name = bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _)
+                .map_err(|e| e as u32)?;
+            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.process.filename)
+                .map_err(|e| e as u32)?;
+        }
+        if (event.process.filename[0] == b's' && event.process.filename[1] == b'h')
+            || (event.process.filename[0] == b'b'
+                && event.process.filename[1] == b'a'
+                && event.process.filename[2] == b's'
+                && event.process.filename[3] == b'h')
+            || (event.process.filename[0] == b'd'
+                && event.process.filename[1] == b'a'
+                && event.process.filename[2] == b's'
+                && event.process.filename[3] == b'h')
+            || (event.process.filename[0] == b'z'
+                && event.process.filename[1] == b's'
+                && event.process.filename[2] == b'h')
+        {
+            unsafe {
+                let _ =
+                    bpf_probe_read_buf(parent_proc.filename.as_ptr(), &mut event.process.filename);
+            }
+            // Check if GTFO binary
+            let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
+            if GTFOBINS.get(&lookup).is_some() {
+                event.process.pid = parent_proc.pid;
+                event.process.tid = parent_proc.tid;
+                event.process.uid = parent_proc.uid;
+                event.process.euid = parent_proc.euid;
+                event.process.is_suid = parent_proc.is_suid;
+                event.process.is_cap_set_uid = parent_proc.is_cap_set_uid;
+                unsafe {
+                    let _ = bpf_probe_read_buf(parent_proc.args.as_ptr(), &mut event.process.args);
+                }
+                Ok(0)
+            } else {
+                Err(0)
+            }
         } else {
             Err(0)
         }
