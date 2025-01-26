@@ -26,9 +26,9 @@ Transmuter converts (transmutes) low kernel event into serializable (json, for
 example) data structure. It also can enrich kernel event with some user mode
 data.
 
-### Transmiter
+### Transmitter
 
-Transmiter sends serialized events (byte arrays) to different sources (unix socket, stdout, file, etc).
+Transmitter sends serialized events (byte arrays) to different sources (unix socket, stdout, file, etc).
 
 ### Config
 
@@ -41,12 +41,6 @@ Registry stores loaded detectors. It can load/unload detectors and possibly
 interact with them (change config maps).
 
 ## Examples of Detectors
-
-## Simple
-
-Simple detector is just for testing this design concept. It attaches to kprobe
-**security_bprm_check** gets provided uid, compares this uid with current uid in
-bpf part and sends the event with current pid.
 
 ## GTFObins
 
