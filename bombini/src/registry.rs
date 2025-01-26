@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use crate::config::CONFIG;
 use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::procmon::ProcMon;
-use crate::detector::simple::SimpleDetector;
 use crate::detector::Detector;
 
 pub struct Registry {
@@ -36,11 +35,6 @@ impl Registry {
             obj_path.push(name);
             config_path.push(name.to_owned() + ".yaml");
             match name {
-                "simple" => {
-                    let mut detector = SimpleDetector::new(&obj_path, Some(&config_path)).await?;
-                    detector.load()?;
-                    self.detectors.insert(name.to_string(), Box::new(detector));
-                }
                 "gtfobins" => {
                     let mut detector = GTFOBinsDetector::new(&obj_path, Some(&config_path)).await?;
                     detector.load()?;
