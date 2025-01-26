@@ -8,6 +8,8 @@ use serde::Serialize;
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 pub struct GTFOBinsEvent {
+    /// PID
+    pub pid: u32,
     /// UID
     pub uid: u32,
     /// EUID
@@ -45,6 +47,7 @@ impl GTFOBinsEvent {
             .trim_end()
             .to_string();
         Self {
+            pid: event.process.pid,
             uid: event.process.uid,
             euid: event.process.euid,
             is_cap_set_uid: event.process.is_cap_set_uid,

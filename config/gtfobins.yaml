@@ -121,7 +121,7 @@ maps:
       value: 1
     - key: php
       value: 1
-    - key: python
+    - key: python3.10
       value: 1
     - key: rc
       value: 1

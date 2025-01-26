@@ -4,7 +4,7 @@
 use aya_ebpf::{
     bindings::BPF_ANY,
     helpers::{
-        bpf_get_current_pid_tgid, bpf_get_current_task, bpf_probe_read,
+        bpf_get_current_pid_tgid, bpf_get_current_task, bpf_ktime_get_ns, bpf_probe_read,
         bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
     macros::{kprobe, map, tracepoint},
@@ -16,7 +16,7 @@ use bombini_detectors_ebpf::vmlinux::{
     cred, file, inode, kernel_cap_t, kuid_t, mm_struct, path, pid_t, qstr, task_struct, umode_t,
 };
 
-use bombini_common::event::process::{ProcInfo, MAX_ARGS_SIZE, MAX_FILENAME_SIZE};
+use bombini_common::event::process::{ProcInfo, MAX_ARGS_SIZE};
 
 const S_ISUID: u16 = 0x0004000;
 
@@ -35,21 +35,30 @@ pub fn execve_capture(ctx: TracePointContext) -> u32 {
 }
 
 fn try_capture(_ctx: TracePointContext) -> Result<u32, u32> {
-    let Some(proc_ptr) = HEAP.get_ptr_mut(0) else {
+    let task = unsafe { bpf_get_current_task() as *const task_struct };
+    let pid =
+        unsafe { bpf_probe_read::<pid_t>(&(*task).tgid as *const _).map_err(|e| e as u32)? as u32 };
+    let proc_ptr = unsafe { exec_map_get_init(pid) };
+    let Some(proc_ptr) = proc_ptr else {
         return Err(0);
     };
-
     let proc = unsafe { proc_ptr.as_mut() };
 
     let Some(proc) = proc else {
         return Err(0);
     };
+    let parent_proc = unsafe { execve_find_parent(task) };
+    let Some(parent_proc) = parent_proc else {
+        return Err(0);
+    };
+
+    proc.ppid = unsafe { (*parent_proc).pid };
+    proc.ktime = unsafe { bpf_ktime_get_ns() };
 
     // We need to read real executable name and get arguments from stack.
     let (arg_start, arg_end) = unsafe {
-        let task = bpf_get_current_task() as *const task_struct;
-        proc.pid = bpf_probe_read::<pid_t>(&(*task).pid as *const _).map_err(|e| e as u32)? as u32;
-        proc.tid = bpf_probe_read::<pid_t>(&(*task).tgid as *const _).map_err(|e| e as u32)? as u32;
+        proc.pid = pid;
+        proc.tid = bpf_probe_read::<pid_t>(&(*task).pid as *const _).map_err(|e| e as u32)? as u32;
 
         let mm =
             bpf_probe_read::<*mut mm_struct>(&(*task).mm as *const *mut _).map_err(|e| e as u32)?;
@@ -68,9 +77,7 @@ fn try_capture(_ctx: TracePointContext) -> Result<u32, u32> {
         let i_mode =
             bpf_probe_read::<umode_t>(&(*inode).i_mode as *const _).map_err(|e| e as u32)?;
 
-        aya_ebpf::memset(proc.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
         bpf_probe_read_kernel_str_bytes(d_name.name, &mut proc.filename).map_err(|e| e as u32)?;
-        aya_ebpf::memset(proc.args.as_mut_ptr(), 0, MAX_ARGS_SIZE);
 
         // Skip argv[0]
         let first_arg = bpf_probe_read_user_str_bytes(arg_start as *const u8, &mut proc.args)
@@ -100,17 +107,90 @@ fn try_capture(_ctx: TracePointContext) -> Result<u32, u32> {
             .map_err(|e| e as u32)?;
     }
 
-    PROC_MAP
-        .insert(&proc.pid, proc, BPF_ANY as u64)
-        .map_err(|e| e as u32)?;
     Ok(0)
 }
 
 #[kprobe]
 pub fn exit_capture(_ctx: ProbeContext) -> u32 {
-    let pid = bpf_get_current_pid_tgid() as u32;
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     PROC_MAP.remove(&pid).unwrap();
     0
+}
+
+#[kprobe]
+pub fn fork_capture(ctx: ProbeContext) -> u32 {
+    match try_wake_up_new_task(ctx) {
+        Ok(ret) => ret,
+        Err(ret) => ret,
+    }
+}
+
+fn try_wake_up_new_task(ctx: ProbeContext) -> Result<u32, u32> {
+    let task: *const task_struct = ctx.arg(0).ok_or(0u32)?;
+    let tgid = unsafe { bpf_probe_read(&(*task).tgid as *const pid_t).map_err(|_| 0u32)? as u32 };
+
+    let parent_proc = unsafe { execve_find_parent(task) };
+    let Some(parent_proc) = parent_proc else {
+        return Err(0);
+    };
+    let proc_ptr = unsafe { exec_map_get_init(tgid) };
+    let Some(proc_ptr) = proc_ptr else {
+        return Err(0);
+    };
+    let proc = unsafe { proc_ptr.as_mut() };
+
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+    if proc.ktime != 0 {
+        return Err(0);
+    }
+    proc.pid = tgid;
+    unsafe {
+        proc.ppid = (*parent_proc).pid;
+        proc.ktime = bpf_ktime_get_ns();
+        bpf_probe_read_kernel_str_bytes(&(*parent_proc).filename as *const _, &mut proc.filename)
+            .map_err(|e| e as u32)?;
+        bpf_probe_read_kernel_str_bytes(&(*parent_proc).args as *const _, &mut proc.args)
+            .map_err(|e| e as u32)?;
+    }
+    Ok(0)
+}
+#[inline(always)]
+unsafe fn execve_find_parent(task: *const task_struct) -> Option<*const ProcInfo> {
+    let mut parent = task;
+    for _i in 0..4 {
+        let Ok(task) = bpf_probe_read::<*mut task_struct>(&(*parent).real_parent as *const _)
+        else {
+            return None;
+        };
+        parent = task;
+        let Ok(pid) = bpf_probe_read(&(*parent).tgid as *const pid_t) else {
+            return None;
+        };
+        if let Some(proc_ptr) = PROC_MAP.get_ptr(&(pid as u32)) {
+            return Some(proc_ptr);
+        }
+    }
+    None
+}
+
+#[inline(always)]
+unsafe fn exec_map_get_init(pid: u32) -> Option<*mut ProcInfo> {
+    if let Some(proc_ptr) = PROC_MAP.get_ptr_mut(&pid) {
+        return Some(proc_ptr);
+    }
+
+    let proc_ptr = HEAP.get_ptr_mut(0)?;
+
+    let proc = unsafe { proc_ptr.as_mut() };
+
+    let proc = proc?;
+    aya_ebpf::memset(proc_ptr as *mut u8, 0, core::mem::size_of_val(proc));
+    if PROC_MAP.insert(&pid, proc, BPF_ANY as u64).is_err() {
+        return None;
+    }
+    PROC_MAP.get_ptr_mut(&pid)
 }
 
 #[panic_handler]

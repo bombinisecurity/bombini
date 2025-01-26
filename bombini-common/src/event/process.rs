@@ -8,10 +8,13 @@ pub const MAX_ARGS_SIZE: usize = 256;
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct ProcInfo {
+    pub ktime: u64,
     /// PID
     pub pid: u32,
     /// TID
     pub tid: u32,
+    /// Parent PID
+    pub ppid: u32,
     /// UID
     pub uid: u32,
     /// EUID

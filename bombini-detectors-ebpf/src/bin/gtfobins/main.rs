@@ -3,7 +3,8 @@
 
 use aya_ebpf::{
     helpers::{
-        bpf_get_current_task, bpf_probe_read, bpf_probe_read_buf, bpf_probe_read_kernel_str_bytes,
+        bpf_get_current_pid_tgid, bpf_probe_read, bpf_probe_read_buf,
+        bpf_probe_read_kernel_str_bytes,
     },
     macros::{lsm, map},
     maps::{
@@ -13,7 +14,7 @@ use aya_ebpf::{
     programs::LsmContext,
 };
 
-use bombini_detectors_ebpf::vmlinux::{file, linux_binprm, path, pid_t, qstr, task_struct};
+use bombini_detectors_ebpf::vmlinux::{file, linux_binprm, path, qstr};
 
 use bombini_common::config::gtfobins::GTFOBinsKey;
 use bombini_common::event::process::{ProcInfo, MAX_FILENAME_SIZE};
@@ -37,13 +38,12 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
         return Err(0);
     };
 
-    let parent_pid = unsafe {
-        let task = bpf_get_current_task() as *const task_struct;
-        let parent = bpf_probe_read::<*mut task_struct>(&(*task).real_parent as *const *mut _)
-            .map_err(|e| e as u32)?;
-        bpf_probe_read::<pid_t>(&(*parent).pid as *const _).map_err(|e| e as u32)? as u32
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
     };
-    let parent_proc = unsafe { PROC_MAP.get(&parent_pid) };
+    let parent_proc = unsafe { PROC_MAP.get(&proc.ppid) };
     let Some(parent_proc) = parent_proc else {
         return Err(0);
     };
