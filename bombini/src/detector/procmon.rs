@@ -39,6 +39,10 @@ impl Detector for ProcMon {
         exec.load()?;
         exec.attach("sched", "sched_process_exec")?;
 
+        let fork: &mut KProbe = self.ebpf.program_mut("fork_capture").unwrap().try_into()?;
+        fork.load()?;
+        fork.attach("wake_up_new_task", 0)?;
+
         let exit: &mut KProbe = self.ebpf.program_mut("exit_capture").unwrap().try_into()?;
         exit.load()?;
         exit.attach("acct_process", 0)?;
