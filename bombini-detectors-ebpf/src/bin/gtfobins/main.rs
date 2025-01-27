@@ -40,12 +40,8 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
     let Some(proc) = proc else {
         return Err(0);
     };
-    let parent_proc = unsafe { PROC_MAP.get(&proc.ppid) };
-    let Some(parent_proc) = parent_proc else {
-        return Err(0);
-    };
 
-    if parent_proc.euid == 0 || parent_proc.is_cap_set_uid {
+    if proc.euid == 0 || proc.is_cap_set_uid {
         // Check if sh is executing
         unsafe {
             let binprm: *const linux_binprm = ctx.arg(0);
@@ -71,20 +67,19 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
                 && event.process.filename[2] == b'h')
         {
             unsafe {
-                let _ =
-                    bpf_probe_read_buf(parent_proc.filename.as_ptr(), &mut event.process.filename);
+                let _ = bpf_probe_read_buf(proc.filename.as_ptr(), &mut event.process.filename);
             }
             // Check if GTFO binary
             let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
             if GTFOBINS.get(&lookup).is_some() {
-                event.process.pid = parent_proc.pid;
-                event.process.tid = parent_proc.tid;
-                event.process.uid = parent_proc.uid;
-                event.process.euid = parent_proc.euid;
-                event.process.is_suid = parent_proc.is_suid;
-                event.process.is_cap_set_uid = parent_proc.is_cap_set_uid;
+                event.process.pid = proc.pid;
+                event.process.tid = proc.tid;
+                event.process.uid = proc.uid;
+                event.process.euid = proc.euid;
+                event.process.is_suid = proc.is_suid;
+                event.process.is_cap_set_uid = proc.is_cap_set_uid;
                 unsafe {
-                    let _ = bpf_probe_read_buf(parent_proc.args.as_ptr(), &mut event.process.args);
+                    let _ = bpf_probe_read_buf(proc.args.as_ptr(), &mut event.process.args);
                 }
                 Ok(0)
             } else {

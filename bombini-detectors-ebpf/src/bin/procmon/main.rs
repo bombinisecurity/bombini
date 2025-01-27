@@ -5,7 +5,8 @@ use aya_ebpf::{
     bindings::BPF_ANY,
     helpers::{
         bpf_get_current_pid_tgid, bpf_get_current_task, bpf_ktime_get_ns, bpf_probe_read,
-        bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
+        bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf,
+        bpf_probe_read_user_str_bytes,
     },
     macros::{kprobe, map, tracepoint},
     maps::{hash_map::HashMap, per_cpu_array::PerCpuArray},
@@ -151,7 +152,7 @@ fn try_wake_up_new_task(ctx: ProbeContext) -> Result<u32, u32> {
         proc.ktime = bpf_ktime_get_ns();
         bpf_probe_read_kernel_str_bytes(&(*parent_proc).filename as *const _, &mut proc.filename)
             .map_err(|e| e as u32)?;
-        bpf_probe_read_kernel_str_bytes(&(*parent_proc).args as *const _, &mut proc.args)
+        bpf_probe_read_kernel_buf(&(*parent_proc).args as *const _, &mut proc.args)
             .map_err(|e| e as u32)?;
     }
     Ok(0)
