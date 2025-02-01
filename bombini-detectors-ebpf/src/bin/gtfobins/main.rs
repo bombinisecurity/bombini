@@ -34,7 +34,9 @@ pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
 }
 
 fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
-    let Event::GTFOBins(event) = event;
+    let Event::GTFOBins(event) = event else {
+        return Err(0);
+    };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROC_MAP.get(&pid) };
     let Some(proc) = proc else {

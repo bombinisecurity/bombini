@@ -4,8 +4,10 @@
 use bombini_common::event::Event;
 
 use gtfobins::GTFOBinsEvent;
+use histfile::HistFileEvent;
 
 mod gtfobins;
+mod histfile;
 
 /// Transmutes eBPF events from low representation into serialized formats
 pub struct Transmuter;
@@ -15,6 +17,7 @@ impl Transmuter {
     pub async fn transmute(&self, event: Event) -> Result<Vec<u8>, anyhow::Error> {
         match event {
             Event::GTFOBins(s) => Ok(GTFOBinsEvent::new(s).to_json()?.into_bytes()),
+            Event::HistFile(s) => Ok(HistFileEvent::new(s).to_json()?.into_bytes()),
         }
     }
 }

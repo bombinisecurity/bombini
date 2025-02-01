@@ -8,6 +8,8 @@ use std::path::PathBuf;
 
 use crate::config::CONFIG;
 use crate::detector::gtfobins::GTFOBinsDetector;
+use crate::detector::histfile::HistFileDetector;
+
 use crate::detector::procmon::ProcMon;
 use crate::detector::Detector;
 
@@ -37,6 +39,11 @@ impl Registry {
             match name {
                 "gtfobins" => {
                     let mut detector = GTFOBinsDetector::new(&obj_path, Some(&config_path)).await?;
+                    detector.load()?;
+                    self.detectors.insert(name.to_string(), Box::new(detector));
+                }
+                "histfile" => {
+                    let mut detector = HistFileDetector::new(&obj_path, None).await?;
                     detector.load()?;
                     self.detectors.insert(name.to_string(), Box::new(detector));
                 }

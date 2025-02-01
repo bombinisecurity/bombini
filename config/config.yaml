@@ -16,3 +16,4 @@ event_channel_size: 64
 detectors:
    - procmon
    - gtfobins
+   - histfile
