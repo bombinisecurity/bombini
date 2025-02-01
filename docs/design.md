@@ -40,10 +40,23 @@ load during start up.
 Registry stores loaded detectors. It can load/unload detectors and possibly
 interact with them (change config maps).
 
-## Examples of Detectors
+## List of the Detectors
 
 ## GTFObins
 
 GTFOBins detector tries to detect [GTFOBins](https://gtfobins.github.io/) execution.
 It checks if privileged binary is executed and returns the binary name with
 command line args as an event. List of GTFOBins is provided in YAML config.
+
+## HistFile
+
+HistFile detector's goal is to detect cases when user stops writing bash
+history to `~/.bash_history`. It can be done using this commands:
+
+```bash
+export HISTFILESIZE=0
+export HISTSIZE=0
+```
+
+Detector attaches to `/bin/bash` `readline` func with uretprobe and uses **lpm_trie**
+map to check for commands above.
