@@ -9,6 +9,7 @@ user = ["aya"]
 
 [dependencies]
 aya = { version = "0.13", optional = true }
+bitflags = { version = "2.8.0"}
 
 [lib]
 path = "src/lib.rs"

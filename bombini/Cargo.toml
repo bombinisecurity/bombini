@@ -10,6 +10,7 @@ aya-log = "0.2"
 bombini-common = { path = "../bombini-common", features = ["user"] }
 clap = { version = "4.5", features = ["derive"] }
 anyhow = "1"
+bitflags = { version = "2.8.0", features = ["serde"]}
 bytes = "1"
 env_logger = "0.10"
 lazy_static = "1.5"
