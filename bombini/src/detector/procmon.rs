@@ -1,7 +1,7 @@
 //! Detector for Process executions and exits
 
-use aya::programs::{KProbe, TracePoint};
-use aya::{Ebpf, EbpfError};
+use aya::programs::{BtfTracePoint, FEntry, Lsm};
+use aya::{Btf, Ebpf, EbpfError};
 
 use procfs::sys::kernel::Version;
 
@@ -15,7 +15,7 @@ pub struct ProcMon {
 
 impl Detector for ProcMon {
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 8, 0)
+        Version::new(5, 10, 0)
     }
 
     async fn new<U: AsRef<Path>>(
@@ -31,21 +31,26 @@ impl Detector for ProcMon {
     }
 
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
-        let exec: &mut TracePoint = self
+        let btf = Btf::from_sys_fs()?;
+        let exec: &mut BtfTracePoint = self
             .ebpf
             .program_mut("execve_capture")
             .unwrap()
             .try_into()?;
-        exec.load()?;
-        exec.attach("sched", "sched_process_exec")?;
+        exec.load("sched_process_exec", &btf)?;
+        exec.attach()?;
 
-        let fork: &mut KProbe = self.ebpf.program_mut("fork_capture").unwrap().try_into()?;
-        fork.load()?;
-        fork.attach("wake_up_new_task", 0)?;
+        let fork: &mut FEntry = self.ebpf.program_mut("fork_capture").unwrap().try_into()?;
+        fork.load("wake_up_new_task", &btf)?;
+        fork.attach()?;
 
-        let exit: &mut KProbe = self.ebpf.program_mut("exit_capture").unwrap().try_into()?;
-        exit.load()?;
-        exit.attach("acct_process", 0)?;
+        let exit: &mut FEntry = self.ebpf.program_mut("exit_capture").unwrap().try_into()?;
+        exit.load("acct_process", &btf)?;
+        exit.attach()?;
+
+        let program: &mut Lsm = self.ebpf.program_mut("creds_capture").unwrap().try_into()?;
+        program.load("bprm_committing_creds", &btf)?;
+        program.attach()?;
         Ok(())
     }
 }

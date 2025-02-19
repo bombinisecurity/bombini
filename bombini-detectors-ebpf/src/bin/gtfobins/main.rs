@@ -43,7 +43,7 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
         return Err(0);
     };
 
-    if proc.euid == 0 || proc.is_cap_set_uid {
+    if proc.creds.euid == 0 || (proc.creds.secureexec.bits()) != 0 {
         // Check if sh is executing
         unsafe {
             let binprm: *const linux_binprm = ctx.arg(0);
@@ -76,12 +76,16 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
             if GTFOBINS.get(&lookup).is_some() {
                 event.process.pid = proc.pid;
                 event.process.tid = proc.tid;
-                event.process.uid = proc.uid;
-                event.process.euid = proc.euid;
-                event.process.is_suid = proc.is_suid;
-                event.process.is_cap_set_uid = proc.is_cap_set_uid;
+                event.process.creds = proc.creds.clone();
+                event.process.auid = proc.auid;
                 unsafe {
                     let _ = bpf_probe_read_buf(proc.args.as_ptr(), &mut event.process.args);
+                }
+                unsafe {
+                    let _ = bpf_probe_read_buf(
+                        proc.binary_path.as_ptr(),
+                        &mut event.process.binary_path,
+                    );
                 }
                 Ok(0)
             } else {

@@ -8,6 +8,7 @@ use histfile::HistFileEvent;
 
 mod gtfobins;
 mod histfile;
+mod process;
 
 /// Transmutes eBPF events from low representation into serialized formats
 pub struct Transmuter;
