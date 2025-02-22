@@ -129,6 +129,8 @@ maps:
       value: 1
     - key: rsync
       value: 1
+    - key: ruby3.0
+      value: 1
     - key: run-parts
       value: 1
     - key: rview
