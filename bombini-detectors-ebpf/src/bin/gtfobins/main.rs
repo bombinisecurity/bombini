@@ -33,13 +33,15 @@ pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_GTFOBINS, try_detect, true) as i32
 }
 
+static MAX_PROC_DEPTH: u32 = 4;
+
 fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::GTFOBins(event) = event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROC_MAP.get(&pid) };
-    let Some(proc) = proc else {
+    let Some(mut proc) = proc else {
         return Err(0);
     };
 
@@ -69,28 +71,31 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
                 && event.process.filename[1] == b's'
                 && event.process.filename[2] == b'h')
         {
-            unsafe {
-                let _ = bpf_probe_read_buf(proc.filename.as_ptr(), &mut event.process.filename);
-            }
-            // Check if GTFO binary
-            let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
-            if GTFOBINS.get(&lookup).is_some() {
-                if expose {
-                    if proc.clonned {
-                        // Pass parent process in event
-                        let parent_proc = unsafe { PROC_MAP.get(&proc.ppid) };
-                        let Some(parent_proc) = parent_proc else {
-                            return Err(0);
-                        };
-                        util::copy_proc(parent_proc, &mut event.process);
-                    } else {
-                        util::copy_proc(proc, &mut event.process);
-                    }
+            for _ in 0..MAX_PROC_DEPTH {
+                unsafe {
+                    let _ = bpf_probe_read_buf(proc.filename.as_ptr(), &mut event.process.filename);
                 }
-                Ok(0)
-            } else {
-                Err(0)
+                let parent_proc = unsafe { PROC_MAP.get(&proc.ppid) };
+                let Some(parent_proc) = parent_proc else {
+                    return Err(0);
+                };
+                // Check if GTFO binary
+                let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
+                if GTFOBINS.get(&lookup).is_some() {
+                    if expose {
+                        if proc.clonned {
+                            // Pass parent process in event
+                            util::copy_proc(parent_proc, &mut event.process);
+                        } else {
+                            util::copy_proc(proc, &mut event.process);
+                        }
+                    }
+                    return Ok(0);
+                } else {
+                    proc = parent_proc;
+                }
             }
+            Err(0)
         } else {
             Err(0)
         }
