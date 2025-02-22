@@ -4,10 +4,14 @@ use bombini_common::event::histfile::HistFileMsg;
 
 use serde::Serialize;
 
+use super::process::Process;
+
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 pub struct HistFileEvent {
+    /// bash process Infro
+    process: Process,
     /// bash command
     pub command: String,
 }
@@ -21,7 +25,10 @@ impl HistFileEvent {
         } else {
             String::from_utf8_lossy(&event.command).to_string()
         };
-        Self { command }
+        Self {
+            process: Process::new(event.process),
+            command,
+        }
     }
 
     /// Get JSON reprsentation
