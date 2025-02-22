@@ -9,7 +9,7 @@ use aya_ebpf::{
         bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
     macros::{btf_tracepoint, fentry, lsm, map},
-    maps::{hash_map::HashMap, per_cpu_array::PerCpuArray},
+    maps::{array::Array, hash_map::HashMap, per_cpu_array::PerCpuArray},
     programs::{BtfTracePointContext, FEntryContext, LsmContext},
 };
 
@@ -18,7 +18,11 @@ use bombini_detectors_ebpf::vmlinux::{
     task_struct,
 };
 
+use bombini_common::config::procmon::Config;
 use bombini_common::event::process::{ProcInfo, SecureExec, MAX_ARGS_SIZE, MAX_FILE_PATH};
+use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT};
+
+use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 /// Extra info from bprm_committing_creds hook
 struct CredSharedInfo {
@@ -37,15 +41,10 @@ static CRED_SHARED_MAP: HashMap<u64, CredSharedInfo> = HashMap::pinned(1024, 0);
 static CRED_HEAP: PerCpuArray<CredSharedInfo> = PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-static HEAP: PerCpuArray<ProcInfo> = PerCpuArray::with_max_entries(1, 0);
+static PROC_HEAP: PerCpuArray<ProcInfo> = PerCpuArray::with_max_entries(1, 0);
 
-#[btf_tracepoint(function = "sched_process_exec")]
-pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
-    match try_capture(ctx) {
-        Ok(ret) => ret,
-        Err(ret) => ret,
-    }
-}
+#[map]
+static PROC_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
 
 #[inline(always)]
 unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32, u32> {
@@ -69,7 +68,22 @@ unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32
     Ok(0)
 }
 
-fn try_capture(_ctx: BtfTracePointContext) -> Result<u32, u32> {
+#[btf_tracepoint(function = "sched_process_exec")]
+pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
+    let Some(config_ptr) = PROC_CONFIG.get_ptr(0) else {
+        return 0;
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return 0;
+    };
+    event_capture!(ctx, MSG_PROCEXEC, try_execve, config.expose_events)
+}
+
+fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
+    let Event::ProcExec(event) = event else {
+        return Err(0);
+    };
     let task = unsafe { bpf_get_current_task() as *const task_struct };
     let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
@@ -83,11 +97,10 @@ fn try_capture(_ctx: BtfTracePointContext) -> Result<u32, u32> {
         return Err(0);
     };
     let parent_proc = unsafe { execve_find_parent(task) };
-    let Some(parent_proc) = parent_proc else {
-        return Err(0);
-    };
+    if let Some(parent_proc) = parent_proc {
+        proc.ppid = unsafe { (*parent_proc).pid };
+    }
 
-    proc.ppid = unsafe { (*parent_proc).pid };
     proc.ktime = unsafe { bpf_ktime_get_ns() };
 
     // We need to read real executable name and get arguments from stack.
@@ -146,17 +159,43 @@ fn try_capture(_ctx: BtfTracePointContext) -> Result<u32, u32> {
         CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
     }
 
+    // Copy process info to Rb
+    if expose {
+        util::copy_proc(proc, event);
+    }
+
     Ok(0)
 }
 
-#[fentry]
-pub fn exit_capture(_ctx: FEntryContext) -> u32 {
-    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    PROC_MAP.remove(&pid).unwrap();
-    0
+#[fentry(function = "acct_process")]
+pub fn exit_capture(ctx: FEntryContext) -> u32 {
+    let Some(config_ptr) = PROC_CONFIG.get_ptr(0) else {
+        return 0;
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return 0;
+    };
+    event_capture!(ctx, MSG_PROCEXIT, try_exit, config.expose_events)
 }
 
-#[lsm]
+fn try_exit(_ctx: FEntryContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
+    let Event::ProcExit(event) = event else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if expose {
+        let proc = unsafe { PROC_MAP.get(&pid) };
+        let Some(proc) = proc else {
+            return Err(0);
+        };
+        util::copy_proc(proc, event);
+    }
+    PROC_MAP.remove(&pid).unwrap();
+    Ok(0)
+}
+
+#[lsm(hook = "bprm_committing_creds")]
 pub fn creds_capture(ctx: LsmContext) -> i32 {
     match try_committing_creds(ctx) {
         Ok(ret) => ret,
@@ -210,7 +249,7 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
     Ok(0)
 }
 
-#[fentry]
+#[fentry(function = "wake_up_new_task")]
 pub fn fork_capture(ctx: FEntryContext) -> u32 {
     match try_wake_up_new_task(ctx) {
         Ok(ret) => ret,
@@ -281,7 +320,7 @@ unsafe fn exec_map_get_init(pid: u32) -> Option<*mut ProcInfo> {
         return Some(proc_ptr);
     }
 
-    let proc_ptr = HEAP.get_ptr_mut(0)?;
+    let proc_ptr = PROC_HEAP.get_ptr_mut(0)?;
 
     let proc = unsafe { proc_ptr.as_mut() };
 

@@ -40,16 +40,22 @@ pub fn rb_event_init(msg_code: u8) -> Result<RingBufEntry<Event>, u32> {
 /// * `msg_code` - event message type
 ///
 /// * `handler` - function name to handle and fill the event
+///
+/// * `expose` - true if events are aimed to expose
 #[macro_export]
 macro_rules! event_capture {
-    ($ctx:expr, $msg_code:expr, $handler:expr) => {{
+    ($ctx:expr, $msg_code:expr, $handler:expr, $expose:expr) => {{
         let Ok(mut event_rb) = rb_event_init($msg_code) else {
             return 0;
         };
         let event_ref = unsafe { &mut *event_rb.as_mut_ptr() };
-        match $handler($ctx, event_ref) {
+        match $handler($ctx, event_ref, $expose) {
             Ok(ret) => {
-                event_rb.submit(0);
+                if $expose {
+                    event_rb.submit(0);
+                } else {
+                    event_rb.discard(0);
+                }
                 ret
             }
             Err(ret) => {

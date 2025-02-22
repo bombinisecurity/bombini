@@ -20,7 +20,7 @@ use bombini_common::config::gtfobins::GTFOBinsKey;
 use bombini_common::event::process::{ProcInfo, MAX_FILENAME_SIZE};
 use bombini_common::event::{Event, MSG_GTFOBINS};
 
-use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init};
+use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 #[map]
 static GTFOBINS: LpmTrie<GTFOBinsKey, u32> = LpmTrie::with_max_entries(128, 0);
@@ -30,10 +30,10 @@ static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
 
 #[lsm]
 pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_GTFOBINS, try_detect) as i32
+    event_capture!(ctx, MSG_GTFOBINS, try_detect, true) as i32
 }
 
-fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
+fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::GTFOBins(event) = event else {
         return Err(0);
     };
@@ -74,18 +74,9 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<u32, u32> {
             // Check if GTFO binary
             let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
             if GTFOBINS.get(&lookup).is_some() {
-                event.process.pid = proc.pid;
-                event.process.tid = proc.tid;
-                event.process.creds = proc.creds.clone();
-                event.process.auid = proc.auid;
-                unsafe {
-                    let _ = bpf_probe_read_buf(proc.args.as_ptr(), &mut event.process.args);
-                }
-                unsafe {
-                    let _ = bpf_probe_read_buf(
-                        proc.binary_path.as_ptr(),
-                        &mut event.process.binary_path,
-                    );
+                // Copy process info to Rb
+                if expose {
+                    util::copy_proc(proc, &mut event.process);
                 }
                 Ok(0)
             } else {

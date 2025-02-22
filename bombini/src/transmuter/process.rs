@@ -5,10 +5,23 @@ use bombini_common::event::process::ProcInfo;
 use bitflags::bitflags;
 use serde::Serialize;
 
-/// High-level event representation
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
-pub struct ProcessEvent {
+pub struct ProcessExec {
+    /// Process Infro
+    process: Process,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub struct ProcessExit {
+    /// Process Infro
+    process: Process,
+}
+
+/// High-level event representation
+#[derive(Clone, Debug, Serialize)]
+pub struct Process {
     /// PID
     pub pid: u32,
     /// TID
@@ -43,9 +56,9 @@ bitflags! {
     }
 }
 
-impl ProcessEvent {
+impl Process {
     /// Constructs High level event representation from low eBPF
-    pub fn new(proc: &mut ProcInfo) -> Self {
+    pub fn new(mut proc: ProcInfo) -> Self {
         let filename = if *proc.filename.last().unwrap() == 0x0 {
             let zero = proc.filename.iter().position(|e| *e == 0x0).unwrap();
             String::from_utf8_lossy(&proc.filename[..zero]).to_string()
@@ -81,5 +94,33 @@ impl ProcessEvent {
             binary_path,
             args,
         }
+    }
+}
+
+impl ProcessExec {
+    /// Constructs High level event representation from low eBPF
+    pub fn new(event: ProcInfo) -> Self {
+        Self {
+            process: Process::new(event),
+        }
+    }
+
+    /// Get JSON reprsentation
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(&self)
+    }
+}
+
+impl ProcessExit {
+    /// Constructs High level event representation from low eBPF
+    pub fn new(event: ProcInfo) -> Self {
+        Self {
+            process: Process::new(event),
+        }
+    }
+
+    /// Get JSON reprsentation
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(&self)
     }
 }

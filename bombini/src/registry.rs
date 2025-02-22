@@ -48,7 +48,7 @@ impl Registry {
                     self.detectors.insert(name.to_string(), Box::new(detector));
                 }
                 "procmon" => {
-                    let mut procmon = ProcMon::new(&obj_path, None).await?;
+                    let mut procmon = ProcMon::new(&obj_path, Some(&config_path)).await?;
                     procmon.load()?;
                     self.detectors.insert(name.to_string(), Box::new(procmon));
                 }

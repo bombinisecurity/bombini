@@ -2,6 +2,7 @@
 #![no_main]
 
 pub mod event_map;
+pub mod util;
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
