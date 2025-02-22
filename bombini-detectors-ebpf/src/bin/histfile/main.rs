@@ -17,10 +17,10 @@ static HIST_CHECK_MAP: LpmTrie<[u8; MAX_BASH_COMMAND_SIZE], u32> = LpmTrie::with
 
 #[uretprobe]
 pub fn histfile_detect(ctx: RetProbeContext) -> i32 {
-    event_capture!(ctx, MSG_HISTFILE, try_detect) as i32
+    event_capture!(ctx, MSG_HISTFILE, try_detect, true) as i32
 }
 
-fn try_detect(ctx: RetProbeContext, event: &mut Event) -> Result<u32, u32> {
+fn try_detect(ctx: RetProbeContext, event: &mut Event, _expose: bool) -> Result<u32, u32> {
     let Event::HistFile(event) = event else {
         return Err(0);
     };

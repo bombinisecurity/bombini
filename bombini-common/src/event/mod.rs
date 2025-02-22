@@ -12,6 +12,8 @@ pub mod histfile;
 #[repr(C, u8)]
 pub enum Event {
     /// 0 - 31 reserved for common events
+    ProcExec(process::ProcInfo) = 0,
+    ProcExit(process::ProcInfo) = 1,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
@@ -20,6 +22,10 @@ pub enum Event {
 
 // Event message codes
 
+/// ProcExec message code
+pub const MSG_PROCEXEC: u8 = 0;
+/// ProcExit message code
+pub const MSG_PROCEXIT: u8 = 1;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code
