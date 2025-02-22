@@ -9,7 +9,7 @@ use aya_ebpf::{
         bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
     macros::{btf_tracepoint, fentry, lsm, map},
-    maps::{array::Array, hash_map::HashMap, per_cpu_array::PerCpuArray},
+    maps::{array::Array, hash_map::HashMap, hash_map::LruHashMap, per_cpu_array::PerCpuArray},
     programs::{BtfTracePointContext, FEntryContext, LsmContext},
 };
 
@@ -31,11 +31,13 @@ struct CredSharedInfo {
     pub binary_path: [u8; MAX_FILE_PATH],
 }
 
+/// Holds current live processes
 #[map]
-static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
+static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(8192, 0);
 
+/// Holds process information gathered on bprm_commiting_creds
 #[map]
-static CRED_SHARED_MAP: HashMap<u64, CredSharedInfo> = HashMap::pinned(1024, 0);
+static CRED_SHARED_MAP: LruHashMap<u64, CredSharedInfo> = LruHashMap::pinned(8192, 0);
 
 #[map]
 static CRED_HEAP: PerCpuArray<CredSharedInfo> = PerCpuArray::with_max_entries(1, 0);
@@ -66,6 +68,11 @@ unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32
     proc.creds.cap_permitted = cap_p.val;
 
     Ok(0)
+}
+
+#[inline(always)]
+fn is_cap_gained(new: u64, old: u64) -> bool {
+    (new & !old) == 0
 }
 
 #[btf_tracepoint(function = "sched_process_exec")]
@@ -218,26 +225,42 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
         aya_ebpf::memset(cred_ptr as *mut u8, 0, core::mem::size_of_val(creds_info));
         let binprm: *const linux_binprm = ctx.arg(0);
 
-        // Get cred
-        let cred = (*binprm).cred;
-        let euid = bpf_probe_read::<kuid_t>(&(*cred).euid as *const _)
-            .map_err(|e| e as i32)?
-            .val;
-        let uid = bpf_probe_read::<kuid_t>(&(*cred).uid as *const _)
-            .map_err(|e| e as i32)?
-            .val;
-        let egid = bpf_probe_read::<kgid_t>(&(*cred).egid as *const _)
-            .map_err(|e| e as i32)?
-            .val;
-        let gid = bpf_probe_read::<kgid_t>(&(*cred).gid as *const _)
-            .map_err(|e| e as i32)?
-            .val;
-        if euid != uid {
-            creds_info.secureexec |= SecureExec::SETUID;
+        // if per_clear is zero, it's not a privileged execution
+        if (*binprm).per_clear != 0 {
+            // Get cred
+            let cred = (*binprm).cred;
+            let euid = bpf_probe_read::<kuid_t>(&(*cred).euid as *const _)
+                .map_err(|e| e as i32)?
+                .val;
+            let uid = bpf_probe_read::<kuid_t>(&(*cred).uid as *const _)
+                .map_err(|e| e as i32)?
+                .val;
+            let egid = bpf_probe_read::<kgid_t>(&(*cred).egid as *const _)
+                .map_err(|e| e as i32)?
+                .val;
+            let gid = bpf_probe_read::<kgid_t>(&(*cred).gid as *const _)
+                .map_err(|e| e as i32)?
+                .val;
+            if euid != uid {
+                creds_info.secureexec |= SecureExec::SETUID;
+            }
+            if egid != gid {
+                creds_info.secureexec |= SecureExec::SETGID;
+            }
+            let new_cap_p = bpf_probe_read::<kernel_cap_t>(&(*cred).cap_permitted as *const _)
+                .map_err(|e| e as i32)?;
+            let task = bpf_get_current_task() as *const task_struct;
+            let task_cred = bpf_probe_read::<*const cred>(&(*task).cred as *const *const _)
+                .map_err(|e| e as i32)?;
+            let old_cap_p = bpf_probe_read::<kernel_cap_t>(&(*task_cred).cap_permitted as *const _)
+                .map_err(|e| e as i32)?;
+
+            if is_cap_gained(new_cap_p.val, old_cap_p.val) && euid == uid {
+                creds_info.secureexec |= SecureExec::FILE_CAPS;
+            }
         }
-        if egid != gid {
-            creds_info.secureexec |= SecureExec::SETGID;
-        }
+
+        // Read full binary path here, because bpf_d_path can be used with only LSM/Fentry programs.
         let file: *mut file = (*binprm).file;
         let _ = bpf_d_path(
             &(*file).f_path as *const _ as *mut aya_ebpf::bindings::path,
