@@ -4,9 +4,9 @@ use bitflags::bitflags;
 
 pub const MAX_FILENAME_SIZE: usize = 32;
 
-pub const MAX_ARGS_SIZE: usize = 256;
+pub const MAX_ARGS_SIZE: usize = 1024;
 
-pub const MAX_FILE_PATH: usize = 256;
+pub const MAX_FILE_PATH: usize = 512;
 
 /// Process event
 #[derive(Clone, Debug)]
@@ -23,6 +23,8 @@ pub struct ProcInfo {
     pub creds: Cred,
     /// login UID
     pub auid: u32,
+    /// if this event from clone
+    pub clonned: bool,
     /// executable name
     pub filename: [u8; MAX_FILENAME_SIZE],
     /// full binary path
