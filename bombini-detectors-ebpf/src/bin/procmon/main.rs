@@ -72,7 +72,7 @@ unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32
 
 #[inline(always)]
 fn is_cap_gained(new: u64, old: u64) -> bool {
-    (new & !old) == 0
+    (new & !old) != 0
 }
 
 #[btf_tracepoint(function = "sched_process_exec")]
