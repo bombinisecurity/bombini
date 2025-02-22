@@ -1,9 +1,0 @@
-# Parameters for simple detector
----
-# Maps section. Parameters for config maps initialization
-maps:
-  # Map nane
-  simple_uid_filter:
-    # Map entries
-    - key: 0
-      value: 0
