@@ -150,6 +150,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
     };
     let arg_size = (arg_end - arg_start) & (MAX_ARGS_SIZE - 1) as u64;
     unsafe {
+        aya_ebpf::memset(proc.args.as_mut_ptr(), 0, proc.args.len());
         bpf_probe_read_user_buf(arg_start as *const u8, &mut proc.args[..arg_size as usize])
             .map_err(|e| e as u32)?;
     }
@@ -166,6 +167,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
         CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
     }
 
+    proc.clonned = false;
     // Copy process info to Rb
     if expose {
         util::copy_proc(proc, event);
@@ -316,6 +318,7 @@ fn try_wake_up_new_task(ctx: FEntryContext) -> Result<u32, u32> {
             .map_err(|e| e as u32)?;
         get_creds(proc, task)?;
     }
+    proc.clonned = true;
     Ok(0)
 }
 #[inline(always)]

@@ -43,7 +43,8 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
         return Err(0);
     };
 
-    if proc.creds.euid == 0 || (proc.creds.secureexec.bits()) != 0 {
+    // Check if process is privileged
+    if proc.creds.euid == 0 {
         // Check if sh is executing
         unsafe {
             let binprm: *const linux_binprm = ctx.arg(0);
@@ -74,9 +75,17 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
             // Check if GTFO binary
             let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
             if GTFOBINS.get(&lookup).is_some() {
-                // Copy process info to Rb
                 if expose {
-                    util::copy_proc(proc, &mut event.process);
+                    if proc.clonned {
+                        // Pass parent process in event
+                        let parent_proc = unsafe { PROC_MAP.get(&proc.ppid) };
+                        let Some(parent_proc) = parent_proc else {
+                            return Err(0);
+                        };
+                        util::copy_proc(parent_proc, &mut event.process);
+                    } else {
+                        util::copy_proc(proc, &mut event.process);
+                    }
                 }
                 Ok(0)
             } else {
