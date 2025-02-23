@@ -5,6 +5,7 @@ use bombini_common::event::histfile::HistFileMsg;
 use serde::Serialize;
 
 use super::process::Process;
+use super::Transmute;
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
@@ -17,7 +18,7 @@ pub struct HistFileEvent {
 }
 
 impl HistFileEvent {
-    /// Constructs High level event representation from low eBPF
+    /// Constructs High level event representation from low eBPF message
     pub fn new(event: HistFileMsg) -> Self {
         let command = if *event.command.last().unwrap() == 0x0 {
             let zero = event.command.iter().position(|e| *e == 0x0).unwrap();
@@ -30,9 +31,6 @@ impl HistFileEvent {
             command,
         }
     }
-
-    /// Get JSON reprsentation
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&self)
-    }
 }
+
+impl Transmute for HistFileEvent {}

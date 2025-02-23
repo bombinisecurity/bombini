@@ -5,6 +5,8 @@ use bombini_common::event::process::ProcInfo;
 use bitflags::bitflags;
 use serde::Serialize;
 
+use super::Transmute;
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 pub struct ProcessExec {
@@ -98,29 +100,23 @@ impl Process {
 }
 
 impl ProcessExec {
-    /// Constructs High level event representation from low eBPF
+    /// Constructs High level event representation from low eBPF message
     pub fn new(event: ProcInfo) -> Self {
         Self {
             process: Process::new(event),
         }
     }
-
-    /// Get JSON reprsentation
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&self)
-    }
 }
+
+impl Transmute for ProcessExec {}
 
 impl ProcessExit {
-    /// Constructs High level event representation from low eBPF
+    /// Constructs High level event representation from low eBPF message
     pub fn new(event: ProcInfo) -> Self {
         Self {
             process: Process::new(event),
         }
     }
-
-    /// Get JSON reprsentation
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&self)
-    }
 }
+
+impl Transmute for ProcessExit {}
