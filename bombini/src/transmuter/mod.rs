@@ -7,6 +7,7 @@ use gtfobins::GTFOBinsEvent;
 use histfile::HistFileEvent;
 use process::ProcessExec;
 use process::ProcessExit;
+use serde::Serialize;
 
 mod gtfobins;
 mod histfile;
@@ -24,5 +25,15 @@ impl Transmuter {
             Event::GTFOBins(s) => Ok(GTFOBinsEvent::new(s).to_json()?.into_bytes()),
             Event::HistFile(s) => Ok(HistFileEvent::new(s).to_json()?.into_bytes()),
         }
+    }
+}
+
+trait Transmute {
+    /// Get JSON reprsentation
+    fn to_json(&self) -> Result<String, serde_json::Error>
+    where
+        Self: Serialize,
+    {
+        serde_json::to_string(&self)
     }
 }
