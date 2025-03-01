@@ -1,4 +1,5 @@
 use log::info;
+use scopeguard::defer;
 use tokio::signal;
 
 mod config;
@@ -27,6 +28,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let config = CONFIG.read().await;
 
     let _ = std::fs::create_dir(config.maps_pin_path.as_ref().unwrap());
+    defer! {
+        let _ = std::fs::remove_dir_all(config.maps_pin_path.as_ref().unwrap());
+    }
 
     let mut registry = Registry::new();
     registry.load_detecors().await?;
@@ -37,7 +41,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;
-    let _ = std::fs::remove_dir_all(config.maps_pin_path.as_ref().unwrap());
     info!("Exiting...");
 
     Ok(())
