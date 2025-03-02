@@ -105,7 +105,7 @@ fn test_procmon_file() {
             bpf_objs.to_str().unwrap(),
             "--event-log",
             event_log.to_str().unwrap(),
-            "--detectors",
+            "--detector",
             "procmon",
         ])
         .env("RUST_LOG", "debug")

@@ -32,8 +32,9 @@ pub struct Config {
     #[arg(long, value_name = "VALUE")]
     pub event_channel_size: Option<usize>,
 
-    /// List of detectors to load
-    #[arg(long, value_name = "NAMES")]
+    /// Detector to load. Can be specified multiple times.
+    /// Overrides the config.
+    #[arg(short = 'D', long = "detector", value_name = "NAME")]
     pub detectors: Option<Vec<String>>,
 
     /// YAML config dir with global config and detector configs
