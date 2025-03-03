@@ -30,6 +30,7 @@ jobs:
       - name: Test Bombini
         run: |
           sudo -E echo "run cargo test: " `uname -a`
+          sudo -E echo "test lsm: " `cat /sys/kernel/security/lsm `
           cargo xtask test
       - name: Upload Bombini logs
         if: failure()
