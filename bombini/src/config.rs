@@ -86,11 +86,25 @@ impl Config {
         let doc = &docs[0];
 
         if let Some(v) = doc["bpf_objs"].as_str() {
-            self.bpf_objs = Some(v.to_string())
+            let mut abs_bpf_objs = PathBuf::from(&self.config_dir).canonicalize()?;
+            let bpf_objs = PathBuf::from(v.to_string());
+            if bpf_objs.is_absolute() {
+                self.bpf_objs = Some(bpf_objs.to_str().unwrap().to_string());
+            } else {
+                abs_bpf_objs.push(bpf_objs);
+                self.bpf_objs = Some(abs_bpf_objs.to_str().unwrap().to_string());
+            }
         }
 
         if let Some(v) = doc["maps_pin_path"].as_str() {
-            self.maps_pin_path = Some(v.to_string());
+            let mut abs_pin_path = PathBuf::from(&self.config_dir).canonicalize()?;
+            let pin_path = PathBuf::from(v.to_string());
+            if pin_path.is_absolute() {
+                self.maps_pin_path = Some(pin_path.to_str().unwrap().to_string());
+            } else {
+                abs_pin_path.push(pin_path);
+                self.maps_pin_path = Some(abs_pin_path.to_str().unwrap().to_string());
+            }
         }
 
         if let Some(v) = doc["event_map_size"].as_i64() {

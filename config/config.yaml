@@ -1,7 +1,9 @@
-# Global parameters for bombini agent
+# Global parameters for bombini agent.
+# All paths must be full canonical or
+# relative to this config file.
 ---
 # Directory with bpf detector object files
-bpf_objs: ./target/bpfel-unknown-none/debug
+bpf_objs: ../target/bpfel-unknown-none/debug
 
 # Path to pin bpf maps.
 maps_pin_path: /sys/fs/bpf/bombini
