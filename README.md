@@ -22,7 +22,7 @@ cargo xtask build
 You can try bombini agent this way:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --config-dir ./config --stdout
+RUST_LOG=debug cargo xtask run -- --bpf-objs ./target/bpfel-unknown-none/debug --config-dir ./config --stdout
 ```
 
 Also you can use file as output or unix socket combining with
@@ -39,7 +39,7 @@ vector --config ./vector/vector-file.yaml
 Start bombini with events redirecting to file:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --config-dir ./config --event-log ./bombini.log
+RUST_LOG=debug cargo xtask run -- --bpf-objs ./target/bpfel-unknown-none/debug --config-dir ./config --event-log ./bombini.log
 ```
 
 ### Unix socket
@@ -53,5 +53,5 @@ vector --config ./vector/vector-sock.yaml
 Start bombini with events redirecting to unix socket:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --config-dir ./config --event-socket /tmp/bombini.sock
+RUST_LOG=debug cargo xtask run -- --bpf-objs ./target/bpfel-unknown-none/debug --config-dir ./config --event-socket /tmp/bombini.sock
 ```
