@@ -25,7 +25,7 @@ impl Registry {
         }
     }
 
-    pub async fn load_detecors(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn load_detectors(&mut self) -> Result<(), anyhow::Error> {
         let config = CONFIG.read().await;
         let Some(ref names) = config.detectors else {
             return Ok(());

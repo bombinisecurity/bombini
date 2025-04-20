@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     let mut registry = Registry::new();
-    registry.load_detecors().await?;
+    registry.load_detectors().await?;
 
     let event_pin_path = config.event_pin_path();
     let monitor = Monitor::new(event_pin_path.as_path(), config.event_channel_size.unwrap());
