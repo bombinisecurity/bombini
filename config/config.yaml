@@ -3,7 +3,7 @@
 # relative to this config file.
 ---
 # Directory with bpf detector object files
-bpf_objs: ../target/bpfel-unknown-none/debug
+bpf_objs: /usr/local/lib/bombini/bpf
 
 # Path to pin bpf maps.
 maps_pin_path: /sys/fs/bpf/bombini

@@ -1,0 +1,21 @@
+[Unit]
+Description=Bombini is an eBPF-based agent for (mostly) security monitoring
+DefaultDependencies=no
+After=network.target local-fs.target
+Documentation=https://github.com/anfedotoff/bombini
+
+# Burst times withing the interval
+StartLimitBurst=10
+# The interval where starting the service again is not allowed anymore.
+StartLimitIntervalSec=2min
+
+[Service]
+Environment="PATH=/usr/local/lib/bombini/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+User=root
+Group=root
+ExecStart=/usr/local/bin/bombini --config-dir /usr/local/lib/bombini/config --event-log /var/log/bombini/bombini.log
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 mod build;
 mod build_ebpf;
 mod run;
+mod tarball;
 mod test;
 
 use std::process::exit;
@@ -19,6 +20,7 @@ enum Command {
     Build(build::Options),
     Run(run::Options),
     Test(test::Options),
+    Tarball(tarball::Options),
 }
 
 fn main() {
@@ -30,6 +32,7 @@ fn main() {
         Run(opts) => run::run(opts),
         Build(opts) => build::build(opts),
         Test(opts) => test::test(opts),
+        Tarball(opts) => tarball::tarball(opts),
     };
 
     if let Err(e) = ret {
