@@ -126,7 +126,8 @@ impl Config {
 
         // Redefine config from file if command args are set
         if let Some(v) = args.bpf_objs.as_deref() {
-            self.bpf_objs = Some(v.to_string());
+            let path = PathBuf::from(v.to_string()).canonicalize()?;
+            self.bpf_objs = Some(path.to_str().unwrap().to_string());
         }
         if let Some(v) = args.maps_pin_path.as_deref() {
             self.maps_pin_path = Some(v.to_string());
