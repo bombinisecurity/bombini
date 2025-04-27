@@ -8,4 +8,5 @@ pub mod util;
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
 #[allow(clippy::all)]
+#[allow(unused_unsafe)]
 pub mod vmlinux;
