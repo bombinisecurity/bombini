@@ -45,11 +45,10 @@ impl Detector for GTFOBinsDetector {
             let doc = &docs[0];
 
             // TODO: safe parsing
-            if let Some(entries) = doc["maps"]["gtfobins"].as_vec() {
+            if let Some(entries) = doc["gtfobins"].as_vec() {
                 for entry in entries {
-                    let v = entry["value"].as_i64().unwrap() as u32;
                     let mut k: GTFOBinsKey = [0; MAX_FILENAME_SIZE];
-                    let k_str = entry["key"].as_str().unwrap().as_bytes();
+                    let k_str = entry.as_str().unwrap().as_bytes();
                     let len = k_str.len();
                     if len < MAX_FILENAME_SIZE {
                         k[..len].clone_from_slice(k_str);
@@ -57,7 +56,7 @@ impl Detector for GTFOBinsDetector {
                         k.clone_from_slice(&k_str[..MAX_FILENAME_SIZE]);
                     }
 
-                    config.gtfobins_entries.push((k, v));
+                    config.gtfobins_entries.push((k, 1));
                 }
             }
             Ok(GTFOBinsDetector {
