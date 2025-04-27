@@ -1,7 +1,6 @@
 use std::{env, fs};
 
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::{thread, time::Duration};
@@ -9,7 +8,7 @@ use std::{thread, time::Duration};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 
-use tempfile::{tempfile, Builder};
+use tempfile::Builder;
 
 static EXE_BOMBINI: &str = env!("CARGO_BIN_EXE_bombini");
 static PROJECT_DIR: &str = env!("CARGO_MANIFEST_DIR");
@@ -27,7 +26,16 @@ fn test_detectors_load() {
         bpf_objs.push("debug");
     }
 
-    let mut bombini_log = tempfile().expect("Unable to create temp log file");
+    let temp_dir = Builder::new()
+        .prefix("bombini-test-")
+        .rand_bytes(5)
+        .keep(true)
+        .tempdir()
+        .expect("can't create temp dir");
+    let bomini_temp_dir = temp_dir.path();
+
+    let bombini_log =
+        File::create(bomini_temp_dir.join("bombini.log")).expect("can't create log file");
 
     let bombini = Command::new(EXE_BOMBINI)
         .args([
@@ -44,17 +52,14 @@ fn test_detectors_load() {
         panic!("{:?}", bombini.err().unwrap());
     }
     let mut bombini = bombini.expect("failed to start bombini");
-    let mut log = String::new();
     // Wait for detectors being loaded
     thread::sleep(Duration::from_millis(1500));
 
     let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
 
-    bombini_log.seek(SeekFrom::Start(0)).unwrap();
-
     let _ = bombini.wait().unwrap();
 
-    bombini_log.read_to_string(&mut log).unwrap();
+    let log = fs::read_to_string(bomini_temp_dir.join("bombini.log")).expect("can't read events");
 
     // Check loaded detectors
     assert!(log.contains("gtfobins is loaded"));
