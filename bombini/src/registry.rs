@@ -55,7 +55,7 @@ impl Registry {
                 _ => return Err(anyhow!("{} unknown detector", name)),
             };
 
-            debug!("Detector {} is loaded", name);
+            debug!("Detector {name} is loaded");
             obj_path.pop();
             config_path.pop();
         }
