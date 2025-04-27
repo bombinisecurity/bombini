@@ -52,11 +52,11 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
             let binprm: *const linux_binprm = ctx.arg(0);
             aya_ebpf::memset(event.process.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
             let file: *mut file = (*binprm).file;
-            let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|e| e as u32)?;
-            let d_name = bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _)
-                .map_err(|e| e as u32)?;
+            let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|_| 0_u32)?;
+            let d_name =
+                bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _).map_err(|_| 0_u32)?;
             bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.process.filename)
-                .map_err(|e| e as u32)?;
+                .map_err(|_| 0_u32)?;
         }
         if (event.process.filename[0] == b's' && event.process.filename[1] == b'h')
             || (event.process.filename[0] == b'b'
@@ -95,13 +95,9 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
                     proc = parent_proc;
                 }
             }
-            Err(0)
-        } else {
-            Err(0)
         }
-    } else {
-        Err(0)
     }
+    Err(0)
 }
 
 #[panic_handler]
