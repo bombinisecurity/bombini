@@ -60,3 +60,12 @@ export HISTSIZE=0
 
 Detector attaches to `/bin/bash` `readline` func with uretprobe and uses **lpm_trie**
 map to check for commands above.
+
+## IOUring
+
+IOUring detector tracks SQE submitting using `io_uring_submit_req` tracepoint.
+It provides events with the following information:
+    - io_uring_op opcode
+    - process information
+
+Inspired by this [example](https://github.com/armosec/curing) and [post](https://www.armosec.io/blog/io_uring-rootkit-bypasses-linux-security/).

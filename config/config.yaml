@@ -19,3 +19,4 @@ detectors:
    - procmon
    - gtfobins
    - histfile
+   - io_uring

@@ -5,6 +5,7 @@ pub mod process;
 /// Event messages
 pub mod gtfobins;
 pub mod histfile;
+pub mod io_uring;
 
 /// Generic event for ring buffer
 #[allow(clippy::large_enum_variant)]
@@ -18,6 +19,8 @@ pub enum Event {
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
     HistFile(histfile::HistFileMsg) = 33,
+    /// IOUring submit request event type
+    IOUring(io_uring::IOUringMsg) = 34,
 }
 
 // Event message codes
@@ -30,3 +33,5 @@ pub const MSG_PROCEXIT: u8 = 1;
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code
 pub const MSG_HISTFILE: u8 = 33;
+/// IOUring submit request message code
+pub const MSG_IOURING: u8 = 34;

@@ -5,12 +5,14 @@ use bombini_common::event::Event;
 
 use gtfobins::GTFOBinsEvent;
 use histfile::HistFileEvent;
+use io_uring::IOUringEvent;
 use process::ProcessExec;
 use process::ProcessExit;
 use serde::Serialize;
 
 mod gtfobins;
 mod histfile;
+mod io_uring;
 mod process;
 
 /// Transmutes eBPF events from low representation into serialized formats
@@ -24,6 +26,7 @@ impl Transmuter {
             Event::ProcExit(s) => Ok(ProcessExit::new(s).to_json()?.into_bytes()),
             Event::GTFOBins(s) => Ok(GTFOBinsEvent::new(s).to_json()?.into_bytes()),
             Event::HistFile(s) => Ok(HistFileEvent::new(s).to_json()?.into_bytes()),
+            Event::IOUring(s) => Ok(IOUringEvent::new(s).to_json()?.into_bytes()),
         }
     }
 }
