@@ -206,10 +206,8 @@ fn try_exit(_ctx: FEntryContext, event: &mut Event, expose: bool) -> Result<u32,
 
 #[lsm(hook = "bprm_committing_creds")]
 pub fn creds_capture(ctx: LsmContext) -> i32 {
-    match try_committing_creds(ctx) {
-        Ok(ret) => ret,
-        Err(ret) => ret,
-    }
+    let _ = try_committing_creds(ctx);
+    0
 }
 
 fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
