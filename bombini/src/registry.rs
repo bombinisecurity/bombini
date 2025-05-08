@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use crate::config::CONFIG;
 use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::histfile::HistFileDetector;
+use crate::detector::io_uring::IOUringDetector;
 
 use crate::detector::procmon::ProcMon;
 use crate::detector::Detector;
@@ -44,6 +45,11 @@ impl Registry {
                 }
                 "histfile" => {
                     let mut detector = HistFileDetector::new(&obj_path, None).await?;
+                    detector.load()?;
+                    self.detectors.insert(name.to_string(), Box::new(detector));
+                }
+                "io_uring" => {
+                    let mut detector = IOUringDetector::new(&obj_path, None).await?;
                     detector.load()?;
                     self.detectors.insert(name.to_string(), Box::new(detector));
                 }
