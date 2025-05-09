@@ -26,7 +26,7 @@ struct GTFOBinsConfig {
 
 impl Detector for GTFOBinsDetector {
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 10, 0)
+        Version::new(5, 11, 0)
     }
 
     async fn new<U: AsRef<Path>>(

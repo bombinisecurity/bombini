@@ -4,7 +4,7 @@
 use aya_ebpf::{
     bindings::BPF_ANY,
     helpers::{
-        bpf_d_path, bpf_get_current_pid_tgid, bpf_get_current_task, bpf_ktime_get_ns,
+        bpf_d_path, bpf_get_current_pid_tgid, bpf_get_current_task_btf, bpf_ktime_get_ns,
         bpf_probe_read, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes,
         bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
@@ -91,7 +91,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
     let Event::ProcExec(event) = event else {
         return Err(0);
     };
-    let task = unsafe { bpf_get_current_task() as *const task_struct };
+    let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
     let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
     let proc_ptr = unsafe { exec_map_get_init(pid) };
@@ -249,7 +249,7 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
             }
             let new_cap_p = bpf_probe_read::<kernel_cap_t>(&(*cred).cap_permitted as *const _)
                 .map_err(|e| e as i32)?;
-            let task = bpf_get_current_task() as *const task_struct;
+            let task = bpf_get_current_task_btf() as *const task_struct;
             let task_cred = bpf_probe_read::<*const cred>(&(*task).cred as *const *const _)
                 .map_err(|e| e as i32)?;
             let old_cap_p = bpf_probe_read::<kernel_cap_t>(&(*task_cred).cap_permitted as *const _)

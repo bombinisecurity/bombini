@@ -18,7 +18,7 @@ pub struct HistFileDetector {
 
 impl Detector for HistFileDetector {
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 8, 0)
+        Version::new(5, 11, 0)
     }
 
     async fn new<U: AsRef<Path>>(
