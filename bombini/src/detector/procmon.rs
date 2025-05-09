@@ -20,7 +20,7 @@ pub struct ProcMon {
 
 impl Detector for ProcMon {
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 10, 0)
+        Version::new(5, 11, 0)
     }
 
     async fn new<U: AsRef<Path>>(
