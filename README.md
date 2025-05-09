@@ -17,6 +17,15 @@ found [here](docs/design.md).
 cargo xtask build
 ```
 
+**NOTE:**
+
+Compatibility between different kernel versions is not yet fully implemented.
+You may need to regenerate `vmlinux.rs` before building.
+
+```bash
+cd bombini-detectors-ebpf && ./generate_vmlinux.sh
+```
+
 ## Run
 
 You can try bombini agent this way:

@@ -65,7 +65,7 @@ map to check for commands above.
 
 IOUring detector tracks SQE submitting using `io_uring_submit_req` tracepoint.
 It provides events with the following information:
-    - io_uring_op opcode
-    - process information
+* io_uring_op opcode
+* process information
 
 Inspired by this [example](https://github.com/armosec/curing) and [post](https://www.armosec.io/blog/io_uring-rootkit-bypasses-linux-security/).
