@@ -1,8 +1,7 @@
 //! Transmutes Process to serializable struct
 
-use bombini_common::event::process::ProcInfo;
+use bombini_common::event::process::{ProcInfo, SecureExec};
 
-use bitflags::bitflags;
 use serde::Serialize;
 
 use super::Transmute;
@@ -46,16 +45,6 @@ pub struct Process {
     pub binary_path: String,
     /// current work directory
     pub args: String,
-}
-
-bitflags! {
-    #[derive(Clone, Debug, Serialize)]
-    #[repr(C)]
-    pub struct SecureExec: u32 {
-        const SETUID = 0b00000001;
-        const SETGID = 0b00000010;
-        const FILE_CAPS = 0b00000100;
-    }
 }
 
 impl Process {

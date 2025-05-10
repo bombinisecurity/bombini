@@ -2,6 +2,9 @@
 
 use bitflags::bitflags;
 
+#[cfg(feature = "user")]
+use serde::Serialize;
+
 pub const MAX_FILENAME_SIZE: usize = 32;
 
 pub const MAX_ARGS_SIZE: usize = 1024;
@@ -49,6 +52,7 @@ pub struct Cred {
 
 bitflags! {
     #[derive(Clone, Debug, PartialEq)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
     #[repr(C)]
     pub struct SecureExec: u32 {
         const SETUID = 0b00000001;

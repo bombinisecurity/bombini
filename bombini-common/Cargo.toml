@@ -5,11 +5,12 @@ edition = "2021"
 
 [features]
 default = []
-user = ["aya"]
+user = ["aya", "serde"]
 
 [dependencies]
 aya = { version = "0.13", optional = true }
 bitflags = { version = "2.8.0"}
+serde = { version = "1.0", features = ["derive"], optional = true }
 
 [lib]
 path = "src/lib.rs"
