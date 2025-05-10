@@ -11,6 +11,7 @@ use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::histfile::HistFileDetector;
 use crate::detector::io_uring::IOUringDetector;
 
+use crate::detector::filemon::FileMon;
 use crate::detector::procmon::ProcMon;
 use crate::detector::Detector;
 
@@ -57,6 +58,11 @@ impl Registry {
                     let mut procmon = ProcMon::new(&obj_path, Some(&config_path)).await?;
                     procmon.load()?;
                     self.detectors.insert(name.to_string(), Box::new(procmon));
+                }
+                "filemon" => {
+                    let mut filemon = FileMon::new(&obj_path, Some(&config_path)).await?;
+                    filemon.load()?;
+                    self.detectors.insert(name.to_string(), Box::new(filemon));
                 }
                 _ => return Err(anyhow!("{} unknown detector", name)),
             };

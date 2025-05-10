@@ -1,5 +1,6 @@
 //! Event module provide generic event message for all detectors
 
+pub mod file;
 pub mod process;
 
 /// Event messages
@@ -15,6 +16,7 @@ pub enum Event {
     /// 0 - 31 reserved for common events
     ProcExec(process::ProcInfo) = 0,
     ProcExit(process::ProcInfo) = 1,
+    File(file::FileMsg) = 2,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
@@ -29,6 +31,8 @@ pub enum Event {
 pub const MSG_PROCEXEC: u8 = 0;
 /// ProcExit message code
 pub const MSG_PROCEXIT: u8 = 1;
+/// File message code
+pub const MSG_FILE: u8 = 2;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code

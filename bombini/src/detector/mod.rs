@@ -10,6 +10,7 @@ use anyhow::anyhow;
 
 use crate::config::{CONFIG, EVENT_MAP_NAME};
 
+pub mod filemon;
 pub mod gtfobins;
 pub mod histfile;
 pub mod io_uring;

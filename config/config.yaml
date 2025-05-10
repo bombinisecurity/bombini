@@ -17,6 +17,7 @@ event_channel_size: 64
 # List of the detectors to load
 detectors:
    - procmon
+   - filemon
    - gtfobins
    - histfile
    - io_uring
