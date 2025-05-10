@@ -1,0 +1,6 @@
+file-open:
+  disable: true
+path-truncate:
+  expose-events: true
+path-unlink:
+  expose-events: true
