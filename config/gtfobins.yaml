@@ -2,9 +2,7 @@
 ---
 gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - aa-exec
-  - ash
   - awk
-  - bash
   - busctl
   - busybox
   - cabal
@@ -12,17 +10,14 @@ gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - cpio
   - csh
   - csvtool
-  - dash
   - debugfs
   - distcc
   - docker
   - ed
-  - elvish
   - emacs
   - env
   - expect
   - find
-  - fish
   - flock
   - gawk
   - gdb
@@ -35,7 +30,6 @@ gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - jjs
   - jrunscript
   - julia
-  - ksh
   - ld.so
   - less
   - logsave
@@ -59,7 +53,7 @@ gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - pexec
   - pg
   - php
-  - python3.10
+  - python3.12
   - rc
   - rlwrap
   - rsync
@@ -67,7 +61,6 @@ gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - run-parts
   - rview
   - rvim
-  - sash
   - scanmem
   - sed
   - setarch
@@ -92,5 +85,3 @@ gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - wget
   - xargs
   - xdotool
-  - yash
-  - zsh
