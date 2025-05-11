@@ -53,7 +53,7 @@ fn test_detectors_load() {
     }
     let mut bombini = bombini.expect("failed to start bombini");
     // Wait for detectors being loaded
-    thread::sleep(Duration::from_millis(1500));
+    thread::sleep(Duration::from_millis(3000));
 
     let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
 
