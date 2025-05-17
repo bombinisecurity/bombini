@@ -69,3 +69,11 @@ It provides events with the following information:
 * process information
 
 Inspired by this [example](https://github.com/armosec/curing) and [post](https://www.armosec.io/blog/io_uring-rootkit-bypasses-linux-security/).
+
+## FileMon
+
+Detector for file operations. Each event has process information. Supported hooks:
+
+* `security_file_open` hook  provides info about file owner/permissions + permissions with process accessed the file.
+* `path_truncate` hook provides info about path truncated by truncate syscall.
+* `path_unlink` provides info about path being deleted.
