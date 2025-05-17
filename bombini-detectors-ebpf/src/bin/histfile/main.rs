@@ -24,7 +24,7 @@ static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
 
 #[uretprobe]
 pub fn histfile_detect(ctx: RetProbeContext) -> i32 {
-    event_capture!(ctx, MSG_HISTFILE, try_detect, true) as i32
+    event_capture!(ctx, MSG_HISTFILE, true, try_detect, true) as i32
 }
 
 fn try_detect(ctx: RetProbeContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
@@ -38,7 +38,6 @@ fn try_detect(ctx: RetProbeContext, event: &mut Event, expose: bool) -> Result<u
     };
     let command: *const u8 = ctx.ret().ok_or(0u32)?;
     unsafe {
-        aya_ebpf::memset(event.command.as_mut_ptr(), 0, MAX_BASH_COMMAND_SIZE);
         bpf_probe_read_user_str_bytes(command, &mut event.command).map_err(|e| e as u32)?;
     }
     let lookup = Key::new((MAX_BASH_COMMAND_SIZE * 8) as u32, event.command);

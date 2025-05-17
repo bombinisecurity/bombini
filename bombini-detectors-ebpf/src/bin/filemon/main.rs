@@ -39,6 +39,7 @@ pub fn file_open_capture(ctx: LsmContext) -> i32 {
     event_capture!(
         ctx,
         MSG_FILE,
+        false,
         try_open,
         config.file_open_config.expose_events
     ) as i32
@@ -96,6 +97,7 @@ pub fn path_truncate_capture(ctx: LsmContext) -> i32 {
     event_capture!(
         ctx,
         MSG_FILE,
+        true,
         try_truncate,
         config.path_truncate_config.expose_events
     ) as i32
@@ -140,6 +142,7 @@ pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
     event_capture!(
         ctx,
         MSG_FILE,
+        false,
         try_unlink,
         config.path_unlink_config.expose_events
     ) as i32

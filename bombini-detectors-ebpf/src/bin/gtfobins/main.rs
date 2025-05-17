@@ -30,7 +30,7 @@ static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
 
 #[lsm]
 pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_GTFOBINS, try_detect, true) as i32
+    event_capture!(ctx, MSG_GTFOBINS, true, try_detect, true) as i32
 }
 
 static MAX_PROC_DEPTH: u32 = 4;
@@ -50,7 +50,6 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
         // Check if sh is executing
         unsafe {
             let binprm: *const linux_binprm = ctx.arg(0);
-            aya_ebpf::memset(event.process.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
             let file: *mut file = (*binprm).file;
             let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|_| 0_u32)?;
             let d_name =

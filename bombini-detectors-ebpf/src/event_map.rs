@@ -16,14 +16,23 @@ pub static EVENT_MAP: RingBuf = RingBuf::pinned(1, 0);
 ///
 /// * `msg_code` - event message type
 ///
+/// * `zero` - fill buffer with zeros
+///
 /// # Return value
 ///
-/// RingBufEntry for Event
-pub fn rb_event_init(msg_code: u8) -> Result<RingBufEntry<Event>, u32> {
+/// RingBufEntry for Event filled with zeros
+pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<Event>, u32> {
     let Some(mut event_rb) = EVENT_MAP.reserve::<Event>(0) else {
         return Err(0);
     };
     unsafe {
+        if zero {
+            aya_ebpf::memset(
+                event_rb.as_mut_ptr() as *mut u8,
+                0,
+                core::mem::size_of_val(&event_rb),
+            );
+        }
         let p = event_rb.as_mut_ptr() as *mut u8;
         *p = msg_code;
     }
@@ -39,13 +48,15 @@ pub fn rb_event_init(msg_code: u8) -> Result<RingBufEntry<Event>, u32> {
 ///
 /// * `msg_code` - event message type
 ///
+/// * `zero` - fill event with zeros
+///
 /// * `handler` - function name to handle and fill the event
 ///
 /// * `expose` - true if events are aimed to expose
 #[macro_export]
 macro_rules! event_capture {
-    ($ctx:expr, $msg_code:expr, $handler:expr, $expose:expr) => {{
-        let Ok(mut event_rb) = rb_event_init($msg_code) else {
+    ($ctx:expr, $msg_code:expr, $zero:expr, $handler:expr, $expose:expr) => {{
+        let Ok(mut event_rb) = rb_event_init($msg_code, $zero) else {
             return 0;
         };
         let event_ref = unsafe { &mut *event_rb.as_mut_ptr() };
