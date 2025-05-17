@@ -2,6 +2,8 @@
 
 Let's look at some design concepts.
 
+![Bombini architecture](bombini-arch.png)
+
 ### Detector
 
 Detector provides a common interface for loading eBPF programs, initializing
@@ -33,7 +35,7 @@ Transmitter sends serialized events (byte arrays) to different sources (unix soc
 ### Config
 
 Config holds global agent configuration. It also have list of the detectors to
-load during start up.
+load during start up. Some detectors may have thier own configs.
 
 ### Registry
 
@@ -42,38 +44,8 @@ interact with them (change config maps).
 
 ## List of the Detectors
 
-## GTFObins
-
-GTFOBins detector tries to detect [GTFOBins](https://gtfobins.github.io/) execution.
-It checks if privileged binary is executed and returns the binary name with
-command line args as an event. List of GTFOBins is provided in YAML config.
-
-## HistFile
-
-HistFile detector's goal is to detect cases when user stops writing bash
-history to `~/.bash_history`. It can be done using this commands:
-
-```bash
-export HISTFILESIZE=0
-export HISTSIZE=0
-```
-
-Detector attaches to `/bin/bash` `readline` func with uretprobe and uses **lpm_trie**
-map to check for commands above.
-
-## IOUring
-
-IOUring detector tracks SQE submitting using `io_uring_submit_req` tracepoint.
-It provides events with the following information:
-* io_uring_op opcode
-* process information
-
-Inspired by this [example](https://github.com/armosec/curing) and [post](https://www.armosec.io/blog/io_uring-rootkit-bypasses-linux-security/).
-
-## FileMon
-
-Detector for file operations. Each event has process information. Supported hooks:
-
-* `security_file_open` hook  provides info about file owner/permissions + permissions with process accessed the file.
-* `path_truncate` hook provides info about path truncated by truncate syscall.
-* `path_unlink` provides info about path being deleted.
+* [procmon](detectors/procmon.md)
+* [filemon](detectors/filemon.md)
+* [gtflobins](detectors/gtfobins.md)
+* [histfile](detectors/histfile.md)
+* [io_uring](detectors/io_uring.md)

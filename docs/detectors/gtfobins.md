@@ -1,0 +1,44 @@
+## GTFObins
+
+GTFOBins detector detects [GTFOBins](https://gtfobins.github.io/) execution.
+It checks if privileged shell is executed and returns process information about GTFOBins
+binary that is spawning the shell.
+
+### Configuration
+
+Config represents the list of GTFOBins filenames.
+
+```yaml
+gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
+  - aa-exec
+  - awk
+  - busctl
+  - busybox
+  - cabal
+...
+```
+
+### Event
+
+The GTFOBins event is looks like:
+
+```json
+{
+  "type": "GTFOBinsEvent",
+  "process": {
+    "pid": 273225,
+    "tid": 273225,
+    "ppid": 0,
+    "uid": 1000,
+    "euid": 0,
+    "auid": 1000,
+    "cap_inheritable": 0,
+    "cap_permitted": 2199023255551,
+    "cap_effective": 2199023255551,
+    "secureexec": "SETUID | SETGID",
+    "filename": "xargs",
+    "binary_path": "/home/fedotoff/xargs",
+    "args": "-a /dev/null sh -p"
+  }
+}
+```
