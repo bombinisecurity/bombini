@@ -84,7 +84,7 @@ pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
     let Some(config) = config else {
         return 0;
     };
-    event_capture!(ctx, MSG_PROCEXEC, try_execve, config.expose_events)
+    event_capture!(ctx, MSG_PROCEXEC, false, try_execve, config.expose_events)
 }
 
 fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
@@ -185,7 +185,7 @@ pub fn exit_capture(ctx: FEntryContext) -> u32 {
     let Some(config) = config else {
         return 0;
     };
-    event_capture!(ctx, MSG_PROCEXIT, try_exit, config.expose_events)
+    event_capture!(ctx, MSG_PROCEXIT, false, try_exit, config.expose_events)
 }
 
 fn try_exit(_ctx: FEntryContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
