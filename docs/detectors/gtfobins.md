@@ -9,6 +9,7 @@ binary that is spawning the shell.
 Config represents the list of GTFOBins filenames.
 
 ```yaml
+enforce: true
 gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - aa-exec
   - awk
@@ -17,6 +18,8 @@ gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - cabal
 ...
 ```
+
+When enforce flag is set true execution of GTFOBins is blocked. False is by default.
 
 ### Event
 
