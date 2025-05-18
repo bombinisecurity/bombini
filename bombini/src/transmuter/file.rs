@@ -159,17 +159,9 @@ pub struct FileOpenInfo {
     i_mode: Imode,
 }
 #[derive(Clone, Debug, Serialize)]
-pub struct PathTruncateInfo {
+pub struct PathInfo {
     /// full path
     path: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct PathUnlinkInfo {
-    /// full directory path
-    dir: String,
-    /// file name
-    filename: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -178,8 +170,8 @@ pub struct PathUnlinkInfo {
 #[allow(dead_code)]
 pub enum LsmFileHook {
     FileOpen(FileOpenInfo),
-    PathTruncate(PathTruncateInfo),
-    PathUnlink(PathUnlinkInfo),
+    PathTruncate(PathInfo),
+    PathUnlink(PathInfo),
 }
 
 impl FileEvent {
@@ -201,7 +193,7 @@ impl FileEvent {
                 }
             }
             HOOK_PATH_TRUNCATE => {
-                let info = PathTruncateInfo {
+                let info = PathInfo {
                     path: str_from_bytes(&event.path),
                 };
                 Self {
@@ -210,10 +202,8 @@ impl FileEvent {
                 }
             }
             HOOK_PATH_UNLINK => {
-                let info = PathUnlinkInfo {
-                    dir: str_from_bytes(&event.path),
-                    filename: str_from_bytes(&event.name),
-                };
+                let path = str_from_bytes(&event.path) + "/" + &str_from_bytes(&event.name);
+                let info = PathInfo { path };
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::PathUnlink(info),

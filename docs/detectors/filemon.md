@@ -81,8 +81,7 @@ Event for `security_path_unlink` (deleting file):
   },
   "hook": {
     "type": "PathUnlink",
-    "dir": "/home/fedotoff/bombini",
-    "filename": "bombini.log"
+    "path": "/home/fedotoff/bombini/bombini.log"
   }
 }
 ```

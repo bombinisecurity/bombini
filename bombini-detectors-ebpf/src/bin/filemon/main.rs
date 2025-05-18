@@ -142,7 +142,7 @@ pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
     event_capture!(
         ctx,
         MSG_FILE,
-        false,
+        true,
         try_unlink,
         config.path_unlink_config.expose_events
     )
