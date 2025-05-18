@@ -30,12 +30,12 @@ static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
 
 #[lsm]
 pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_GTFOBINS, true, try_detect, true) as i32
+    event_capture!(ctx, MSG_GTFOBINS, true, try_detect, true)
 }
 
 static MAX_PROC_DEPTH: u32 = 4;
 
-fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
+fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
     let Event::GTFOBins(event) = event else {
         return Err(0);
     };
@@ -51,11 +51,11 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
         unsafe {
             let binprm: *const linux_binprm = ctx.arg(0);
             let file: *mut file = (*binprm).file;
-            let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|_| 0_u32)?;
+            let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|_| 0_i32)?;
             let d_name =
-                bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _).map_err(|_| 0_u32)?;
+                bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _).map_err(|_| 0_i32)?;
             bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.process.filename)
-                .map_err(|_| 0_u32)?;
+                .map_err(|_| 0_i32)?;
         }
         if (event.process.filename[0] == b's' && event.process.filename[1] == b'h')
             || (event.process.filename[0] == b'b'
@@ -80,7 +80,7 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
                 };
                 // Check if GTFO binary
                 let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
-                if GTFOBINS.get(&lookup).is_some() {
+                if let Some(enforce) = GTFOBINS.get(&lookup) {
                     if expose {
                         if proc.clonned {
                             // Pass parent process in event
@@ -88,6 +88,9 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
                         } else {
                             util::copy_proc(proc, &mut event.process);
                         }
+                    }
+                    if *enforce != 0 {
+                        return Ok(-1);
                     }
                     return Ok(0);
                 } else {

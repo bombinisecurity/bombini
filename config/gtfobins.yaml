@@ -1,5 +1,6 @@
 # Parameters for gtfobins detector
 ---
+enforce: true
 gtfobins:    # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
   - aa-exec
   - awk

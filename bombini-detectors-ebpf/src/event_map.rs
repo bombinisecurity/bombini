@@ -21,7 +21,7 @@ pub static EVENT_MAP: RingBuf = RingBuf::pinned(1, 0);
 /// # Return value
 ///
 /// RingBufEntry for Event filled with zeros
-pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<Event>, u32> {
+pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<Event>, i32> {
     let Some(mut event_rb) = EVENT_MAP.reserve::<Event>(0) else {
         return Err(0);
     };

@@ -50,16 +50,15 @@ static PROC_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
 
 #[inline(always)]
 unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32, u32> {
-    let cred =
-        bpf_probe_read::<*const cred>(&(*task).cred as *const *const _).map_err(|e| e as u32)?;
-    let euid = bpf_probe_read::<kuid_t>(&(*cred).euid as *const _).map_err(|e| e as u32)?;
-    let uid = bpf_probe_read::<kuid_t>(&(*cred).uid as *const _).map_err(|e| e as u32)?;
+    let cred = bpf_probe_read::<*const cred>(&(*task).cred as *const *const _).map_err(|_| 0u32)?;
+    let euid = bpf_probe_read::<kuid_t>(&(*cred).euid as *const _).map_err(|_| 0u32)?;
+    let uid = bpf_probe_read::<kuid_t>(&(*cred).uid as *const _).map_err(|_| 0u32)?;
     let cap_e =
-        bpf_probe_read::<kernel_cap_t>(&(*cred).cap_effective as *const _).map_err(|e| e as u32)?;
-    let cap_i = bpf_probe_read::<kernel_cap_t>(&(*cred).cap_inheritable as *const _)
-        .map_err(|e| e as u32)?;
+        bpf_probe_read::<kernel_cap_t>(&(*cred).cap_effective as *const _).map_err(|_| 0u32)?;
+    let cap_i =
+        bpf_probe_read::<kernel_cap_t>(&(*cred).cap_inheritable as *const _).map_err(|_| 0u32)?;
     let cap_p =
-        bpf_probe_read::<kernel_cap_t>(&(*cred).cap_permitted as *const _).map_err(|e| e as u32)?;
+        bpf_probe_read::<kernel_cap_t>(&(*cred).cap_permitted as *const _).map_err(|_| 0u32)?;
 
     proc.creds.uid = uid.val;
     proc.creds.euid = euid.val;
@@ -116,33 +115,32 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
         proc.tid = pid_tgid as u32;
 
         let mm =
-            bpf_probe_read::<*mut mm_struct>(&(*task).mm as *const *mut _).map_err(|e| e as u32)?;
+            bpf_probe_read::<*mut mm_struct>(&(*task).mm as *const *mut _).map_err(|_| 0u32)?;
         let mut arg_start = bpf_probe_read::<u64>(&(*mm).__bindgen_anon_1.arg_start as *const _)
-            .map_err(|e| e as u32)?;
+            .map_err(|_| 0u32)?;
 
-        let arg_end = bpf_probe_read::<u64>(&(*mm).__bindgen_anon_1.arg_end as *const _)
-            .map_err(|e| e as u32)?;
+        let arg_end =
+            bpf_probe_read::<u64>(&(*mm).__bindgen_anon_1.arg_end as *const _).map_err(|_| 0u32)?;
 
         // Skip argv[0]
         let first_arg = bpf_probe_read_user_str_bytes(arg_start as *const u8, &mut proc.args)
-            .map_err(|e| e as u32)?;
+            .map_err(|_| 0u32)?;
 
         arg_start += 1 + first_arg.len() as u64;
 
         let file = bpf_probe_read::<*mut file>(&(*mm).__bindgen_anon_1.exe_file as *const *mut _)
-            .map_err(|e| e as u32)?;
-        let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|e| e as u32)?;
+            .map_err(|_| 0u32)?;
+        let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|_| 0u32)?;
 
         let d_name =
-            bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _).map_err(|e| e as u32)?;
+            bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _).map_err(|_| 0u32)?;
 
-        bpf_probe_read_kernel_str_bytes(d_name.name, &mut proc.filename).map_err(|e| e as u32)?;
+        bpf_probe_read_kernel_str_bytes(d_name.name, &mut proc.filename).map_err(|_| 0u32)?;
 
         // Get cred
         get_creds(proc, task)?;
 
-        let loginuid =
-            bpf_probe_read::<kuid_t>(&(*task).loginuid as *const _).map_err(|e| e as u32)?;
+        let loginuid = bpf_probe_read::<kuid_t>(&(*task).loginuid as *const _).map_err(|_| 0u32)?;
 
         proc.auid = loginuid.val;
 
@@ -152,7 +150,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
     unsafe {
         aya_ebpf::memset(proc.args.as_mut_ptr(), 0, proc.args.len());
         bpf_probe_read_user_buf(arg_start as *const u8, &mut proc.args[..arg_size as usize])
-            .map_err(|e| e as u32)?;
+            .map_err(|_| 0u32)?;
     }
 
     if let Some(cred_info) = CRED_SHARED_MAP.get_ptr(&pid_tgid) {
@@ -162,7 +160,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
             };
             proc.creds.secureexec = cred_info.secureexec.clone();
             bpf_probe_read_kernel_str_bytes(cred_info.binary_path.as_ptr(), &mut proc.binary_path)
-                .map_err(|e| e as u32)?;
+                .map_err(|_| 0u32)?;
         }
         CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
     }
@@ -230,16 +228,16 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
             // Get cred
             let cred = (*binprm).cred;
             let euid = bpf_probe_read::<kuid_t>(&(*cred).euid as *const _)
-                .map_err(|e| e as i32)?
+                .map_err(|_| 0i32)?
                 .val;
             let uid = bpf_probe_read::<kuid_t>(&(*cred).uid as *const _)
-                .map_err(|e| e as i32)?
+                .map_err(|_| 0i32)?
                 .val;
             let egid = bpf_probe_read::<kgid_t>(&(*cred).egid as *const _)
-                .map_err(|e| e as i32)?
+                .map_err(|_| 0i32)?
                 .val;
             let gid = bpf_probe_read::<kgid_t>(&(*cred).gid as *const _)
-                .map_err(|e| e as i32)?
+                .map_err(|_| 0i32)?
                 .val;
             if euid != uid {
                 creds_info.secureexec |= SecureExec::SETUID;
@@ -248,12 +246,12 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
                 creds_info.secureexec |= SecureExec::SETGID;
             }
             let new_cap_p = bpf_probe_read::<kernel_cap_t>(&(*cred).cap_permitted as *const _)
-                .map_err(|e| e as i32)?;
+                .map_err(|_| 0i32)?;
             let task = bpf_get_current_task_btf() as *const task_struct;
             let task_cred = bpf_probe_read::<*const cred>(&(*task).cred as *const *const _)
-                .map_err(|e| e as i32)?;
+                .map_err(|_| 0i32)?;
             let old_cap_p = bpf_probe_read::<kernel_cap_t>(&(*task_cred).cap_permitted as *const _)
-                .map_err(|e| e as i32)?;
+                .map_err(|_| 0i32)?;
 
             if is_cap_gained(new_cap_p.val, old_cap_p.val) && euid == uid {
                 creds_info.secureexec |= SecureExec::FILE_CAPS;
@@ -304,16 +302,16 @@ fn try_wake_up_new_task(ctx: FEntryContext) -> Result<u32, u32> {
     unsafe {
         proc.ppid = (*parent_proc).pid;
         proc.ktime = bpf_ktime_get_ns();
-        proc.tid = bpf_probe_read::<pid_t>(&(*task).pid as *const _).map_err(|e| e as u32)? as u32;
+        proc.tid = bpf_probe_read::<pid_t>(&(*task).pid as *const _).map_err(|_| 0u32)? as u32;
         bpf_probe_read_kernel_str_bytes(&(*parent_proc).filename as *const _, &mut proc.filename)
-            .map_err(|e| e as u32)?;
+            .map_err(|_| 0u32)?;
         bpf_probe_read_kernel_str_bytes(
             &(*parent_proc).binary_path as *const _,
             &mut proc.binary_path,
         )
-        .map_err(|e| e as u32)?;
+        .map_err(|_| 0u32)?;
         bpf_probe_read_kernel_buf(&(*parent_proc).args as *const _, &mut proc.args)
-            .map_err(|e| e as u32)?;
+            .map_err(|_| 0u32)?;
         get_creds(proc, task)?;
     }
     proc.clonned = true;

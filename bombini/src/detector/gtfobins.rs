@@ -5,7 +5,7 @@ use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError};
 
 use procfs::sys::kernel::Version;
-use yaml_rust2::YamlLoader;
+use yaml_rust2::{Yaml, YamlLoader};
 
 use bombini_common::config::gtfobins::GTFOBinsKey;
 use bombini_common::event::process::MAX_FILENAME_SIZE;
@@ -42,13 +42,33 @@ impl Detector for GTFOBinsDetector {
 
             let s = std::fs::read_to_string(config_path.as_ref())?;
             let docs = YamlLoader::load_from_str(&s)?;
-            let doc = &docs[0];
+            let Some(doc) = docs[0].as_hash() else {
+                anyhow::bail!("GTFObins config must be a Hash")
+            };
 
-            // TODO: safe parsing
-            if let Some(entries) = doc["gtfobins"].as_vec() {
+            let enfroce = if let Some(value) = doc.get(&Yaml::from_str("enforce")) {
+                let Some(value) = value.as_bool() else {
+                    anyhow::bail!("enforce value must be a bool")
+                };
+                if value {
+                    1
+                } else {
+                    0
+                }
+            } else {
+                0
+            };
+
+            if let Some(entries) = doc.get(&Yaml::from_str("gtfobins")) {
+                let Some(entries) = entries.as_vec() else {
+                    anyhow::bail!("GTFObins binaries name must be a vec")
+                };
                 for entry in entries {
                     let mut k: GTFOBinsKey = [0; MAX_FILENAME_SIZE];
-                    let k_str = entry.as_str().unwrap().as_bytes();
+                    let Some(k_str) = entry.as_str() else {
+                        continue;
+                    };
+                    let k_str = k_str.as_bytes();
                     let len = k_str.len();
                     if len < MAX_FILENAME_SIZE {
                         k[..len].clone_from_slice(k_str);
@@ -56,7 +76,7 @@ impl Detector for GTFOBinsDetector {
                         k.clone_from_slice(&k_str[..MAX_FILENAME_SIZE]);
                     }
 
-                    config.gtfobins_entries.push((k, 1));
+                    config.gtfobins_entries.push((k, enfroce));
                 }
             }
             Ok(GTFOBinsDetector {
