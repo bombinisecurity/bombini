@@ -42,10 +42,10 @@ pub fn file_open_capture(ctx: LsmContext) -> i32 {
         false,
         try_open,
         config.file_open_config.expose_events
-    ) as i32
+    )
 }
 
-fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
+fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
     let Event::File(event) = event else {
         return Err(0);
     };
@@ -70,10 +70,10 @@ fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u32
         event.flags = (*fp).f_flags;
         event.i_mode = (*(*fp).f_inode).i_mode;
         event.uid = bpf_probe_read::<kuid_t>(&(*(*fp).f_inode).i_uid as *const _)
-            .map_err(|_| 0u32)?
+            .map_err(|_| 0i32)?
             .val;
         event.gid = bpf_probe_read::<kgid_t>(&(*(*fp).f_inode).i_gid as *const _)
-            .map_err(|_| 0u32)?
+            .map_err(|_| 0i32)?
             .val;
     }
 
@@ -100,10 +100,10 @@ pub fn path_truncate_capture(ctx: LsmContext) -> i32 {
         true,
         try_truncate,
         config.path_truncate_config.expose_events
-    ) as i32
+    )
 }
 
-fn try_truncate(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
+fn try_truncate(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
     let Event::File(event) = event else {
         return Err(0);
     };
@@ -145,10 +145,10 @@ pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
         false,
         try_unlink,
         config.path_unlink_config.expose_events
-    ) as i32
+    )
 }
 
-fn try_unlink(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
+fn try_unlink(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
     let Event::File(event) = event else {
         return Err(0);
     };
@@ -162,8 +162,8 @@ fn try_unlink(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<u32, u
         let p: *const path = ctx.arg(0);
         let entry: *const dentry = ctx.arg(1);
         aya_ebpf::memset(event.process.filename.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
-        let d_name = bpf_probe_read::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0u32)?;
-        bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0u32)?;
+        let d_name = bpf_probe_read::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
         let _ = bpf_d_path(
             p as *const _ as *mut aya_ebpf::bindings::path,
             event.path.as_mut_ptr() as *mut i8,
