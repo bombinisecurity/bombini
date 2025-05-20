@@ -105,6 +105,15 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
     let parent_proc = unsafe { execve_find_parent(task) };
     if let Some(parent_proc) = parent_proc {
         proc.ppid = unsafe { (*parent_proc).pid };
+    } else {
+        unsafe {
+            if let Ok(parent) =
+                bpf_probe_read::<*mut task_struct>(&(*task).parent as *const _).map_err(|_| 0u32)
+            {
+                proc.ppid =
+                    bpf_probe_read(&(*parent).tgid as *const pid_t).map_err(|_| 0u32)? as u32;
+            }
+        }
     }
 
     proc.ktime = unsafe { bpf_ktime_get_ns() };
