@@ -29,9 +29,9 @@ The GTFOBins event is looks like:
 {
   "type": "GTFOBinsEvent",
   "process": {
-    "pid": 273225,
-    "tid": 273225,
-    "ppid": 0,
+    "pid": 712851,
+    "tid": 712851,
+    "ppid": 462192,
     "uid": 1000,
     "euid": 0,
     "auid": 1000,

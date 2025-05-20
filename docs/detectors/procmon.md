@@ -19,9 +19,9 @@ expose-events: false
 {
     "type": "ProcessExec",
     "process": {
-      "pid": 334857,
-      "tid": 334857,
-      "ppid": 0,
+      "pid": 746925,
+      "tid": 746925,
+      "ppid": 462192,
       "uid": 1000,
       "euid": 1000,
       "auid": 1000,
@@ -39,9 +39,9 @@ expose-events: false
   {
     "type": "ProcessExit",
     "process": {
-      "pid": 334857,
-      "tid": 334857,
-      "ppid": 0,
+      "pid": 746925,
+      "tid": 746925,
+      "ppid": 462192,
       "uid": 1000,
       "euid": 1000,
       "auid": 1000,
