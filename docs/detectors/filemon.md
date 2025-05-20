@@ -38,9 +38,9 @@ Event for `security_path_truncate` (truncating file):
 {
   "type": "FileEvent",
   "process": {
-    "pid": 305224,
-    "tid": 305224,
-    "ppid": 0,
+    "pid": 742873,
+    "tid": 742873,
+    "ppid": 462192,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,
@@ -65,9 +65,9 @@ Event for `security_path_unlink` (deleting file):
 {
   "type": "FileEvent",
   "process": {
-    "pid": 308429,
-    "tid": 308429,
-    "ppid": 0,
+    "pid": 743301,
+    "tid": 743301,
+    "ppid": 462192,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,
@@ -92,9 +92,9 @@ Event for `security_file_open` (opening file):
 {
   "type": "FileEvent",
   "process": {
-    "pid": 317414,
-    "tid": 317414,
-    "ppid": 0,
+    "pid": 744458,
+    "tid": 744458,
+    "ppid": 462192,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,

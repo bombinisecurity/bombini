@@ -16,9 +16,9 @@ This detector has no config
 {
   "type": "IOUringEvent",
   "process": {
-    "pid": 292020,
-    "tid": 292020,
-    "ppid": 0,
+    "pid": 739856,
+    "tid": 739856,
+    "ppid": 462192,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,

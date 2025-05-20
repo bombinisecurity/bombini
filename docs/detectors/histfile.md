@@ -21,9 +21,9 @@ This detector has no config
 {
   "type": "HistFileEvent",
   "process": {
-    "pid": 284614,
-    "tid": 284614,
-    "ppid": 0,
+    "pid": 729714,
+    "tid": 729714,
+    "ppid": 462192,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,
