@@ -66,6 +66,8 @@ fn test_detectors_load() {
     assert!(log.contains("gtfobins is loaded"));
     assert!(log.contains("procmon is loaded"));
     assert!(log.contains("histfile is loaded"));
+
+    let _ = fs::remove_dir_all(bomini_temp_dir);
 }
 
 #[test]
@@ -140,7 +142,7 @@ fn test_procmon_file() {
     assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
     assert_eq!(events.matches("\"args\":\"-lah\"").count(), 2);
 
-    let _ = fs::remove_dir(bomini_temp_dir);
+    let _ = fs::remove_dir_all(bomini_temp_dir);
 }
 
 #[test]
@@ -229,7 +231,7 @@ fn test_gtfobins_detector_file() {
     assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 1);
     assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 1);
 
-    let _ = fs::remove_dir(bomini_temp_dir);
+    let _ = fs::remove_dir_all(bomini_temp_dir);
 }
 
 #[test]
@@ -321,5 +323,5 @@ fn test_filemon_unlink_file() {
     ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
     assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 2); // FileEvent + ProcInfo
 
-    let _ = fs::remove_dir(bomini_temp_dir);
+    let _ = fs::remove_dir_all(bomini_temp_dir);
 }
