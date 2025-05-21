@@ -30,7 +30,7 @@ fn test_detectors_load() {
     let temp_dir = Builder::new()
         .prefix("bombini-test-")
         .rand_bytes(5)
-        .keep(true)
+        .disable_cleanup(true)
         .tempdir()
         .expect("can't create temp dir");
     let bomini_temp_dir = temp_dir.path();
@@ -88,7 +88,7 @@ fn test_procmon_file() {
     let temp_dir = Builder::new()
         .prefix("bombini-test-")
         .rand_bytes(5)
-        .keep(true)
+        .disable_cleanup(true)
         .tempdir()
         .expect("can't create temp dir");
 
@@ -163,7 +163,7 @@ fn test_gtfobins_detector_file() {
     let temp_dir = Builder::new()
         .prefix("bombini-test-")
         .rand_bytes(5)
-        .keep(true)
+        .disable_cleanup(true)
         .tempdir()
         .expect("can't create temp dir");
 
@@ -252,7 +252,7 @@ fn test_filemon_unlink_file() {
     let temp_dir = Builder::new()
         .prefix("bombini-test-")
         .rand_bytes(5)
-        .keep(true)
+        .disable_cleanup(true)
         .tempdir()
         .expect("can't create temp dir");
 
