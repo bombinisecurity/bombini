@@ -80,7 +80,7 @@ impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         if let Some(config) = self.config {
             let mut config_map: Array<_, Config> =
-                Array::try_from(self.ebpf.map_mut("FILE_CONFIG").unwrap())?;
+                Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
             let _ = config_map.set(0, config, 0);
         }
         Ok(())
