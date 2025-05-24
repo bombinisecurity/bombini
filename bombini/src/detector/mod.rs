@@ -14,6 +14,7 @@ pub mod filemon;
 pub mod gtfobins;
 pub mod histfile;
 pub mod io_uring;
+pub mod netmon;
 pub mod procmon;
 
 pub trait Detector {

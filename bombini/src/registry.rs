@@ -12,6 +12,7 @@ use crate::detector::histfile::HistFileDetector;
 use crate::detector::io_uring::IOUringDetector;
 
 use crate::detector::filemon::FileMon;
+use crate::detector::netmon::NetMon;
 use crate::detector::procmon::ProcMon;
 use crate::detector::Detector;
 
@@ -63,6 +64,11 @@ impl Registry {
                     let mut filemon = FileMon::new(&obj_path, Some(&config_path)).await?;
                     filemon.load()?;
                     self.detectors.insert(name.to_string(), Box::new(filemon));
+                }
+                "netmon" => {
+                    let mut netmon = NetMon::new(&obj_path, Some(&config_path)).await?;
+                    netmon.load()?;
+                    self.detectors.insert(name.to_string(), Box::new(netmon));
                 }
                 _ => return Err(anyhow!("{} unknown detector", name)),
             };

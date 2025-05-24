@@ -6,7 +6,7 @@ use bitflags::bitflags;
 use serde::{Serialize, Serializer};
 
 use super::process::Process;
-use super::{Transmute, str_from_bytes};
+use super::{str_from_bytes, Transmute};
 
 bitflags! {
     #[derive(Clone, Debug, Serialize)]

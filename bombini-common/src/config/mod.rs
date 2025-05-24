@@ -2,4 +2,5 @@
 
 pub mod filemon;
 pub mod gtfobins;
+pub mod network;
 pub mod procmon;

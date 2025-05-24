@@ -21,6 +21,7 @@ procmon_proc_map_size: 8192
 detectors:
    - procmon
    - filemon
+   - netmon
    - gtfobins
    - histfile
    - io_uring
