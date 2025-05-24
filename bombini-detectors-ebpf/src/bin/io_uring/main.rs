@@ -15,7 +15,7 @@ use bombini_detectors_ebpf::vmlinux::io_kiocb;
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 #[map]
-static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
+static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
 
 #[btf_tracepoint(function = "io_uring_submit_req")]
 pub fn io_uring_submit_req_capture(ctx: BtfTracePointContext) -> u32 {
@@ -27,7 +27,7 @@ fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event, expose: bool) ->
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };

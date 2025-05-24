@@ -33,20 +33,20 @@ struct CredSharedInfo {
 
 /// Holds current live processes
 #[map]
-static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(8192, 0);
+static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(8192, 0);
 
 /// Holds process information gathered on bprm_commiting_creds
 #[map]
-static CRED_SHARED_MAP: LruHashMap<u64, CredSharedInfo> = LruHashMap::pinned(8192, 0);
+static PROCMON_CRED_SHARED_MAP: LruHashMap<u64, CredSharedInfo> = LruHashMap::pinned(8192, 0);
 
 #[map]
-static CRED_HEAP: PerCpuArray<CredSharedInfo> = PerCpuArray::with_max_entries(1, 0);
+static PROCMON_CRED_HEAP: PerCpuArray<CredSharedInfo> = PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-static PROC_HEAP: PerCpuArray<ProcInfo> = PerCpuArray::with_max_entries(1, 0);
+static PROCMON_HEAP: PerCpuArray<ProcInfo> = PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-static PROC_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
+static PROCMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
 
 #[inline(always)]
 unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32, u32> {
@@ -76,7 +76,7 @@ fn is_cap_gained(new: u64, old: u64) -> bool {
 
 #[btf_tracepoint(function = "sched_process_exec")]
 pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
-    let Some(config_ptr) = PROC_CONFIG.get_ptr(0) else {
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
         return 0;
     };
     let config = unsafe { config_ptr.as_ref() };
@@ -162,7 +162,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
             .map_err(|_| 0u32)?;
     }
 
-    if let Some(cred_info) = CRED_SHARED_MAP.get_ptr(&pid_tgid) {
+    if let Some(cred_info) = PROCMON_CRED_SHARED_MAP.get_ptr(&pid_tgid) {
         unsafe {
             let Some(cred_info) = cred_info.as_ref() else {
                 return Err(0);
@@ -171,7 +171,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
             bpf_probe_read_kernel_str_bytes(cred_info.binary_path.as_ptr(), &mut proc.binary_path)
                 .map_err(|_| 0u32)?;
         }
-        CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
+        PROCMON_CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
     }
 
     proc.clonned = false;
@@ -185,7 +185,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
 
 #[fentry(function = "acct_process")]
 pub fn exit_capture(ctx: FEntryContext) -> u32 {
-    let Some(config_ptr) = PROC_CONFIG.get_ptr(0) else {
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
         return 0;
     };
     let config = unsafe { config_ptr.as_ref() };
@@ -201,13 +201,13 @@ fn try_exit(_ctx: FEntryContext, event: &mut Event, expose: bool) -> Result<u32,
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if expose {
-        let proc = unsafe { PROC_MAP.get(&pid) };
+        let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
         let Some(proc) = proc else {
             return Err(0);
         };
         util::copy_proc(proc, event);
     }
-    PROC_MAP.remove(&pid).unwrap();
+    PROCMON_PROC_MAP.remove(&pid).unwrap();
     Ok(0)
 }
 
@@ -219,7 +219,7 @@ pub fn creds_capture(ctx: LsmContext) -> i32 {
 
 fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
     let pid_tgid = bpf_get_current_pid_tgid();
-    let Some(cred_ptr) = CRED_HEAP.get_ptr_mut(0) else {
+    let Some(cred_ptr) = PROCMON_CRED_HEAP.get_ptr_mut(0) else {
         return Err(0);
     };
 
@@ -274,7 +274,7 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
             creds_info.binary_path.as_mut_ptr() as *mut i8,
             creds_info.binary_path.len() as u32,
         );
-        let _ = CRED_SHARED_MAP.insert(&pid_tgid, creds_info, BPF_ANY as u64);
+        let _ = PROCMON_CRED_SHARED_MAP.insert(&pid_tgid, creds_info, BPF_ANY as u64);
     }
     Ok(0)
 }
@@ -338,7 +338,7 @@ unsafe fn execve_find_parent(task: *const task_struct) -> Option<*const ProcInfo
         let Ok(pid) = bpf_probe_read(&(*parent).tgid as *const pid_t) else {
             return None;
         };
-        if let Some(proc_ptr) = PROC_MAP.get_ptr(&(pid as u32)) {
+        if let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr(&(pid as u32)) {
             return Some(proc_ptr);
         }
     }
@@ -347,20 +347,20 @@ unsafe fn execve_find_parent(task: *const task_struct) -> Option<*const ProcInfo
 
 #[inline(always)]
 unsafe fn exec_map_get_init(pid: u32) -> Option<*mut ProcInfo> {
-    if let Some(proc_ptr) = PROC_MAP.get_ptr_mut(&pid) {
+    if let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&pid) {
         return Some(proc_ptr);
     }
 
-    let proc_ptr = PROC_HEAP.get_ptr_mut(0)?;
+    let proc_ptr = PROCMON_HEAP.get_ptr_mut(0)?;
 
     let proc = unsafe { proc_ptr.as_mut() };
 
     let proc = proc?;
     aya_ebpf::memset(proc_ptr as *mut u8, 0, core::mem::size_of_val(proc));
-    if PROC_MAP.insert(&pid, proc, BPF_ANY as u64).is_err() {
+    if PROCMON_PROC_MAP.insert(&pid, proc, BPF_ANY as u64).is_err() {
         return None;
     }
-    PROC_MAP.get_ptr_mut(&pid)
+    PROCMON_PROC_MAP.get_ptr_mut(&pid)
 }
 
 #[panic_handler]

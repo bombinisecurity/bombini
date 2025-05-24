@@ -20,16 +20,16 @@ use bombini_detectors_ebpf::vmlinux::{dentry, file, fmode_t, kgid_t, kuid_t, pat
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 #[map]
-static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
+static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
 
 #[map]
-static FILE_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
+static FILEMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
 
 const FMODE_EXEC: u32 = 1 << 5;
 
 #[lsm(hook = "file_open")]
 pub fn file_open_capture(ctx: LsmContext) -> i32 {
-    let Some(config_ptr) = FILE_CONFIG.get_ptr(0) else {
+    let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return 0;
     };
     let config = unsafe { config_ptr.as_ref() };
@@ -50,7 +50,7 @@ fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
@@ -87,7 +87,7 @@ fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32
 
 #[lsm(hook = "path_truncate")]
 pub fn path_truncate_capture(ctx: LsmContext) -> i32 {
-    let Some(config_ptr) = FILE_CONFIG.get_ptr(0) else {
+    let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return 0;
     };
     let config = unsafe { config_ptr.as_ref() };
@@ -108,7 +108,7 @@ fn try_truncate(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32,
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
@@ -132,7 +132,7 @@ fn try_truncate(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32,
 
 #[lsm(hook = "path_unlink")]
 pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
-    let Some(config_ptr) = FILE_CONFIG.get_ptr(0) else {
+    let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return 0;
     };
     let config = unsafe { config_ptr.as_ref() };
@@ -153,7 +153,7 @@ fn try_unlink(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };

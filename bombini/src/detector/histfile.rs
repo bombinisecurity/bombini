@@ -39,7 +39,7 @@ impl Detector for HistFileDetector {
         let hist_fsz_key = Key::new((hist_fsz_str.len() * 8) as u32, hist_fsz_buf);
         let hist_sz_key = Key::new((hist_sz_str.len() * 8) as u32, hist_sz_buf);
         let mut hist_cmds: LpmTrie<_, [u8; MAX_BASH_COMMAND_SIZE], u32> =
-            LpmTrie::try_from(self.ebpf.map_mut("HIST_CHECK_MAP").unwrap())?;
+            LpmTrie::try_from(self.ebpf.map_mut("HISTFILE_CHECK_MAP").unwrap())?;
         hist_cmds.insert(&hist_fsz_key, 1, 0)?;
         hist_cmds.insert(&hist_sz_key, 1, 0)?;
         Ok(())

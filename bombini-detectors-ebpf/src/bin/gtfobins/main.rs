@@ -23,10 +23,10 @@ use bombini_common::event::{Event, MSG_GTFOBINS};
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 #[map]
-static GTFOBINS: LpmTrie<GTFOBinsKey, u32> = LpmTrie::with_max_entries(128, 0);
+static GTFOBINS_NAME_MAP: LpmTrie<GTFOBinsKey, u32> = LpmTrie::with_max_entries(128, 0);
 
 #[map]
-static PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
+static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
 
 #[lsm]
 pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
@@ -40,7 +40,7 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(mut proc) = proc else {
         return Err(0);
     };
@@ -74,13 +74,13 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
                 unsafe {
                     let _ = bpf_probe_read_buf(proc.filename.as_ptr(), &mut event.process.filename);
                 }
-                let parent_proc = unsafe { PROC_MAP.get(&proc.ppid) };
+                let parent_proc = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) };
                 let Some(parent_proc) = parent_proc else {
                     return Err(0);
                 };
                 // Check if GTFO binary
                 let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
-                if let Some(enforce) = GTFOBINS.get(&lookup) {
+                if let Some(enforce) = GTFOBINS_NAME_MAP.get(&lookup) {
                     if expose {
                         if proc.clonned {
                             // Pass parent process in event
