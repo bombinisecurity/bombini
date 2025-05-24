@@ -43,3 +43,12 @@ trait Transmute {
         serde_json::to_string(&self)
     }
 }
+
+pub fn str_from_bytes(bytes: &[u8]) -> String {
+    if *bytes.last().unwrap() == 0x0 {
+        let zero = bytes.iter().position(|e| *e == 0x0).unwrap();
+        String::from_utf8_lossy(&bytes[..zero]).to_string()
+    } else {
+        String::from_utf8_lossy(bytes).to_string()
+    }
+}

@@ -6,7 +6,7 @@ use bitflags::bitflags;
 use serde::{Serialize, Serializer};
 
 use super::process::Process;
-use super::Transmute;
+use super::{Transmute, str_from_bytes};
 
 bitflags! {
     #[derive(Clone, Debug, Serialize)]
@@ -213,15 +213,6 @@ impl FileEvent {
                 panic!("unsupported LSM BPF File hook");
             }
         }
-    }
-}
-
-fn str_from_bytes(bytes: &[u8]) -> String {
-    if *bytes.last().unwrap() == 0x0 {
-        let zero = bytes.iter().position(|e| *e == 0x0).unwrap();
-        String::from_utf8_lossy(&bytes[..zero]).to_string()
-    } else {
-        String::from_utf8_lossy(bytes).to_string()
     }
 }
 
