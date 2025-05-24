@@ -4,7 +4,7 @@ use bombini_common::event::process::{ProcInfo, SecureExec};
 
 use serde::Serialize;
 
-use super::Transmute;
+use super::{str_from_bytes, Transmute};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -50,19 +50,6 @@ pub struct Process {
 impl Process {
     /// Constructs High level event representation from low eBPF
     pub fn new(mut proc: ProcInfo) -> Self {
-        let filename = if *proc.filename.last().unwrap() == 0x0 {
-            let zero = proc.filename.iter().position(|e| *e == 0x0).unwrap();
-            String::from_utf8_lossy(&proc.filename[..zero]).to_string()
-        } else {
-            String::from_utf8_lossy(&proc.filename).to_string()
-        };
-
-        let binary_path = if *proc.binary_path.last().unwrap() == 0x0 {
-            let zero = proc.binary_path.iter().position(|e| *e == 0x0).unwrap();
-            String::from_utf8_lossy(&proc.binary_path[..zero]).to_string()
-        } else {
-            String::from_utf8_lossy(&proc.binary_path).to_string()
-        };
 
         proc.args.iter_mut().for_each(|e| {
             if *e == 0x00 {
@@ -81,8 +68,8 @@ impl Process {
             cap_permitted: proc.creds.cap_permitted,
             cap_inheritable: proc.creds.cap_inheritable,
             secureexec: SecureExec::from_bits_truncate(proc.creds.secureexec.bits()),
-            filename,
-            binary_path,
+            filename: str_from_bytes(&proc.filename),
+            binary_path: str_from_bytes(&proc.binary_path),
             args,
         }
     }
