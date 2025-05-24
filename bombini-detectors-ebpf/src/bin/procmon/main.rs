@@ -33,7 +33,7 @@ struct CredSharedInfo {
 
 /// Holds current live processes
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(8192, 0);
+static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 /// Holds process information gathered on bprm_commiting_creds
 #[map]

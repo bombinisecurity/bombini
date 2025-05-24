@@ -8,7 +8,7 @@ use std::path::Path;
 
 use anyhow::anyhow;
 
-use crate::config::{CONFIG, EVENT_MAP_NAME};
+use crate::config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME};
 
 pub mod filemon;
 pub mod gtfobins;
@@ -70,5 +70,6 @@ pub async fn load_ebpf_obj<U: AsRef<Path>>(obj_path: U) -> Result<Ebpf, EbpfErro
     EbpfLoader::new()
         .map_pin_path(config.maps_pin_path.as_ref().unwrap())
         .set_max_entries(EVENT_MAP_NAME, config.event_map_size.unwrap())
+        .set_max_entries(PROCMON_PROC_MAP_NAME, config.procmon_proc_map_size.unwrap())
         .load_file(obj_path.as_ref())
 }

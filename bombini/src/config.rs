@@ -8,8 +8,11 @@ use tokio::sync::RwLock;
 
 use std::path::PathBuf;
 
-/// Ring buffer map name used to send events
+/// Ring buffer map name is used to send events
 pub const EVENT_MAP_NAME: &str = "EVENT_MAP";
+
+/// Procmon map name is used to hold alive processes
+pub const PROCMON_PROC_MAP_NAME: &str = "PROCMON_PROC_MAP";
 
 // Config holds options for cli interface and global agent parameters
 #[derive(Default, Clone, Debug, Parser)]
@@ -25,12 +28,19 @@ pub struct Config {
     pub maps_pin_path: Option<String>,
 
     /// Event map size (ring buffer size in bytes)
+    /// default value: 65536
     #[arg(long, value_name = "VALUE")]
     pub event_map_size: Option<u32>,
 
     /// Raw event channel size (number of event messages)
+    /// default value: 64
     #[arg(long, value_name = "VALUE")]
     pub event_channel_size: Option<usize>,
+
+    /// Procmon process map size
+    /// default value: 8192
+    #[arg(long, value_name = "VALUE")]
+    pub procmon_proc_map_size: Option<u32>,
 
     /// Detector to load. Can be specified multiple times.
     /// Overrides the config.
@@ -109,10 +119,20 @@ impl Config {
 
         if let Some(v) = doc["event_map_size"].as_i64() {
             self.event_map_size = Some(v as u32);
+        } else {
+            self.event_map_size = Some(65536);
         }
 
         if let Some(v) = doc["event_channel_size"].as_i64() {
             self.event_channel_size = Some(v as usize);
+        } else {
+            self.event_channel_size = Some(64);
+        }
+
+        if let Some(v) = doc["procmon_proc_map_size"].as_i64() {
+            self.procmon_proc_map_size = Some(v as u32);
+        } else {
+            self.procmon_proc_map_size = Some(8192);
         }
 
         if let Some(detectors) = doc["detectors"].as_vec() {
@@ -137,6 +157,9 @@ impl Config {
         }
         if let Some(v) = args.event_channel_size {
             self.event_channel_size = Some(v);
+        }
+        if let Some(v) = args.procmon_proc_map_size {
+            self.procmon_proc_map_size = Some(v);
         }
         if let Some(detectors) = args.detectors {
             self.detectors = Some(detectors.to_vec());
