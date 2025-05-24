@@ -1,0 +1,77 @@
+//! Transmutes NetworkEvent to serialized format
+
+use bombini_common::event::network::NetworkMsg;
+use serde::Serialize;
+
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+use super::process::Process;
+use super::Transmute;
+
+/// High-level event representation
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub struct NetworkEvent {
+    /// Process Infro
+    process: Process,
+    /// Network event
+    network_event: NetworkEventType,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+#[repr(u8)]
+#[allow(dead_code)]
+pub enum NetworkEventType {
+    TcpConEstablish(TcpConnection),
+}
+
+/// TCP IPv4 connection information
+#[derive(Clone, Debug, Serialize)]
+#[repr(C)]
+pub struct TcpConnection {
+    /// source IP address
+    saddr: IpAddr,
+    /// destination IP address,
+    daddr: IpAddr,
+    /// source port
+    sport: u16,
+    /// destination port
+    dport: u16,
+}
+
+impl NetworkEvent {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(event: NetworkMsg) -> Self {
+        match event {
+            NetworkMsg::TcpConV4Establish(con) => {
+                let s: [u8; 4] = Ipv4Addr::from_bits(con.saddr).octets();
+                let d: [u8; 4] = Ipv4Addr::from_bits(con.daddr).octets();
+                let con_event = TcpConnection {
+                    saddr: IpAddr::V4(Ipv4Addr::new(s[3], s[2], s[1], s[0])),
+                    daddr: IpAddr::V4(Ipv4Addr::new(d[3], d[2], d[1], d[0])),
+                    sport: con.sport,
+                    dport: con.dport,
+                };
+                Self {
+                    process: Process::new(con.process),
+                    network_event: NetworkEventType::TcpConEstablish(con_event),
+                }
+            }
+            NetworkMsg::TcpConV6Establish(con) => {
+                let con_event = TcpConnection {
+                    saddr: IpAddr::V6(Ipv6Addr::from_bits(u128::from_be_bytes(con.saddr))),
+                    daddr: IpAddr::V6(Ipv6Addr::from_bits(u128::from_be_bytes(con.daddr))),
+                    sport: con.sport,
+                    dport: con.dport,
+                };
+                Self {
+                    process: Process::new(con.process),
+                    network_event: NetworkEventType::TcpConEstablish(con_event),
+                }
+            }
+        }
+    }
+}
+
+impl Transmute for NetworkEvent {}

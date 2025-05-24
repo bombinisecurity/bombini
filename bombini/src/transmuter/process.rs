@@ -50,7 +50,6 @@ pub struct Process {
 impl Process {
     /// Constructs High level event representation from low eBPF
     pub fn new(mut proc: ProcInfo) -> Self {
-
         proc.args.iter_mut().for_each(|e| {
             if *e == 0x00 {
                 *e = 0x20
