@@ -21,7 +21,7 @@ static HISTFILE_CHECK_MAP: LpmTrie<[u8; MAX_BASH_COMMAND_SIZE], u32> =
     LpmTrie::with_max_entries(2, 0);
 
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
+static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 #[uretprobe]
 pub fn histfile_detect(ctx: RetProbeContext) -> i32 {

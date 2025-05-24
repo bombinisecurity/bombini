@@ -20,7 +20,7 @@ use bombini_detectors_ebpf::vmlinux::{dentry, file, fmode_t, kgid_t, kuid_t, pat
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1024, 0);
+static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 #[map]
 static FILEMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);

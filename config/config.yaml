@@ -14,6 +14,9 @@ event_map_size: 65536
 # Raw event channel size (number of event messages)
 event_channel_size: 64
 
+# Procmon process map size
+procmon_proc_map_size: 8192
+
 # List of the detectors to load
 detectors:
    - procmon
