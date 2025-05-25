@@ -4,7 +4,6 @@ use aya::maps::Array;
 use aya::programs::{BtfTracePoint, FEntry, Lsm};
 use aya::{Btf, Ebpf, EbpfError};
 
-use procfs::sys::kernel::Version;
 use yaml_rust2::YamlLoader;
 
 use std::path::Path;
@@ -19,10 +18,6 @@ pub struct ProcMon {
 }
 
 impl Detector for ProcMon {
-    fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 11, 0)
-    }
-
     async fn new<U: AsRef<Path>>(
         obj_path: U,
         config_path: Option<U>,

@@ -33,7 +33,9 @@ pub trait Detector {
         Self: Sized;
 
     /// Minimal supported kernel version for detector to load
-    fn min_kenrel_verison(&self) -> Version;
+    fn min_kenrel_verison(&self) -> Version {
+        Version::new(5, 11, 0)
+    }
 
     /// Initialize config maps for detector
     fn map_initialize(&mut self) -> Result<(), EbpfError> {

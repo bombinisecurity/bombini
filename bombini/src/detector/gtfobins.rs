@@ -4,7 +4,6 @@ use aya::maps::lpm_trie::{Key, LpmTrie};
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError};
 
-use procfs::sys::kernel::Version;
 use yaml_rust2::{Yaml, YamlLoader};
 
 use bombini_common::config::gtfobins::GTFOBinsKey;
@@ -25,10 +24,6 @@ struct GTFOBinsConfig {
 }
 
 impl Detector for GTFOBinsDetector {
-    fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 11, 0)
-    }
-
     async fn new<U: AsRef<Path>>(
         obj_path: U,
         config_path: Option<U>,

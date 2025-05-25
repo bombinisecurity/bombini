@@ -6,8 +6,6 @@ use aya::maps::lpm_trie::{Key, LpmTrie};
 use aya::programs::UProbe;
 use aya::{Ebpf, EbpfError};
 
-use procfs::sys::kernel::Version;
-
 use std::path::Path;
 
 use super::{load_ebpf_obj, Detector};
@@ -17,10 +15,6 @@ pub struct HistFileDetector {
 }
 
 impl Detector for HistFileDetector {
-    fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 11, 0)
-    }
-
     async fn new<U: AsRef<Path>>(
         obj_path: U,
         _config_path: Option<U>,
