@@ -49,4 +49,8 @@ pub enum NetworkMsg {
     TcpConV4Close(TcpConnectionV4) = 2,
     /// Closing TCP connection for IPv6
     TcpConV6Close(TcpConnectionV6) = 3,
+    /// Accepting TCP connection for IPv4
+    TcpConV4Accept(TcpConnectionV4) = 4,
+    /// Accepting TCP connection for IPv6
+    TcpConV6Accept(TcpConnectionV6) = 5,
 }

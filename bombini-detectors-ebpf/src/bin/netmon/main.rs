@@ -226,3 +226,67 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u
         }
     }
 }
+
+#[fexit(function = "inet_csk_accept")]
+pub fn inet_csk_accept_capture(ctx: FExitContext) -> u32 {
+    let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
+        return 0;
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return 0;
+    };
+    event_capture!(
+        ctx,
+        MSG_NETWORK,
+        false,
+        try_inet_csk_accept,
+        config.expose_events
+    )
+}
+
+fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
+    let Event::Network(event) = event else {
+        return Err(0);
+    };
+    let pid = ctx.pid();
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    unsafe {
+        let s = ctx.arg::<*const sock>(0);
+        let family = (*s).__sk_common.skc_family;
+        match family {
+            AF_INET => {
+                let p = event as *mut NetworkMsg as *mut u8;
+                // TcpConV6Accepted
+                *p = 4;
+                let NetworkMsg::TcpConV4Accept(event) = event else {
+                    return Err(0);
+                };
+                parse_v4_sock(event, s);
+
+                if expose {
+                    util::copy_proc(proc, &mut event.process);
+                }
+                Ok(0)
+            }
+            AF_INET6 => {
+                let p = event as *mut NetworkMsg as *mut u8;
+                // TcpConV6Accepted
+                *p = 5;
+                let NetworkMsg::TcpConV6Accept(event) = event else {
+                    return Err(0);
+                };
+                parse_v6_sock(event, s)?;
+                if expose {
+                    util::copy_proc(proc, &mut event.process);
+                }
+                Ok(0)
+            }
+            _ => Err(0),
+        }
+    }
+}

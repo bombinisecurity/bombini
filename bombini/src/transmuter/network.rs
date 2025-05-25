@@ -22,9 +22,11 @@ pub struct NetworkEvent {
 #[serde(tag = "type")]
 #[repr(u8)]
 #[allow(dead_code)]
+#[allow(clippy::enum_variant_names)]
 pub enum NetworkEventType {
     TcpConnectionEstablish(TcpConnection),
     TcpConnectionClose(TcpConnection),
+    TcpConnectionAccept(TcpConnection),
 }
 
 /// TCP IPv4 connection information
@@ -73,6 +75,20 @@ impl NetworkEvent {
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
+                }
+            }
+            NetworkMsg::TcpConV4Accept(con) => {
+                let con_event = transmute_connection_v4(&con);
+                Self {
+                    process: Process::new(con.process),
+                    network_event: NetworkEventType::TcpConnectionAccept(con_event),
+                }
+            }
+            NetworkMsg::TcpConV6Accept(con) => {
+                let con_event = transmute_connection_v6(&con);
+                Self {
+                    process: Process::new(con.process),
+                    network_event: NetworkEventType::TcpConnectionAccept(con_event),
                 }
             }
         }
