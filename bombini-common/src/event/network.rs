@@ -15,6 +15,8 @@ pub struct TcpConnectionV4 {
     pub sport: u16,
     /// destination port
     pub dport: u16,
+    /// socket cookie
+    pub cookie: u64,
 }
 
 /// TCP IPv6 connection information
@@ -30,6 +32,8 @@ pub struct TcpConnectionV6 {
     pub sport: u16,
     /// destination port
     pub dport: u16,
+    /// socket cookie
+    pub cookie: u64,
 }
 
 /// Raw network event messages
@@ -41,4 +45,8 @@ pub enum NetworkMsg {
     TcpConV4Establish(TcpConnectionV4) = 0,
     /// Establishing TCP connection for IPv6
     TcpConV6Establish(TcpConnectionV6) = 1,
+    /// Closing TCP connection for IPv4
+    TcpConV4Close(TcpConnectionV4) = 2,
+    /// Closing TCP connection for IPv6
+    TcpConV6Close(TcpConnectionV6) = 3,
 }
