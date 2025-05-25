@@ -67,6 +67,13 @@ impl Detector for NetMon {
             .try_into()?;
         tcp_v6_connect.load("tcp_v6_connect", &btf)?;
         tcp_v6_connect.attach()?;
+        let tcp_close: &mut FExit = self
+            .ebpf
+            .program_mut("tcp_close_capture")
+            .unwrap()
+            .try_into()?;
+        tcp_close.load("tcp_close", &btf)?;
+        tcp_close.attach()?;
         Ok(())
     }
 }
