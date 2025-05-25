@@ -74,6 +74,13 @@ impl Detector for NetMon {
             .try_into()?;
         tcp_close.load("tcp_close", &btf)?;
         tcp_close.attach()?;
+        let tcp_accept: &mut FExit = self
+            .ebpf
+            .program_mut("inet_csk_accept_capture")
+            .unwrap()
+            .try_into()?;
+        tcp_accept.load("inet_csk_accept", &btf)?;
+        tcp_accept.attach()?;
         Ok(())
     }
 }
