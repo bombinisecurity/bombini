@@ -4,7 +4,6 @@ use aya::maps::Array;
 use aya::programs::FExit;
 use aya::{Btf, Ebpf, EbpfError};
 
-use procfs::sys::kernel::Version;
 use yaml_rust2::YamlLoader;
 
 use std::path::Path;
@@ -18,10 +17,6 @@ pub struct NetMon {
     config: Option<Config>,
 }
 impl Detector for NetMon {
-    fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 11, 0)
-    }
-
     async fn new<U: AsRef<Path>>(
         obj_path: U,
         config_path: Option<U>,

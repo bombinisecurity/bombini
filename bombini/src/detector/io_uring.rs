@@ -3,8 +3,6 @@
 use aya::programs::BtfTracePoint;
 use aya::{Btf, Ebpf, EbpfError};
 
-use procfs::sys::kernel::Version;
-
 use std::path::Path;
 
 use super::{load_ebpf_obj, Detector};
@@ -14,10 +12,6 @@ pub struct IOUringDetector {
 }
 
 impl Detector for IOUringDetector {
-    fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 11, 0)
-    }
-
     async fn new<U: AsRef<Path>>(
         obj_path: U,
         _config_path: Option<U>,
