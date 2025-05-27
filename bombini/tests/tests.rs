@@ -9,70 +9,13 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 
 use more_asserts as ma;
-use tempfile::Builder;
+use tempfile::{Builder, TempDir};
 
 static EXE_BOMBINI: &str = env!("CARGO_BIN_EXE_bombini");
 static PROJECT_DIR: &str = env!("CARGO_MANIFEST_DIR");
-#[test]
-fn test_detectors_load() {
-    let mut project_dir = PathBuf::from(PROJECT_DIR);
-    project_dir.pop();
-    let mut config = project_dir.clone();
-    config.push("config");
-    let mut bpf_objs = project_dir.clone();
-    bpf_objs.push("target/bpfel-unknown-none");
-    if EXE_BOMBINI.contains("release") {
-        bpf_objs.push("release");
-    } else {
-        bpf_objs.push("debug");
-    }
 
-    let temp_dir = Builder::new()
-        .prefix("bombini-test-")
-        .rand_bytes(5)
-        .disable_cleanup(true)
-        .tempdir()
-        .expect("can't create temp dir");
-    let bomini_temp_dir = temp_dir.path();
-
-    let bombini_log =
-        File::create(bomini_temp_dir.join("bombini.log")).expect("can't create log file");
-
-    let bombini = Command::new(EXE_BOMBINI)
-        .args([
-            "--config-dir",
-            config.to_str().unwrap(),
-            "--bpf-objs",
-            bpf_objs.to_str().unwrap(),
-            "--stdout",
-        ])
-        .env("RUST_LOG", "debug")
-        .stderr(bombini_log.try_clone().unwrap())
-        .spawn();
-    if bombini.is_err() {
-        panic!("{:?}", bombini.err().unwrap());
-    }
-    let mut bombini = bombini.expect("failed to start bombini");
-    // Wait for detectors being loaded
-    thread::sleep(Duration::from_millis(3000));
-
-    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
-
-    let _ = bombini.wait().unwrap();
-
-    let log = fs::read_to_string(bomini_temp_dir.join("bombini.log")).expect("can't read events");
-
-    // Check loaded detectors
-    assert!(log.contains("gtfobins is loaded"));
-    assert!(log.contains("procmon is loaded"));
-    assert!(log.contains("histfile is loaded"));
-
-    let _ = fs::remove_dir_all(bomini_temp_dir);
-}
-
-#[test]
-#[ignore = "fails on githib CI. TODO: Fix"]
-fn test_procmon_file() {
+// Return Tmpdir, config, bpf_obj
+fn init_test_env() -> (TempDir, PathBuf, PathBuf) {
     let mut project_dir = PathBuf::from(PROJECT_DIR);
     project_dir.pop();
     let mut config = project_dir.clone();
@@ -91,14 +34,63 @@ fn test_procmon_file() {
         .disable_cleanup(true)
         .tempdir()
         .expect("can't create temp dir");
+    (temp_dir, config, bpf_objs)
+}
 
-    let bomini_temp_dir = temp_dir.path();
-    let mut tmp_config = bomini_temp_dir.join("config/config.yaml");
-    let _ = fs::create_dir(bomini_temp_dir.join("config"));
+#[test]
+fn test_detectors_load() {
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    config.pop();
+
+    let bombini_log =
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
+
+    let bombini = Command::new(EXE_BOMBINI)
+        .args([
+            "--config-dir",
+            config.to_str().unwrap(),
+            "--bpf-objs",
+            bpf_objs.to_str().unwrap(),
+            "--stdout",
+        ])
+        .env("RUST_LOG", "debug")
+        .stderr(bombini_log.try_clone().unwrap())
+        .spawn();
+    if bombini.is_err() {
+        panic!("{:?}", bombini.err().unwrap());
+    }
+    let mut bombini = bombini.expect("failed to start bombini");
+    // Wait for detectors being loaded
+    thread::sleep(Duration::from_millis(4000));
+
+    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
+
+    let _ = bombini.wait().unwrap();
+
+    let log = fs::read_to_string(bombini_temp_dir.join("bombini.log")).expect("can't read events");
+
+    // Check loaded detectors
+    assert!(log.contains("gtfobins is loaded"));
+    assert!(log.contains("procmon is loaded"));
+    assert!(log.contains("histfile is loaded"));
+    assert!(log.contains("filemon is loaded"));
+    assert!(log.contains("netmon is loaded"));
+
+    let _ = fs::remove_dir_all(bombini_temp_dir);
+}
+
+#[test]
+#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
+fn test_procmon_file() {
+    let (temp_dir, config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
     let _ = fs::copy(&config, &tmp_config);
     tmp_config.pop();
     let bombini_log =
-        File::create(bomini_temp_dir.join("bombini.log")).expect("can't create log file");
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let _ = fs::write(tmp_config.join("procmon.yaml"), "expose-events: true");
     let event_log = temp_dir.path().join("events.log");
 
@@ -131,7 +123,7 @@ fn test_procmon_file() {
         .expect("can't start ls");
 
     // Wait Events being processed
-    thread::sleep(Duration::from_millis(1000));
+    thread::sleep(Duration::from_millis(500));
 
     let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
 
@@ -142,34 +134,16 @@ fn test_procmon_file() {
     assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
     assert_eq!(events.matches("\"args\":\"-lah\"").count(), 2);
 
-    let _ = fs::remove_dir_all(bomini_temp_dir);
+    let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
 #[test]
-#[ignore = "fails on githib CI. TODO: Fix"]
+#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_gtfobins_detector_file() {
-    let mut project_dir = PathBuf::from(PROJECT_DIR);
-    project_dir.pop();
-    let mut config = project_dir.clone();
-    config.push("config/config.yaml");
-    let mut bpf_objs = project_dir.clone();
-    bpf_objs.push("target/bpfel-unknown-none");
-    if EXE_BOMBINI.contains("release") {
-        bpf_objs.push("release");
-    } else {
-        bpf_objs.push("debug");
-    }
-
-    let temp_dir = Builder::new()
-        .prefix("bombini-test-")
-        .rand_bytes(5)
-        .disable_cleanup(true)
-        .tempdir()
-        .expect("can't create temp dir");
-
-    let bomini_temp_dir = temp_dir.path();
-    let mut tmp_config = bomini_temp_dir.join("config/config.yaml");
-    let _ = fs::create_dir(bomini_temp_dir.join("config"));
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
     let _ = fs::copy(&config, &tmp_config);
     tmp_config.pop();
     config.pop();
@@ -179,7 +153,7 @@ fn test_gtfobins_detector_file() {
         tmp_config.join("gtfobins.yaml"),
     );
     let bombini_log =
-        File::create(bomini_temp_dir.join("bombini.log")).expect("can't create log file");
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let event_log = temp_dir.path().join("events.log");
 
     let bombini = Command::new(EXE_BOMBINI)
@@ -215,7 +189,7 @@ fn test_gtfobins_detector_file() {
         .expect("can't start ls");
 
     // Wait Events being processed
-    thread::sleep(Duration::from_millis(1000));
+    thread::sleep(Duration::from_millis(500));
 
     let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
 
@@ -231,41 +205,23 @@ fn test_gtfobins_detector_file() {
     assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 1);
     assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 1);
 
-    let _ = fs::remove_dir_all(bomini_temp_dir);
+    let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
 #[test]
-#[ignore = "fails on githib CI. TODO: Fix"]
+#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_filemon_unlink_file() {
-    let mut project_dir = PathBuf::from(PROJECT_DIR);
-    project_dir.pop();
-    let mut config = project_dir.clone();
-    config.push("config/config.yaml");
-    let mut bpf_objs = project_dir.clone();
-    bpf_objs.push("target/bpfel-unknown-none");
-    if EXE_BOMBINI.contains("release") {
-        bpf_objs.push("release");
-    } else {
-        bpf_objs.push("debug");
-    }
-
-    let temp_dir = Builder::new()
-        .prefix("bombini-test-")
-        .rand_bytes(5)
-        .disable_cleanup(true)
-        .tempdir()
-        .expect("can't create temp dir");
-
-    let bomini_temp_dir = temp_dir.path();
-    let mut tmp_config = bomini_temp_dir.join("config/config.yaml");
-    let _ = fs::create_dir(bomini_temp_dir.join("config"));
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
     let _ = fs::copy(&config, &tmp_config);
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let _ = fs::copy(config.join("filemon.yaml"), tmp_config.join("filemon.yaml"));
     let bombini_log =
-        File::create(bomini_temp_dir.join("bombini.log")).expect("can't create log file");
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let event_log = temp_dir.path().join("events.log");
 
     let bombini = Command::new(EXE_BOMBINI)
@@ -310,7 +266,7 @@ fn test_filemon_unlink_file() {
     assert!(rm_status.success());
 
     // Wait Events being processed
-    thread::sleep(Duration::from_millis(1000));
+    thread::sleep(Duration::from_millis(500));
 
     let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
 
@@ -323,5 +279,5 @@ fn test_filemon_unlink_file() {
     ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
     assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 2); // FileEvent + ProcInfo
 
-    let _ = fs::remove_dir_all(bomini_temp_dir);
+    let _ = fs::remove_dir_all(bombini_temp_dir);
 }
