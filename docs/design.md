@@ -46,6 +46,7 @@ interact with them (change config maps).
 
 * [procmon](detectors/procmon.md)
 * [filemon](detectors/filemon.md)
+* [netmon](detectors/netmon.md)
 * [gtflobins](detectors/gtfobins.md)
 * [histfile](detectors/histfile.md)
 * [io_uring](detectors/io_uring.md)
