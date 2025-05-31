@@ -18,12 +18,13 @@ pub struct FileMon {
 }
 
 impl Detector for FileMon {
-    async fn new<U: AsRef<Path>>(
-        obj_path: U,
-        config_path: Option<U>,
-    ) -> Result<Self, anyhow::Error> {
+    async fn new<P, U>(obj_path: P, yaml_config: Option<U>) -> Result<Self, anyhow::Error>
+    where
+        U: AsRef<str>,
+        P: AsRef<Path>,
+    {
         let ebpf = load_ebpf_obj(obj_path).await?;
-        if let Some(config_path) = config_path {
+        if let Some(yaml_config) = yaml_config {
             let mut config = Config {
                 file_open_config: HookConfig {
                     expose_events: true,
@@ -39,8 +40,7 @@ impl Detector for FileMon {
                 },
             };
 
-            let s = std::fs::read_to_string(config_path.as_ref())?;
-            let docs = YamlLoader::load_from_str(&s)?;
+            let docs = YamlLoader::load_from_str(yaml_config.as_ref())?;
             let Some(doc) = docs[0].as_hash() else {
                 anyhow::bail!("filemon config must be a Hash")
             };

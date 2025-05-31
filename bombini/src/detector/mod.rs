@@ -24,13 +24,12 @@ pub trait Detector {
     ///
     /// * `obj_path` - file path to ebpf object file
     ///
-    /// * `config_path` - file path to yaml initialization config.
-    async fn new<U: AsRef<Path>>(
-        obj_path: U,
-        config_path: Option<U>,
-    ) -> Result<Self, anyhow::Error>
+    /// * `config` - yaml initialization config.
+    async fn new<P, U>(obj_path: P, yaml_config: Option<U>) -> Result<Self, anyhow::Error>
     where
-        Self: Sized;
+        Self: Sized,
+        U: AsRef<str>,
+        P: AsRef<Path>;
 
     /// Minimal supported kernel version for detector to load
     fn min_kenrel_verison(&self) -> Version {
@@ -68,7 +67,7 @@ pub trait Detector {
 ///
 /// * `obj_path` - file path to ebpf object file.
 #[inline(always)]
-pub async fn load_ebpf_obj<U: AsRef<Path>>(obj_path: U) -> Result<Ebpf, EbpfError> {
+pub async fn load_ebpf_obj<P: AsRef<Path>>(obj_path: P) -> Result<Ebpf, EbpfError> {
     let config = CONFIG.read().await;
     EbpfLoader::new()
         .map_pin_path(config.maps_pin_path.as_ref().unwrap())
