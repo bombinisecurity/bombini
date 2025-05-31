@@ -18,19 +18,19 @@ pub struct ProcMon {
 }
 
 impl Detector for ProcMon {
-    async fn new<U: AsRef<Path>>(
-        obj_path: U,
-        config_path: Option<U>,
-    ) -> Result<Self, anyhow::Error> {
+    async fn new<P, U>(obj_path: P, yaml_config: Option<U>) -> Result<Self, anyhow::Error>
+    where
+        U: AsRef<str>,
+        P: AsRef<Path>,
+    {
         let ebpf = load_ebpf_obj(obj_path).await?;
 
-        if let Some(config_path) = config_path {
+        if let Some(yaml_config) = yaml_config {
             let mut config = Config {
                 expose_events: false,
             };
 
-            let s = std::fs::read_to_string(config_path.as_ref())?;
-            let docs = YamlLoader::load_from_str(&s)?;
+            let docs = YamlLoader::load_from_str(yaml_config.as_ref())?;
             let doc = &docs[0];
 
             config.expose_events = doc["expose-events"].as_bool().unwrap_or(false);

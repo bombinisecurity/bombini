@@ -15,10 +15,11 @@ pub struct HistFileDetector {
 }
 
 impl Detector for HistFileDetector {
-    async fn new<U: AsRef<Path>>(
-        obj_path: U,
-        _config_path: Option<U>,
-    ) -> Result<Self, anyhow::Error> {
+    async fn new<P, U>(obj_path: P, _yaml_config: Option<U>) -> Result<Self, anyhow::Error>
+    where
+        U: AsRef<str>,
+        P: AsRef<Path>,
+    {
         let ebpf = load_ebpf_obj(obj_path).await?;
         Ok(HistFileDetector { ebpf })
     }
