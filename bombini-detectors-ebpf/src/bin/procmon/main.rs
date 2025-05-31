@@ -4,9 +4,9 @@
 use aya_ebpf::{
     bindings::BPF_ANY,
     helpers::{
-        bpf_d_path, bpf_get_current_pid_tgid, bpf_get_current_task_btf, bpf_ktime_get_ns,
-        bpf_probe_read, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes,
-        bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
+        bpf_d_path, bpf_get_current_pid_tgid, bpf_get_current_task_btf, bpf_probe_read,
+        bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf,
+        bpf_probe_read_user_str_bytes,
     },
     macros::{btf_tracepoint, fentry, lsm, map},
     maps::{array::Array, hash_map::HashMap, hash_map::LruHashMap, per_cpu_array::PerCpuArray},
@@ -115,8 +115,6 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
             }
         }
     }
-
-    proc.ktime = unsafe { bpf_ktime_get_ns() };
 
     // We need to read real executable name and get arguments from stack.
     let (arg_start, arg_end) = unsafe {
@@ -304,13 +302,9 @@ fn try_wake_up_new_task(ctx: FEntryContext) -> Result<u32, u32> {
     let Some(proc) = proc else {
         return Err(0);
     };
-    if proc.ktime != 0 {
-        return Err(0);
-    }
     proc.pid = tgid;
     unsafe {
         proc.ppid = (*parent_proc).pid;
-        proc.ktime = bpf_ktime_get_ns();
         proc.tid = bpf_probe_read::<pid_t>(&(*task).pid as *const _).map_err(|_| 0u32)? as u32;
         bpf_probe_read_kernel_str_bytes(&(*parent_proc).filename as *const _, &mut proc.filename)
             .map_err(|_| 0u32)?;

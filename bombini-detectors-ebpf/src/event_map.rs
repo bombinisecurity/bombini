@@ -1,10 +1,11 @@
 //! Ring buffer to send events from all detectors.
 use aya_ebpf::{
+    helpers::bpf_ktime_get_ns,
     macros::map,
     maps::{ring_buf::RingBufEntry, RingBuf},
 };
 
-use bombini_common::event::Event;
+use bombini_common::event::{Event, GenericEvent};
 
 #[map]
 pub static EVENT_MAP: RingBuf = RingBuf::pinned(1, 0);
@@ -21,8 +22,8 @@ pub static EVENT_MAP: RingBuf = RingBuf::pinned(1, 0);
 /// # Return value
 ///
 /// RingBufEntry for Event filled with zeros
-pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<Event>, i32> {
-    let Some(mut event_rb) = EVENT_MAP.reserve::<Event>(0) else {
+pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEvent>, i32> {
+    let Some(mut event_rb) = EVENT_MAP.reserve::<GenericEvent>(0) else {
         return Err(0);
     };
     unsafe {
@@ -33,8 +34,10 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<Event>, i3
                 core::mem::size_of_val(&event_rb),
             );
         }
-        let p = event_rb.as_mut_ptr() as *mut u8;
+        let event_ref = &mut *event_rb.as_mut_ptr();
+        let p = &mut event_ref.event as *mut Event as *mut u8;
         *p = msg_code;
+        event_ref.ktime = bpf_ktime_get_ns();
     }
     Ok(event_rb)
 }
@@ -60,7 +63,7 @@ macro_rules! event_capture {
             return 0;
         };
         let event_ref = unsafe { &mut *event_rb.as_mut_ptr() };
-        match $handler($ctx, event_ref, $expose) {
+        match $handler($ctx, &mut event_ref.event, $expose) {
             Ok(ret) => {
                 if $expose {
                     event_rb.submit(0);

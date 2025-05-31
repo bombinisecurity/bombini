@@ -12,7 +12,7 @@ use log::debug;
 use std::convert::TryFrom;
 use std::path::Path;
 
-use bombini_common::event::Event;
+use bombini_common::event::GenericEvent;
 
 use crate::transmitter::Transmitter;
 use crate::transmuter::Transmuter;
@@ -65,7 +65,7 @@ impl<'a> Monitor<'a> {
         });
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                let s: Event = unsafe { std::ptr::read(message.as_ptr() as *const _) };
+                let s: GenericEvent = unsafe { std::ptr::read(message.as_ptr() as *const _) };
                 let data = transmuter.transmute(s).await.unwrap();
                 if (transmitter.transmit(data).await).is_err() {
                     debug!("failed to transmit event");

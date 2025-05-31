@@ -10,6 +10,12 @@ pub mod histfile;
 pub mod io_uring;
 
 /// Generic event for ring buffer
+pub struct GenericEvent {
+    pub ktime: u64,
+    pub event: Event,
+}
+
+/// Enumeration of all supported events
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 #[repr(u8)]

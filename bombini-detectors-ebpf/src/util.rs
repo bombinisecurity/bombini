@@ -7,7 +7,6 @@ use bombini_common::event::process::ProcInfo;
 /// copy process information to ring buffer
 #[inline(always)]
 pub fn copy_proc(src: &ProcInfo, dst: &mut ProcInfo) {
-    dst.ktime = src.ktime;
     dst.pid = src.pid;
     dst.tid = src.tid;
     dst.ppid = src.ppid;

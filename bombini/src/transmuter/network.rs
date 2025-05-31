@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use super::process::Process;
-use super::Transmute;
+use super::{transmute_ktime, Transmute};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
@@ -16,6 +16,8 @@ pub struct NetworkEvent {
     process: Process,
     /// Network event
     network_event: NetworkEventType,
+    /// Event's date and time
+    timestamp: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -47,13 +49,14 @@ pub struct TcpConnection {
 
 impl NetworkEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: NetworkMsg) -> Self {
+    pub fn new(event: NetworkMsg, ktime: u64) -> Self {
         match event {
             NetworkMsg::TcpConV4Establish(con) => {
                 let con_event = transmute_connection_v4(&con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             NetworkMsg::TcpConV6Establish(con) => {
@@ -61,6 +64,7 @@ impl NetworkEvent {
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             NetworkMsg::TcpConV4Close(con) => {
@@ -68,6 +72,7 @@ impl NetworkEvent {
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             NetworkMsg::TcpConV6Close(con) => {
@@ -75,6 +80,7 @@ impl NetworkEvent {
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             NetworkMsg::TcpConV4Accept(con) => {
@@ -82,6 +88,7 @@ impl NetworkEvent {
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             NetworkMsg::TcpConV6Accept(con) => {
@@ -89,6 +96,7 @@ impl NetworkEvent {
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
         }

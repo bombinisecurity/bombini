@@ -15,7 +15,6 @@ pub const MAX_FILE_PATH: usize = 512;
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct ProcInfo {
-    pub ktime: u64,
     /// PID
     pub pid: u32,
     /// TID
