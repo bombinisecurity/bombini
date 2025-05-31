@@ -32,7 +32,8 @@ expose-events: false
       "filename": "git",
       "binary_path": "/usr/bin/git",
       "args": "rev-parse --quiet --verify HEAD"
-    }
+    },
+    "timestamp": "2025-05-31T09:04:45.896Z"
   }
 ```
 ```json
@@ -52,6 +53,7 @@ expose-events: false
       "filename": "git",
       "binary_path": "/usr/bin/git",
       "args": "rev-parse --quiet --verify HEAD"
-    }
+    },
+    "timestamp": "2025-05-31T09:04:45.909Z"
   }
 ```

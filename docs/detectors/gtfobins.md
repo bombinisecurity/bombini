@@ -42,6 +42,7 @@ The GTFOBins event is looks like:
     "filename": "xargs",
     "binary_path": "/home/fedotoff/xargs",
     "args": "-a /dev/null sh -p"
-  }
+  },
+  "timestamp": "2025-05-31T10:04:07.372Z",
 }
 ```

@@ -31,6 +31,7 @@ This detector has no config
     "args": ""
   },
   "opcode": "IORING_OP_OPENAT",
-  "flags": 8208
+  "flags": 8208,
+  "timestamp": "2025-05-31T10:05:31.236Z"
 }
 ```

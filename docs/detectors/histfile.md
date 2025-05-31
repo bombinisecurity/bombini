@@ -35,6 +35,7 @@ This detector has no config
     "binary_path": "/usr/bin/bash",
     "args": ""
   },
-  "command": "export HISTFILESIZE=0 && cat /etc/passwd"
+  "command": "export HISTFILESIZE=0 && cat /etc/passwd",
+  "timestamp": "2025-05-31T10:05:01.173Z"
 }
 ```

@@ -47,7 +47,8 @@ Executing `curl -6 google.com` produces:
     "sport": 33340,
     "dport": 80,
     "cookie": 4109
-  }
+  },
+  "timestamp": "2025-05-31T10:05:51.282Z"
 }
 ```
 
@@ -76,7 +77,8 @@ Executing `curl -6 google.com` produces:
     "sport": 0,
     "dport": 80,
     "cookie": 4109
-  }
+  },
+  "timestamp": "2025-05-31T10:06:41.399Z"
 }
 ```
 Executing
@@ -113,7 +115,8 @@ produce the following events:
     "sport": 38570,
     "dport": 7878,
     "cookie": 16387
-  }
+  },
+  "timestamp": "2025-05-31T10:06:46.409Z"
 }
 ```
 
@@ -142,7 +145,8 @@ produce the following events:
     "sport": 7878,
     "dport": 0,
     "cookie": 24591
-  }
+  },
+  "timestamp": "2025-05-31T10:06:46.4182"
 }
 ```
 
@@ -171,6 +175,7 @@ produce the following events:
     "sport": 0,
     "dport": 7878,
     "cookie": 16387
-  }
+  },
+  "timestamp": "2025-05-31T10:07:06.453Z"
 }
 ```

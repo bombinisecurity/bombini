@@ -55,7 +55,8 @@ Event for `security_path_truncate` (truncating file):
   "hook": {
     "type": "PathTruncate",
     "path": "/home/fedotoff/bombini/bombini.log"
-  }
+  },
+  "timestamp": "2025-05-31T10:01:41.741Z"
 }
 ```
 
@@ -82,7 +83,8 @@ Event for `security_path_unlink` (deleting file):
   "hook": {
     "type": "PathUnlink",
     "path": "/home/fedotoff/bombini/bombini.log"
-  }
+  },
+  "timestamp": "2025-05-31T10:02:15.812Z"
 }
 ```
 
@@ -114,6 +116,7 @@ Event for `security_file_open` (opening file):
     "uid": 0,
     "gid": 0,
     "i_mode": "-rw-r--r--"
-  }
+  },
+  "timestamp": "2025-05-31T10:02:45.887Z"
 }
 ```
