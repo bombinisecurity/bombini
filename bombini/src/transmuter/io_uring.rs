@@ -5,7 +5,7 @@ use bombini_common::event::io_uring::IOUringMsg;
 use serde::Serialize;
 
 use super::process::Process;
-use super::Transmute;
+use super::{transmute_ktime, Transmute};
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -88,15 +88,18 @@ pub struct IOUringEvent {
     /// io_uring_ops
     opcode: IOUringOp,
     flags: u32,
+    /// Event's date and time
+    timestamp: String,
 }
 
 impl IOUringEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: IOUringMsg) -> Self {
+    pub fn new(event: IOUringMsg, ktime: u64) -> Self {
         Self {
             process: Process::new(event.process),
             opcode: unsafe { std::mem::transmute::<u8, IOUringOp>(event.opcode) },
             flags: event.flags,
+            timestamp: transmute_ktime(ktime),
         }
     }
 }

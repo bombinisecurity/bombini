@@ -5,7 +5,7 @@ use bombini_common::event::gtfobins::GTFOBinsMsg;
 use serde::Serialize;
 
 use super::process::Process;
-use super::Transmute;
+use super::{transmute_ktime, Transmute};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
@@ -13,13 +13,16 @@ use super::Transmute;
 pub struct GTFOBinsEvent {
     /// Process Infro
     process: Process,
+    /// Event's date and time
+    timestamp: String,
 }
 
 impl GTFOBinsEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: GTFOBinsMsg) -> Self {
+    pub fn new(event: GTFOBinsMsg, ktime: u64) -> Self {
         Self {
             process: Process::new(event.process),
+            timestamp: transmute_ktime(ktime),
         }
     }
 }

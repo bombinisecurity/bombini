@@ -4,13 +4,15 @@ use bombini_common::event::process::{ProcInfo, SecureExec};
 
 use serde::Serialize;
 
-use super::{str_from_bytes, Transmute};
+use super::{str_from_bytes, transmute_ktime, Transmute};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 pub struct ProcessExec {
     /// Process Infro
     process: Process,
+    /// Event's date and time
+    timestamp: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -18,6 +20,8 @@ pub struct ProcessExec {
 pub struct ProcessExit {
     /// Process Infro
     process: Process,
+    /// Event's date and time
+    timestamp: String,
 }
 
 /// High-level event representation
@@ -76,8 +80,9 @@ impl Process {
 
 impl ProcessExec {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcInfo) -> Self {
+    pub fn new(event: ProcInfo, ktime: u64) -> Self {
         Self {
+            timestamp: transmute_ktime(ktime),
             process: Process::new(event),
         }
     }
@@ -87,8 +92,9 @@ impl Transmute for ProcessExec {}
 
 impl ProcessExit {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcInfo) -> Self {
+    pub fn new(event: ProcInfo, ktime: u64) -> Self {
         Self {
+            timestamp: transmute_ktime(ktime),
             process: Process::new(event),
         }
     }

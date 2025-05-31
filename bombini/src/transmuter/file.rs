@@ -6,7 +6,7 @@ use bitflags::bitflags;
 use serde::{Serialize, Serializer};
 
 use super::process::Process;
-use super::{str_from_bytes, Transmute};
+use super::{str_from_bytes, transmute_ktime, Transmute};
 
 bitflags! {
     #[derive(Clone, Debug, Serialize)]
@@ -141,6 +141,8 @@ pub struct FileEvent {
     process: Process,
     /// LSM File hook info
     hook: LsmFileHook,
+    /// Event's date and time
+    timestamp: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -176,7 +178,7 @@ pub enum LsmFileHook {
 
 impl FileEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: FileMsg) -> Self {
+    pub fn new(event: FileMsg, ktime: u64) -> Self {
         match event.hook {
             HOOK_FILE_OPEN => {
                 let info = FileOpenInfo {
@@ -190,6 +192,7 @@ impl FileEvent {
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::FileOpen(info),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             HOOK_PATH_TRUNCATE => {
@@ -199,6 +202,7 @@ impl FileEvent {
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::PathTruncate(info),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             HOOK_PATH_UNLINK => {
@@ -207,6 +211,7 @@ impl FileEvent {
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::PathUnlink(info),
+                    timestamp: transmute_ktime(ktime),
                 }
             }
             _ => {
