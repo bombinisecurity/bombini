@@ -27,32 +27,30 @@ mod process;
 /// Transmutes eBPF events from low representation into serialized formats
 pub struct Transmuter;
 
+macro_rules! transmute {
+    ($event:expr, $ktime:expr, $(($key:path, $type:ty)),+) => {
+        match $event {
+            $($key(s) => Ok(<$type>::new(s, $ktime)
+            .to_json()?
+            .into_bytes()),)+
+        }
+    };
+}
 impl Transmuter {
     /// Transmutes bombini_common::Event into serialized formats
     pub async fn transmute(&self, generic_event: GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
-        match generic_event.event {
-            Event::ProcExec(s) => Ok(ProcessExec::new(s, generic_event.ktime)
-                .to_json()?
-                .into_bytes()),
-            Event::ProcExit(s) => Ok(ProcessExit::new(s, generic_event.ktime)
-                .to_json()?
-                .into_bytes()),
-            Event::File(s) => Ok(FileEvent::new(s, generic_event.ktime)
-                .to_json()?
-                .into_bytes()),
-            Event::GTFOBins(s) => Ok(GTFOBinsEvent::new(s, generic_event.ktime)
-                .to_json()?
-                .into_bytes()),
-            Event::HistFile(s) => Ok(HistFileEvent::new(s, generic_event.ktime)
-                .to_json()?
-                .into_bytes()),
-            Event::IOUring(s) => Ok(IOUringEvent::new(s, generic_event.ktime)
-                .to_json()?
-                .into_bytes()),
-            Event::Network(s) => Ok(NetworkEvent::new(s, generic_event.ktime)
-                .to_json()?
-                .into_bytes()),
-        }
+        transmute!(
+            generic_event.event,
+            generic_event.ktime,
+            /*Low-level event -> High-level event representation */
+            (Event::ProcExec, ProcessExec),
+            (Event::ProcExit, ProcessExit),
+            (Event::File, FileEvent),
+            (Event::GTFOBins, GTFOBinsEvent),
+            (Event::HistFile, HistFileEvent),
+            (Event::IOUring, IOUringEvent),
+            (Event::Network, NetworkEvent)
+        )
     }
 }
 
