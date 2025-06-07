@@ -3,7 +3,7 @@
 
 use aya_ebpf::{
     helpers::{
-        bpf_get_current_pid_tgid, bpf_probe_read, bpf_probe_read_buf,
+        bpf_get_current_pid_tgid, bpf_probe_read_kernel, bpf_probe_read_kernel_buf,
         bpf_probe_read_kernel_str_bytes,
     },
     macros::{lsm, map},
@@ -51,9 +51,10 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
         unsafe {
             let binprm: *const linux_binprm = ctx.arg(0);
             let file: *mut file = (*binprm).file;
-            let path = bpf_probe_read::<path>(&(*file).f_path as *const _).map_err(|_| 0_i32)?;
-            let d_name =
-                bpf_probe_read::<qstr>(&(*(path.dentry)).d_name as *const _).map_err(|_| 0_i32)?;
+            let path =
+                bpf_probe_read_kernel::<path>(&(*file).f_path as *const _).map_err(|_| 0_i32)?;
+            let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
+                .map_err(|_| 0_i32)?;
             bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.process.filename)
                 .map_err(|_| 0_i32)?;
         }
@@ -72,7 +73,10 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
         {
             for _ in 0..MAX_PROC_DEPTH {
                 unsafe {
-                    let _ = bpf_probe_read_buf(proc.filename.as_ptr(), &mut event.process.filename);
+                    let _ = bpf_probe_read_kernel_buf(
+                        proc.filename.as_ptr(),
+                        &mut event.process.filename,
+                    );
                 }
                 let parent_proc = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) };
                 let Some(parent_proc) = parent_proc else {

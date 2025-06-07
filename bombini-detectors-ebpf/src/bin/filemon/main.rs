@@ -3,7 +3,8 @@
 
 use aya_ebpf::{
     helpers::{
-        bpf_d_path, bpf_get_current_pid_tgid, bpf_probe_read, bpf_probe_read_kernel_str_bytes,
+        bpf_d_path, bpf_get_current_pid_tgid, bpf_probe_read_kernel,
+        bpf_probe_read_kernel_str_bytes,
     },
     macros::{lsm, map},
     maps::{array::Array, hash_map::HashMap},
@@ -69,10 +70,10 @@ fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32
         );
         event.flags = (*fp).f_flags;
         event.i_mode = (*(*fp).f_inode).i_mode;
-        event.uid = bpf_probe_read::<kuid_t>(&(*(*fp).f_inode).i_uid as *const _)
+        event.uid = bpf_probe_read_kernel::<kuid_t>(&(*(*fp).f_inode).i_uid as *const _)
             .map_err(|_| 0i32)?
             .val;
-        event.gid = bpf_probe_read::<kgid_t>(&(*(*fp).f_inode).i_gid as *const _)
+        event.gid = bpf_probe_read_kernel::<kgid_t>(&(*(*fp).f_inode).i_gid as *const _)
             .map_err(|_| 0i32)?
             .val;
     }
@@ -161,7 +162,8 @@ fn try_unlink(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
     unsafe {
         let p: *const path = ctx.arg(0);
         let entry: *const dentry = ctx.arg(1);
-        let d_name = bpf_probe_read::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0i32)?;
+        let d_name =
+            bpf_probe_read_kernel::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0i32)?;
         aya_ebpf::memset(event.name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
         bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
         let _ = bpf_d_path(

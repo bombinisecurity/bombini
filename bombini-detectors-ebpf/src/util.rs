@@ -1,5 +1,5 @@
 //! Provides some common functions
-use aya_ebpf::helpers::bpf_probe_read_buf;
+use aya_ebpf::helpers::bpf_probe_read_kernel_buf;
 
 use bombini_common::event::process::ProcInfo;
 
@@ -13,8 +13,8 @@ pub fn copy_proc(src: &ProcInfo, dst: &mut ProcInfo) {
     dst.creds = src.creds.clone();
     dst.auid = src.auid;
     unsafe {
-        let _ = bpf_probe_read_buf(src.filename.as_ptr(), &mut dst.filename);
-        let _ = bpf_probe_read_buf(src.args.as_ptr(), &mut dst.args);
-        let _ = bpf_probe_read_buf(src.binary_path.as_ptr(), &mut dst.binary_path);
+        let _ = bpf_probe_read_kernel_buf(src.filename.as_ptr(), &mut dst.filename);
+        let _ = bpf_probe_read_kernel_buf(src.args.as_ptr(), &mut dst.args);
+        let _ = bpf_probe_read_kernel_buf(src.binary_path.as_ptr(), &mut dst.binary_path);
     }
 }
