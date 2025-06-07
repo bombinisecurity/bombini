@@ -3,10 +3,10 @@
 use yaml_rust2::YamlLoader;
 
 use clap::{Args, Parser};
-use lazy_static::lazy_static;
-use tokio::sync::RwLock;
 
 use std::path::PathBuf;
+use std::sync::LazyLock;
+use tokio::sync::RwLock;
 
 /// Ring buffer map name is used to send events
 pub const EVENT_MAP_NAME: &str = "EVENT_MAP";
@@ -172,6 +172,4 @@ impl Config {
     }
 }
 
-lazy_static! {
-    pub static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
-}
+pub static CONFIG: LazyLock<RwLock<Config>> = LazyLock::new(|| RwLock::new(Config::default()));
