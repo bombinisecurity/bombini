@@ -13,25 +13,38 @@ found [here](docs/design.md).
 
 ## Build
 
-```bash
-cargo xtask build
-```
-
-**NOTE:**
-
-Compatibility between different kernel versions is not yet fully implemented.
-You may need to regenerate `vmlinux.rs` before building.
+[Compatibility](https://github.com/aya-rs/aya/issues/349) between different kernel versions (CO-RE) is not yet fully implemented.
+If you building Bombini on **Ubuntu 24 with Linux kernel 6.8**, you can skip the next step.
+Otherwise, please, regenerate `vmlinux.rs` before building:
 
 ```bash
-cd bombini-detectors-ebpf && ./generate_vmlinux.sh
+cd bombini-detectors-ebpf && ./generate_vmlinux.sh && cd ../
 ```
+Release build:
+
+```bash
+cargo xtask build --relese
+```
+You can generate a tarball with instalation scripts for bombini systemd service:
+
+```bash
+cargo xtask tarball --relese
+```
+
+Release tarball will be located at `target/bombini.tar.gz`
 
 ## Run
 
-You can try bombini agent this way:
+You can run bombini this way:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --bpf-objs ./target/bpfel-unknown-none/debug --config-dir ./config --stdout
+RUST_LOG=info sudo -E ./target/release/bombini --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config --stdout
+```
+
+Or using cargo:
+
+```bash
+RUST_LOG=info cargo xtask run --release -- --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config --stdout
 ```
 
 Also you can use file as output or unix socket combining with
@@ -42,13 +55,13 @@ Also you can use file as output or unix socket combining with
 Start vector agent:
 
 ```bash
-vector --config ./vector/vector-file.yaml
+mkdir /tmp/vector && vector --config ./vector/vector-file.yaml
 ```
 
 Start bombini with events redirecting to file:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --bpf-objs ./target/bpfel-unknown-none/debug --config-dir ./config --event-log ./bombini.log
+RUST_LOG=info cargo xtask run --release -- --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config --event-log ./bombini.log
 ```
 
 ### Unix socket
@@ -62,5 +75,5 @@ vector --config ./vector/vector-sock.yaml
 Start bombini with events redirecting to unix socket:
 
 ```bash
-RUST_LOG=debug cargo xtask run -- --bpf-objs ./target/bpfel-unknown-none/debug --config-dir ./config --event-socket /tmp/bombini.sock
+RUST_LOG=info cargo xtask run --release -- --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config --event-socket /tmp/bombini.sock
 ```
