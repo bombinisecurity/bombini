@@ -25,10 +25,10 @@ static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 #[uretprobe]
 pub fn histfile_detect(ctx: RetProbeContext) -> i32 {
-    event_capture!(ctx, MSG_HISTFILE, true, try_detect, true)
+    event_capture!(ctx, MSG_HISTFILE, true, try_detect)
 }
 
-fn try_detect(ctx: RetProbeContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
+fn try_detect(ctx: RetProbeContext, event: &mut Event) -> Result<i32, i32> {
     let Event::HistFile(event) = event else {
         return Err(0);
     };
@@ -44,9 +44,7 @@ fn try_detect(ctx: RetProbeContext, event: &mut Event, expose: bool) -> Result<i
     let lookup = Key::new((MAX_BASH_COMMAND_SIZE * 8) as u32, event.command);
     if HISTFILE_CHECK_MAP.get(&lookup).is_some() {
         // Copy process info to Rb
-        if expose {
-            util::copy_proc(proc, &mut event.process);
-        }
+        util::copy_proc(proc, &mut event.process);
         Ok(0)
     } else {
         Err(0)

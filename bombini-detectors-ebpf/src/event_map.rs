@@ -54,22 +54,16 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEve
 /// * `zero` - fill event with zeros
 ///
 /// * `handler` - function name to handle and fill the event
-///
-/// * `expose` - true if events are aimed to expose
 #[macro_export]
 macro_rules! event_capture {
-    ($ctx:expr, $msg_code:expr, $zero:expr, $handler:expr, $expose:expr) => {{
+    ($ctx:expr, $msg_code:expr, $zero:expr, $handler:expr) => {{
         let Ok(mut event_rb) = rb_event_init($msg_code, $zero) else {
             return 0;
         };
         let event_ref = unsafe { &mut *event_rb.as_mut_ptr() };
-        match $handler($ctx, &mut event_ref.event, $expose) {
+        match $handler($ctx, &mut event_ref.event) {
             Ok(ret) => {
-                if $expose {
-                    event_rb.submit(0);
-                } else {
-                    event_rb.discard(0);
-                }
+                event_rb.submit(0);
                 ret
             }
             Err(ret) => {

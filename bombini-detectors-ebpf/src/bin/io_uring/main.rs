@@ -19,10 +19,10 @@ static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 #[btf_tracepoint(function = "io_uring_submit_req")]
 pub fn io_uring_submit_req_capture(ctx: BtfTracePointContext) -> u32 {
-    event_capture!(ctx, MSG_IOURING, false, try_submit_req, true) as u32
+    event_capture!(ctx, MSG_IOURING, false, try_submit_req) as u32
 }
 
-fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
+fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event) -> Result<i32, i32> {
     let Event::IOUring(event) = event else {
         return Err(0);
     };
@@ -37,11 +37,8 @@ fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event, expose: bool) ->
         event.opcode = (*req).opcode;
         event.flags = (*req).flags;
     }
-    if expose {
-        util::copy_proc(proc, &mut event.process);
-        return Ok(0);
-    }
-    Err(0)
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
 }
 
 #[panic_handler]

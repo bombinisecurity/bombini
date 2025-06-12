@@ -31,12 +31,12 @@ static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 #[lsm]
 pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_GTFOBINS, true, try_detect, true)
+    event_capture!(ctx, MSG_GTFOBINS, true, try_detect)
 }
 
 static MAX_PROC_DEPTH: u32 = 4;
 
-fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
+fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Event::GTFOBins(event) = event else {
         return Err(0);
     };
@@ -86,13 +86,11 @@ fn try_detect(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
                 // Check if GTFO binary
                 let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
                 if let Some(enforce) = GTFOBINS_NAME_MAP.get(&lookup) {
-                    if expose {
-                        if proc.clonned {
-                            // Pass parent process in event
-                            util::copy_proc(parent_proc, &mut event.process);
-                        } else {
-                            util::copy_proc(proc, &mut event.process);
-                        }
+                    if proc.clonned {
+                        // Pass parent process in event
+                        util::copy_proc(parent_proc, &mut event.process);
+                    } else {
+                        util::copy_proc(proc, &mut event.process);
                     }
                     if *enforce != 0 {
                         return Ok(-1);

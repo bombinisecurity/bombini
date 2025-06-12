@@ -19,8 +19,8 @@ use bombini_detectors_ebpf::vmlinux::{
 };
 
 use bombini_common::config::procmon::Config;
-use bombini_common::event::process::{ProcInfo, SecureExec};
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILE_PATH};
+use bombini_common::event::process::{ProcInfo, SecureExec};
 use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT};
 
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
@@ -78,17 +78,17 @@ fn is_cap_gained(new: u64, old: u64) -> bool {
 
 #[btf_tracepoint(function = "sched_process_exec")]
 pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
+    event_capture!(ctx, MSG_PROCEXEC, false, try_execve)
+}
+
+fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(ctx, MSG_PROCEXEC, false, try_execve, config.expose_events)
-}
-
-fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::ProcExec(event) = event else {
         return Err(0);
     };
@@ -180,39 +180,40 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event, expose: bool) -> Re
 
     proc.clonned = false;
     // Copy process info to Rb
-    if expose {
+    if config.expose_events {
         util::copy_proc(proc, event);
+        return Ok(0);
     }
-
-    Ok(0)
+    Err(0)
 }
 
 #[fentry(function = "acct_process")]
 pub fn exit_capture(ctx: FEntryContext) -> u32 {
+    event_capture!(ctx, MSG_PROCEXIT, false, try_exit)
+}
+
+fn try_exit(_ctx: FEntryContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(ctx, MSG_PROCEXIT, false, try_exit, config.expose_events)
-}
-
-fn try_exit(_ctx: FEntryContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::ProcExit(event) = event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    if expose {
+    if config.expose_events {
         let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
         let Some(proc) = proc else {
             return Err(0);
         };
         util::copy_proc(proc, event);
+        PROCMON_PROC_MAP.remove(&pid).unwrap();
+        return Ok(0);
     }
-    PROCMON_PROC_MAP.remove(&pid).unwrap();
-    Ok(0)
+    Err(0)
 }
 
 #[lsm(hook = "bprm_committing_creds")]
