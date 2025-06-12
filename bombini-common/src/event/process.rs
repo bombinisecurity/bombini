@@ -5,11 +5,7 @@ use bitflags::bitflags;
 #[cfg(feature = "user")]
 use serde::Serialize;
 
-pub const MAX_FILENAME_SIZE: usize = 32;
-
-pub const MAX_ARGS_SIZE: usize = 1024;
-
-pub const MAX_FILE_PATH: usize = 512;
+use crate::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH};
 
 /// Process event
 #[derive(Clone, Debug)]

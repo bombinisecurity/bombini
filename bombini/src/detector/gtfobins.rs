@@ -7,7 +7,7 @@ use aya::{Btf, Ebpf, EbpfError};
 use yaml_rust2::{Yaml, YamlLoader};
 
 use bombini_common::config::gtfobins::GTFOBinsKey;
-use bombini_common::event::process::MAX_FILENAME_SIZE;
+use bombini_common::constants::MAX_FILENAME_SIZE;
 
 use std::path::Path;
 

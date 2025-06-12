@@ -17,7 +17,8 @@ use aya_ebpf::{
 use bombini_detectors_ebpf::vmlinux::{file, linux_binprm, path, qstr};
 
 use bombini_common::config::gtfobins::GTFOBinsKey;
-use bombini_common::event::process::{ProcInfo, MAX_FILENAME_SIZE};
+use bombini_common::constants::MAX_FILENAME_SIZE;
+use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, MSG_GTFOBINS};
 
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};

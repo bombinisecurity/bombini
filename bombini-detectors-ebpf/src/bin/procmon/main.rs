@@ -19,7 +19,8 @@ use bombini_detectors_ebpf::vmlinux::{
 };
 
 use bombini_common::config::procmon::Config;
-use bombini_common::event::process::{ProcInfo, SecureExec, MAX_ARGS_SIZE, MAX_FILE_PATH};
+use bombini_common::event::process::{ProcInfo, SecureExec};
+use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILE_PATH};
 use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT};
 
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
