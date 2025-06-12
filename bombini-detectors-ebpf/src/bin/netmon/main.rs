@@ -68,23 +68,17 @@ unsafe fn parse_v6_sock(event: &mut TcpConnectionV6, s: *const sock) -> Result<(
 
 #[fexit(function = "tcp_v4_connect")]
 pub fn tcp_v4_connect_capture(ctx: FExitContext) -> u32 {
+    event_capture!(ctx, MSG_NETWORK, false, try_tcp_v4_connect)
+}
+
+fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(
-        ctx,
-        MSG_NETWORK,
-        false,
-        try_tcp_v4_connect,
-        config.expose_events
-    )
-}
-
-fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::Network(event) = event else {
         return Err(0);
     };
@@ -112,7 +106,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event, expose: bool) -> Res
         return Err(0);
     }
 
-    if expose {
+    if config.expose_events {
         util::copy_proc(proc, &mut event.process);
     }
     Ok(0)
@@ -120,23 +114,17 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event, expose: bool) -> Res
 
 #[fexit(function = "tcp_v6_connect")]
 pub fn tcp_v6_connect_capture(ctx: FExitContext) -> u32 {
+    event_capture!(ctx, MSG_NETWORK, false, try_tcp_v6_connect)
+}
+
+fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(
-        ctx,
-        MSG_NETWORK,
-        false,
-        try_tcp_v6_connect,
-        config.expose_events
-    )
-}
-
-fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::Network(event) = event else {
         return Err(0);
     };
@@ -164,7 +152,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event, expose: bool) -> Res
         return Err(0);
     }
 
-    if expose {
+    if config.expose_events {
         util::copy_proc(proc, &mut event.process);
     }
     Ok(0)
@@ -172,17 +160,17 @@ fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event, expose: bool) -> Res
 
 #[fexit(function = "tcp_close")]
 pub fn tcp_close_capture(ctx: FExitContext) -> u32 {
+    event_capture!(ctx, MSG_NETWORK, false, try_tcp_close)
+}
+
+fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(ctx, MSG_NETWORK, false, try_tcp_close, config.expose_events)
-}
-
-fn try_tcp_close(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::Network(event) = event else {
         return Err(0);
     };
@@ -204,7 +192,7 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u
                     return Err(0);
                 };
                 parse_v4_sock(event, s);
-                if expose {
+                if config.expose_events {
                     util::copy_proc(proc, &mut event.process);
                 }
                 Ok(0)
@@ -217,7 +205,7 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
-                if expose {
+                if config.expose_events {
                     util::copy_proc(proc, &mut event.process);
                 }
                 Ok(0)
@@ -229,23 +217,17 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u
 
 #[fexit(function = "inet_csk_accept")]
 pub fn inet_csk_accept_capture(ctx: FExitContext) -> u32 {
+    event_capture!(ctx, MSG_NETWORK, false, try_inet_csk_accept)
+}
+
+fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(
-        ctx,
-        MSG_NETWORK,
-        false,
-        try_inet_csk_accept,
-        config.expose_events
-    )
-}
-
-fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event, expose: bool) -> Result<u32, u32> {
     let Event::Network(event) = event else {
         return Err(0);
     };
@@ -268,7 +250,7 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event, expose: bool) -> Re
                 };
                 parse_v4_sock(event, s);
 
-                if expose {
+                if config.expose_events {
                     util::copy_proc(proc, &mut event.process);
                 }
                 Ok(0)
@@ -281,7 +263,7 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event, expose: bool) -> Re
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
-                if expose {
+                if config.expose_events {
                     util::copy_proc(proc, &mut event.process);
                 }
                 Ok(0)

@@ -31,23 +31,17 @@ const FMODE_EXEC: u32 = 1 << 5;
 
 #[lsm(hook = "file_open")]
 pub fn file_open_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_FILE, false, try_open)
+}
+
+fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(
-        ctx,
-        MSG_FILE,
-        false,
-        try_open,
-        config.file_open_config.expose_events
-    )
-}
-
-fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
     let Event::File(event) = event else {
         return Err(0);
     };
@@ -78,34 +72,26 @@ fn try_open(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32
             .map_err(|_| 0i32)?
             .val;
     }
-
-    if expose {
+    if config.file_open_config.expose_events {
         util::copy_proc(proc, &mut event.process);
         return Ok(0);
     }
-
     Err(0)
 }
 
 #[lsm(hook = "path_truncate")]
 pub fn path_truncate_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_FILE, true, try_truncate)
+}
+
+fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(
-        ctx,
-        MSG_FILE,
-        true,
-        try_truncate,
-        config.path_truncate_config.expose_events
-    )
-}
-
-fn try_truncate(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
     let Event::File(event) = event else {
         return Err(0);
     };
@@ -123,34 +109,26 @@ fn try_truncate(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32,
             event.path.len() as u32,
         );
     }
-
-    if expose {
+    if config.path_truncate_config.expose_events {
         util::copy_proc(proc, &mut event.process);
         return Ok(0);
     }
-
     Err(0)
 }
 
 #[lsm(hook = "path_unlink")]
 pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_FILE, false, try_unlink)
+}
+
+fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
-        return 0;
+        return Err(0);
     };
     let config = unsafe { config_ptr.as_ref() };
     let Some(config) = config else {
-        return 0;
+        return Err(0);
     };
-    event_capture!(
-        ctx,
-        MSG_FILE,
-        false,
-        try_unlink,
-        config.path_unlink_config.expose_events
-    )
-}
-
-fn try_unlink(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i32> {
     let Event::File(event) = event else {
         return Err(0);
     };
@@ -173,12 +151,10 @@ fn try_unlink(ctx: LsmContext, event: &mut Event, expose: bool) -> Result<i32, i
             event.path.len() as u32,
         );
     }
-
-    if expose {
+    if config.path_unlink_config.expose_events {
         util::copy_proc(proc, &mut event.process);
         return Ok(0);
     }
-
     Err(0)
 }
 
