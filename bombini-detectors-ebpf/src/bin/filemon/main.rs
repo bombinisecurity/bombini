@@ -13,8 +13,9 @@ use aya_ebpf::{
 
 use bombini_common::config::filemon::Config;
 
+use bombini_common::constants::MAX_FILENAME_SIZE;
 use bombini_common::event::file::{HOOK_FILE_OPEN, HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK};
-use bombini_common::event::process::{ProcInfo, MAX_FILENAME_SIZE};
+use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, MSG_FILE};
 use bombini_detectors_ebpf::vmlinux::{dentry, file, fmode_t, kgid_t, kuid_t, path, qstr};
 
