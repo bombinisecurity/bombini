@@ -8,7 +8,7 @@ use yaml_rust2::YamlLoader;
 
 use std::path::Path;
 
-use bombini_common::config::procmon::Config;
+use bombini_common::config::procmon::{Config, ProcessFilterMask};
 
 use super::{load_ebpf_obj, Detector};
 
@@ -28,6 +28,8 @@ impl Detector for ProcMon {
         if let Some(yaml_config) = yaml_config {
             let mut config = Config {
                 expose_events: false,
+                filter_mask: ProcessFilterMask::empty(),
+                deny_list: false,
             };
 
             let docs = YamlLoader::load_from_str(yaml_config.as_ref())?;
