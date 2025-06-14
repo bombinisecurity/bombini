@@ -1,0 +1,25 @@
+# Deny list filter for Process events. if event is satisfied the following pattern,
+# it will NOT be exposed.
+# Pattern: uid AND euid AND auid and (binary.name OR binary.prefix OR binary.path)
+expose-events: true
+process_deny_list:
+  uid:
+    - 1000
+  euid:
+    - 1000
+  auid:
+    - 1000
+  binary:
+    name:
+      - mv
+      - git
+      - cat
+      - rm
+      - sed
+      - dash
+      - tmux
+    prefix:
+      - /usr/local/bin/
+    path:
+      - /usr/bin/stat
+      - /usr/bin/date

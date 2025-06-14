@@ -94,6 +94,11 @@ impl<'a> ProcessFilter<'a> {
                 return false;
             };
             let _ = unsafe {
+                aya_ebpf::memset(
+                    prefix.data.as_mut_ptr(),
+                    0,
+                    core::mem::size_of_val(&prefix.data),
+                );
                 bpf_probe_read_kernel_buf(&proc.binary_path as *const _, &mut prefix.data)
             };
             prefix.prefix_len = (MAX_FILE_PREFIX * 8) as u32;
