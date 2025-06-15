@@ -1,12 +1,11 @@
 //! GTFOBins detector
 
-use aya::maps::lpm_trie::{Key, LpmTrie};
+use aya::maps::hash_map::HashMap;
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError};
 
 use yaml_rust2::{Yaml, YamlLoader};
 
-use bombini_common::config::gtfobins::GTFOBinsKey;
 use bombini_common::constants::MAX_FILENAME_SIZE;
 
 use std::path::Path;
@@ -20,7 +19,7 @@ pub struct GTFOBinsDetector {
 
 struct GTFOBinsConfig {
     /// Entry values for GTFOBins map
-    gtfobins_entries: Vec<(GTFOBinsKey, u32)>,
+    gtfobins_entries: Vec<([u8; MAX_FILENAME_SIZE], u32)>,
 }
 
 impl Detector for GTFOBinsDetector {
@@ -59,7 +58,7 @@ impl Detector for GTFOBinsDetector {
                     anyhow::bail!("GTFObins binaries name must be a vec")
                 };
                 for entry in entries {
-                    let mut k: GTFOBinsKey = [0; MAX_FILENAME_SIZE];
+                    let mut k = [0; MAX_FILENAME_SIZE];
                     let Some(k_str) = entry.as_str() else {
                         continue;
                     };
@@ -85,11 +84,10 @@ impl Detector for GTFOBinsDetector {
 
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         if let Some(config) = &self.config {
-            let mut file_names: LpmTrie<_, GTFOBinsKey, u32> =
-                LpmTrie::try_from(self.ebpf.map_mut("GTFOBINS_NAME_MAP").unwrap())?;
+            let mut file_names: HashMap<_, [u8; MAX_FILENAME_SIZE], u32> =
+                HashMap::try_from(self.ebpf.map_mut("GTFOBINS_NAME_MAP").unwrap())?;
             for (k, v) in config.gtfobins_entries.iter() {
-                let key = Key::new((MAX_FILENAME_SIZE * 8) as u32, *k);
-                file_names.insert(&key, v, 0)?;
+                file_names.insert(k, v, 0)?;
             }
         }
         Ok(())
