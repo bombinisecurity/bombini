@@ -1,4 +1,4 @@
-## IOUring
+## IOUringMon
 
 IOUring detector tracks SQE submitting using `io_uring_submit_req` tracepoint.
 It provides events with the process information and `io_uring_op` opcode which process

@@ -22,6 +22,6 @@ detectors:
    - procmon
    - filemon
    - netmon
+   - io_uringmon
    - gtfobins
    - histfile
-   - io_uring
