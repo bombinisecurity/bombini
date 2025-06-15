@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::config::CONFIG;
 use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::histfile::HistFileDetector;
-use crate::detector::io_uring::IOUringDetector;
+use crate::detector::io_uringmon::IOUringMon;
 
 use crate::detector::filemon::FileMon;
 use crate::detector::netmon::NetMon;
@@ -76,9 +76,9 @@ impl Registry {
             ("procmon", ProcMon),
             ("filemon", FileMon),
             ("netmon", NetMon),
+            ("io_uringmon", IOUringMon),
             ("gtfobins", GTFOBinsDetector),
-            ("histfile", HistFileDetector),
-            ("io_uring", IOUringDetector)
+            ("histfile", HistFileDetector)
         )?;
 
         debug!("Detector {name} is loaded");

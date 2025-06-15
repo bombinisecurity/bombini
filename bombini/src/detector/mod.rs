@@ -13,7 +13,7 @@ use crate::config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME};
 pub mod filemon;
 pub mod gtfobins;
 pub mod histfile;
-pub mod io_uring;
+pub mod io_uringmon;
 pub mod netmon;
 pub mod procmon;
 

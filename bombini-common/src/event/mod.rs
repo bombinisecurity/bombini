@@ -25,12 +25,12 @@ pub enum Event {
     ProcExit(process::ProcInfo) = 1,
     File(file::FileMsg) = 2,
     Network(network::NetworkMsg) = 3,
+    /// IOUring submit request event type
+    IOUring(io_uring::IOUringMsg) = 4,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
     HistFile(histfile::HistFileMsg) = 33,
-    /// IOUring submit request event type
-    IOUring(io_uring::IOUringMsg) = 34,
 }
 
 // Event message codes
@@ -43,9 +43,9 @@ pub const MSG_PROCEXIT: u8 = 1;
 pub const MSG_FILE: u8 = 2;
 /// Network message code
 pub const MSG_NETWORK: u8 = 3;
+/// IOUring submit request message code
+pub const MSG_IOURING: u8 = 4;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code
 pub const MSG_HISTFILE: u8 = 33;
-/// IOUring submit request message code
-pub const MSG_IOURING: u8 = 34;

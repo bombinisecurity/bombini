@@ -7,18 +7,18 @@ use std::path::Path;
 
 use super::{load_ebpf_obj, Detector};
 
-pub struct IOUringDetector {
+pub struct IOUringMon {
     ebpf: Ebpf,
 }
 
-impl Detector for IOUringDetector {
+impl Detector for IOUringMon {
     async fn new<P, U>(obj_path: P, _yaml_config: Option<U>) -> Result<Self, anyhow::Error>
     where
         U: AsRef<str>,
         P: AsRef<Path>,
     {
         let ebpf = load_ebpf_obj(obj_path).await?;
-        Ok(IOUringDetector { ebpf })
+        Ok(IOUringMon { ebpf })
     }
 
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
