@@ -7,16 +7,12 @@ use aya_ebpf::{
         bpf_probe_read_kernel_str_bytes,
     },
     macros::{lsm, map},
-    maps::{
-        hash_map::HashMap,
-        lpm_trie::{Key, LpmTrie},
-    },
+    maps::hash_map::HashMap,
     programs::LsmContext,
 };
 
 use bombini_detectors_ebpf::vmlinux::{file, linux_binprm, path, qstr};
 
-use bombini_common::config::gtfobins::GTFOBinsKey;
 use bombini_common::constants::MAX_FILENAME_SIZE;
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, MSG_GTFOBINS};
@@ -24,7 +20,7 @@ use bombini_common::event::{Event, MSG_GTFOBINS};
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 #[map]
-static GTFOBINS_NAME_MAP: LpmTrie<GTFOBinsKey, u32> = LpmTrie::with_max_entries(128, 0);
+static GTFOBINS_NAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u32> = HashMap::with_max_entries(128, 0);
 
 #[map]
 static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
@@ -84,15 +80,14 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
                     return Err(0);
                 };
                 // Check if GTFO binary
-                let lookup = Key::new((MAX_FILENAME_SIZE * 8) as u32, event.process.filename);
-                if let Some(enforce) = GTFOBINS_NAME_MAP.get(&lookup) {
+                if let Some(enforce) = GTFOBINS_NAME_MAP.get_ptr(&event.process.filename) {
                     if proc.clonned {
                         // Pass parent process in event
                         util::copy_proc(parent_proc, &mut event.process);
                     } else {
                         util::copy_proc(proc, &mut event.process);
                     }
-                    if *enforce != 0 {
+                    if unsafe { *enforce != 0 } {
                         return Ok(-1);
                     }
                     return Ok(0);
