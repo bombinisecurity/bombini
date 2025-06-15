@@ -35,6 +35,22 @@ Release tarball will be located at `target/bombini.tar.gz`
 
 ## Run
 
+First, check if LSM BPF is enabled on your system.
+
+```
+cat /sys/kernel/security/lsm
+```
+
+if there is `bpf` in the output, than BPF LSM is enabled.
+Otherwise, you have to enable it adding this line to `/etc/default/grub`:
+
+```
+GRUB_CMDLINE_LINUX="lsm=[previos lsm modules],bpf"
+```
+
+Update grub and reboot the system.
+
+
 You can run bombini this way:
 
 ```bash
