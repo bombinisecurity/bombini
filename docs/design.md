@@ -18,6 +18,11 @@ in maps. Some parts of the detectors can be reused across different detectors.
 Detectors submit events to user space using ring buffer. Detectors use YAML
 config files for initialization.
 
+### Filters
+
+Filters are applied to eBPF events in order to decide will be event exposed to user space or not.
+A detailed description of the filtering can be found directly in the description of the corresponding detector.
+
 ### Monitor
 
 Monitor observes new low level events (messages) and extracts them from ring buffer.
