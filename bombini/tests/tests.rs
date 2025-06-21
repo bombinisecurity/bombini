@@ -76,6 +76,7 @@ fn test_detectors_load() {
     assert!(log.contains("histfile is loaded"));
     assert!(log.contains("filemon is loaded"));
     assert!(log.contains("netmon is loaded"));
+    assert!(log.contains("io_uringmon is loaded"));
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
