@@ -8,7 +8,21 @@ Inspired by this [example](https://github.com/armosec/curing) and [post](https:/
 
 ### Config
 
-This detector has no config
+IOUringMon detector supports process allow/deny list for event filtering:
+
+```yaml
+expose-events: true
+process_allow_list:
+  uid:
+    - 0
+  euid:
+    - 0
+  binary:
+    name:
+      - nslookup
+```
+
+The detailed description of process filter config section can be found in ProcMon [config section](procmon.md#config).
 
 ### Event
 
