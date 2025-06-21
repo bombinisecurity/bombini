@@ -17,7 +17,10 @@ use bombini_common::{
     constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
 };
 
-use crate::config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME};
+use crate::{
+    config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME},
+    init_process_filter_maps, resize_process_filter_maps,
+};
 
 use super::Detector;
 
@@ -55,36 +58,7 @@ impl Detector for ProcMon {
                 ProcessFilter::AllowList(f) => f,
                 ProcessFilter::DenyList(f) => f,
             };
-            if filter_config.uid.len() > 1 {
-                ebpf_loader_ref = ebpf_loader_ref
-                    .set_max_entries(FILTER_UID_MAP_NAME, filter_config.uid.len() as u32);
-            }
-            if filter_config.euid.len() > 1 {
-                ebpf_loader_ref = ebpf_loader_ref
-                    .set_max_entries(FILTER_EUID_MAP_NAME, filter_config.euid.len() as u32);
-            }
-            if filter_config.auid.len() > 1 {
-                ebpf_loader_ref = ebpf_loader_ref
-                    .set_max_entries(FILTER_AUID_MAP_NAME, filter_config.auid.len() as u32);
-            }
-            if filter_config.binary_name.len() > 1 {
-                ebpf_loader_ref = ebpf_loader_ref.set_max_entries(
-                    FILTER_BINNAME_MAP_NAME,
-                    filter_config.binary_name.len() as u32,
-                );
-            }
-            if filter_config.binary_path.len() > 1 {
-                ebpf_loader_ref = ebpf_loader_ref.set_max_entries(
-                    FILTER_BINPATH_MAP_NAME,
-                    filter_config.binary_path.len() as u32,
-                );
-            }
-            if filter_config.binary_prefix.len() > 1 {
-                ebpf_loader_ref = ebpf_loader_ref.set_max_entries(
-                    FILTER_BINPREFIX_MAP_NAME,
-                    filter_config.binary_prefix.len() as u32,
-                );
-            }
+            resize_process_filter_maps!(filter_config, ebpf_loader_ref);
         }
 
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
@@ -107,79 +81,7 @@ impl Detector for ProcMon {
                     f
                 }
             };
-            if !filter_config.uid.is_empty() {
-                let mut uid_map: HashMap<_, u32, u8> =
-                    HashMap::try_from(self.ebpf.map_mut(FILTER_UID_MAP_NAME).unwrap())?;
-                for v in filter_config.uid.iter() {
-                    let _ = uid_map.insert(v, 0, 0);
-                }
-                config.filter_mask |= ProcessFilterMask::UID;
-            }
-            if !filter_config.euid.is_empty() {
-                let mut euid_map: HashMap<_, u32, u8> =
-                    HashMap::try_from(self.ebpf.map_mut(FILTER_EUID_MAP_NAME).unwrap())?;
-                for v in filter_config.euid.iter() {
-                    let _ = euid_map.insert(v, 0, 0);
-                }
-                config.filter_mask |= ProcessFilterMask::EUID;
-            }
-            if !filter_config.auid.is_empty() {
-                let mut auid_map: HashMap<_, u32, u8> =
-                    HashMap::try_from(self.ebpf.map_mut(FILTER_AUID_MAP_NAME).unwrap())?;
-                for v in filter_config.auid.iter() {
-                    let _ = auid_map.insert(v, 0, 0);
-                }
-                config.filter_mask |= ProcessFilterMask::AUID;
-            }
-            if !filter_config.binary_name.is_empty() {
-                let mut bname_map: HashMap<_, [u8; MAX_FILENAME_SIZE], u8> =
-                    HashMap::try_from(self.ebpf.map_mut(FILTER_BINNAME_MAP_NAME).unwrap())?;
-                for name in filter_config.binary_name.iter() {
-                    let mut v = [0u8; MAX_FILENAME_SIZE];
-                    let name_bytes = name.as_bytes();
-                    let len = name_bytes.len();
-                    if len < MAX_FILENAME_SIZE {
-                        v[..len].clone_from_slice(name_bytes);
-                    } else {
-                        v.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
-                    }
-                    let _ = bname_map.insert(v, 0, 0);
-                }
-                config.filter_mask |= ProcessFilterMask::BINARY_NAME;
-            }
-            if !filter_config.binary_path.is_empty() {
-                let mut bpath_map: HashMap<_, [u8; MAX_FILE_PATH], u8> =
-                    HashMap::try_from(self.ebpf.map_mut(FILTER_BINPATH_MAP_NAME).unwrap())?;
-                for path in filter_config.binary_path.iter() {
-                    let mut v = [0u8; MAX_FILE_PATH];
-                    let path_bytes = path.as_bytes();
-                    let len = path_bytes.len();
-                    if len < MAX_FILE_PATH {
-                        v[..len].clone_from_slice(path_bytes);
-                    } else {
-                        v.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
-                    }
-                    let _ = bpath_map.insert(v, 0, 0);
-                }
-                config.filter_mask |= ProcessFilterMask::BINARY_PATH;
-            }
-            if !filter_config.binary_prefix.is_empty() {
-                let mut bprefix_map: LpmTrie<_, [u8; MAX_FILE_PREFIX], u8> =
-                    LpmTrie::try_from(self.ebpf.map_mut(FILTER_BINPREFIX_MAP_NAME).unwrap())?;
-                for prefix in filter_config.binary_prefix.iter() {
-                    let mut v = [0u8; MAX_FILE_PREFIX];
-                    let prefix_bytes = prefix.as_bytes();
-                    let len = prefix_bytes.len();
-                    if len < MAX_FILE_PREFIX {
-                        v[..len].clone_from_slice(prefix_bytes);
-                    } else {
-                        v.clone_from_slice(&prefix_bytes[..MAX_FILE_PREFIX]);
-                    }
-                    let key = Key::new((prefix.len() * 8) as u32, v);
-                    let _ = bprefix_map.insert(&key, 0, 0);
-                }
-                config.filter_mask |= ProcessFilterMask::BINARY_PATH_PREFIX;
-            }
+            config.filter_mask = init_process_filter_maps!(filter_config, &mut self.ebpf);
         }
         let mut config_map: Array<_, Config> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
@@ -337,6 +239,123 @@ impl ProcessFilterConfig {
         }
         Ok(config)
     }
+}
+
+#[macro_export]
+macro_rules! resize_process_filter_maps {
+    ($filter_config:expr, $ebpf_loader_ref:expr) => {
+        if $filter_config.uid.len() > 1 {
+            $ebpf_loader_ref = $ebpf_loader_ref
+                .set_max_entries(FILTER_UID_MAP_NAME, $filter_config.uid.len() as u32);
+        }
+        if $filter_config.euid.len() > 1 {
+            $ebpf_loader_ref = $ebpf_loader_ref
+                .set_max_entries(FILTER_EUID_MAP_NAME, $filter_config.euid.len() as u32);
+        }
+        if $filter_config.auid.len() > 1 {
+            $ebpf_loader_ref = $ebpf_loader_ref
+                .set_max_entries(FILTER_AUID_MAP_NAME, $filter_config.auid.len() as u32);
+        }
+        if $filter_config.binary_name.len() > 1 {
+            $ebpf_loader_ref = $ebpf_loader_ref.set_max_entries(
+                FILTER_BINNAME_MAP_NAME,
+                $filter_config.binary_name.len() as u32,
+            );
+        }
+        if $filter_config.binary_path.len() > 1 {
+            $ebpf_loader_ref = $ebpf_loader_ref.set_max_entries(
+                FILTER_BINPATH_MAP_NAME,
+                $filter_config.binary_path.len() as u32,
+            );
+        }
+        if $filter_config.binary_prefix.len() > 1 {
+            $ebpf_loader_ref = $ebpf_loader_ref.set_max_entries(
+                FILTER_BINPREFIX_MAP_NAME,
+                $filter_config.binary_prefix.len() as u32,
+            );
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! init_process_filter_maps {
+    ($filter_config:expr, $ebpf:expr) => {{
+        let mut filter_mask = ProcessFilterMask::empty();
+        if !$filter_config.uid.is_empty() {
+            let mut uid_map: HashMap<_, u32, u8> =
+                HashMap::try_from($ebpf.map_mut(FILTER_UID_MAP_NAME).unwrap())?;
+            for v in $filter_config.uid.iter() {
+                let _ = uid_map.insert(v, 0, 0);
+            }
+            filter_mask |= ProcessFilterMask::UID;
+        }
+        if !$filter_config.euid.is_empty() {
+            let mut euid_map: HashMap<_, u32, u8> =
+                HashMap::try_from($ebpf.map_mut(FILTER_EUID_MAP_NAME).unwrap())?;
+            for v in $filter_config.euid.iter() {
+                let _ = euid_map.insert(v, 0, 0);
+            }
+            filter_mask |= ProcessFilterMask::EUID;
+        }
+        if !$filter_config.auid.is_empty() {
+            let mut auid_map: HashMap<_, u32, u8> =
+                HashMap::try_from($ebpf.map_mut(FILTER_AUID_MAP_NAME).unwrap())?;
+            for v in $filter_config.auid.iter() {
+                let _ = auid_map.insert(v, 0, 0);
+            }
+            filter_mask |= ProcessFilterMask::AUID;
+        }
+        if !$filter_config.binary_name.is_empty() {
+            let mut bname_map: HashMap<_, [u8; MAX_FILENAME_SIZE], u8> =
+                HashMap::try_from($ebpf.map_mut(FILTER_BINNAME_MAP_NAME).unwrap())?;
+            for name in $filter_config.binary_name.iter() {
+                let mut v = [0u8; MAX_FILENAME_SIZE];
+                let name_bytes = name.as_bytes();
+                let len = name_bytes.len();
+                if len < MAX_FILENAME_SIZE {
+                    v[..len].clone_from_slice(name_bytes);
+                } else {
+                    v.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
+                }
+                let _ = bname_map.insert(v, 0, 0);
+            }
+            filter_mask |= ProcessFilterMask::BINARY_NAME;
+        }
+        if !$filter_config.binary_path.is_empty() {
+            let mut bpath_map: HashMap<_, [u8; MAX_FILE_PATH], u8> =
+                HashMap::try_from($ebpf.map_mut(FILTER_BINPATH_MAP_NAME).unwrap())?;
+            for path in $filter_config.binary_path.iter() {
+                let mut v = [0u8; MAX_FILE_PATH];
+                let path_bytes = path.as_bytes();
+                let len = path_bytes.len();
+                if len < MAX_FILE_PATH {
+                    v[..len].clone_from_slice(path_bytes);
+                } else {
+                    v.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
+                }
+                let _ = bpath_map.insert(v, 0, 0);
+            }
+            filter_mask |= ProcessFilterMask::BINARY_PATH;
+        }
+        if !$filter_config.binary_prefix.is_empty() {
+            let mut bprefix_map: LpmTrie<_, [u8; MAX_FILE_PREFIX], u8> =
+                LpmTrie::try_from($ebpf.map_mut(FILTER_BINPREFIX_MAP_NAME).unwrap())?;
+            for prefix in $filter_config.binary_prefix.iter() {
+                let mut v = [0u8; MAX_FILE_PREFIX];
+                let prefix_bytes = prefix.as_bytes();
+                let len = prefix_bytes.len();
+                if len < MAX_FILE_PREFIX {
+                    v[..len].clone_from_slice(prefix_bytes);
+                } else {
+                    v.clone_from_slice(&prefix_bytes[..MAX_FILE_PREFIX]);
+                }
+                let key = Key::new((prefix.len() * 8) as u32, v);
+                let _ = bprefix_map.insert(&key, 0, 0);
+            }
+            filter_mask |= ProcessFilterMask::BINARY_PATH_PREFIX;
+        }
+        filter_mask
+    }};
 }
 
 /// ProcMon Filter map names
