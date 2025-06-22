@@ -7,25 +7,52 @@ use aya_ebpf::{
         bpf_probe_read_kernel_str_bytes,
     },
     macros::{lsm, map},
-    maps::{array::Array, hash_map::HashMap},
+    maps::{array::Array, hash_map::HashMap, lpm_trie::LpmTrie},
     programs::LsmContext,
 };
 
 use bombini_common::config::filemon::Config;
 
-use bombini_common::constants::MAX_FILENAME_SIZE;
+use bombini_common::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
 use bombini_common::event::file::{HOOK_FILE_OPEN, HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK};
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, MSG_FILE};
 use bombini_detectors_ebpf::vmlinux::{dentry, file, fmode_t, kgid_t, kuid_t, path, qstr};
 
-use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
+use bombini_detectors_ebpf::{
+    event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
+};
 
 #[map]
 static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 #[map]
 static FILEMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
+
+// Filter maps
+
+// It's better to use BPF_MAP_TYPE_ARRAY_OF_MAPS when https://github.com/aya-rs/aya/pull/70
+// will be merged. We can array of maps to set separate process filters fo hooks
+#[map]
+static FILEMON_FILTER_UID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_AUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_BINPATH_MAP: HashMap<[u8; MAX_FILE_PATH], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_BINNAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_BINPREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
+    LpmTrie::with_max_entries(1, 0);
 
 const FMODE_EXEC: u32 = 1 << 5;
 
@@ -50,6 +77,35 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    // Filter event by process
+    let allow = if config.file_open_config.expose_events {
+        if !config.filter_mask.is_empty() {
+            let process_filter: ProcessFilter = ProcessFilter::new(
+                &FILEMON_FILTER_UID_MAP,
+                &FILEMON_FILTER_EUID_MAP,
+                &FILEMON_FILTER_AUID_MAP,
+                &FILEMON_FILTER_BINNAME_MAP,
+                &FILEMON_FILTER_BINPATH_MAP,
+                &FILEMON_FILTER_BINPREFIX_MAP,
+            );
+            if config.deny_list {
+                !process_filter.filter(config.filter_mask, proc)
+            } else {
+                process_filter.filter(config.filter_mask, proc)
+            }
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
     event.hook = HOOK_FILE_OPEN;
     unsafe {
         let fp: *const file = ctx.arg(0);
@@ -72,11 +128,8 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
             .map_err(|_| 0i32)?
             .val;
     }
-    if config.file_open_config.expose_events {
-        util::copy_proc(proc, &mut event.process);
-        return Ok(0);
-    }
-    Err(0)
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
 }
 
 #[lsm(hook = "path_truncate")]
@@ -100,6 +153,35 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    // Filter event by process
+    let allow = if config.path_truncate_config.expose_events {
+        if !config.filter_mask.is_empty() {
+            let process_filter: ProcessFilter = ProcessFilter::new(
+                &FILEMON_FILTER_UID_MAP,
+                &FILEMON_FILTER_EUID_MAP,
+                &FILEMON_FILTER_AUID_MAP,
+                &FILEMON_FILTER_BINNAME_MAP,
+                &FILEMON_FILTER_BINPATH_MAP,
+                &FILEMON_FILTER_BINPREFIX_MAP,
+            );
+            if config.deny_list {
+                !process_filter.filter(config.filter_mask, proc)
+            } else {
+                process_filter.filter(config.filter_mask, proc)
+            }
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
     event.hook = HOOK_PATH_TRUNCATE;
     unsafe {
         let p: *const path = ctx.arg(0);
@@ -109,11 +191,8 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
             event.path.len() as u32,
         );
     }
-    if config.path_truncate_config.expose_events {
-        util::copy_proc(proc, &mut event.process);
-        return Ok(0);
-    }
-    Err(0)
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
 }
 
 #[lsm(hook = "path_unlink")]
@@ -137,6 +216,35 @@ fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    // Filter event by process
+    let allow = if config.path_unlink_config.expose_events {
+        if !config.filter_mask.is_empty() {
+            let process_filter: ProcessFilter = ProcessFilter::new(
+                &FILEMON_FILTER_UID_MAP,
+                &FILEMON_FILTER_EUID_MAP,
+                &FILEMON_FILTER_AUID_MAP,
+                &FILEMON_FILTER_BINNAME_MAP,
+                &FILEMON_FILTER_BINPATH_MAP,
+                &FILEMON_FILTER_BINPREFIX_MAP,
+            );
+            if config.deny_list {
+                !process_filter.filter(config.filter_mask, proc)
+            } else {
+                process_filter.filter(config.filter_mask, proc)
+            }
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
     event.hook = HOOK_PATH_UNLINK;
     unsafe {
         let p: *const path = ctx.arg(0);
@@ -151,11 +259,8 @@ fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
             event.path.len() as u32,
         );
     }
-    if config.path_unlink_config.expose_events {
-        util::copy_proc(proc, &mut event.process);
-        return Ok(0);
-    }
-    Err(0)
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
 }
 
 #[panic_handler]
