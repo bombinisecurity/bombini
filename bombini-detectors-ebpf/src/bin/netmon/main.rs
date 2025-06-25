@@ -5,20 +5,22 @@ use aya_ebpf::{
     cty::c_void,
     helpers::{bpf_get_socket_cookie, bpf_probe_read_kernel_buf},
     macros::{fexit, map},
-    maps::{array::Array, hash_map::HashMap},
+    maps::{array::Array, hash_map::HashMap, lpm_trie::LpmTrie},
     programs::FExitContext,
     EbpfContext,
 };
 
 use bombini_detectors_ebpf::vmlinux::sock;
 
+use bombini_common::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
 use bombini_common::event::{
-    network::TcpConnectionV4, network::TcpConnectionV6, process::ProcInfo,
+    network::TcpConnectionV4, network::TcpConnectionV6, process::ProcInfo, Event, MSG_NETWORK,
 };
-use bombini_common::event::{Event, MSG_NETWORK};
 use bombini_common::{config::network::Config, event::network::NetworkMsg};
 
-use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
+use bombini_detectors_ebpf::{
+    event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
+};
 
 /// Holds current alive processes
 #[map]
@@ -26,6 +28,33 @@ static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 #[map]
 static NETMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
+
+// Filter maps
+
+// It's better to use BPF_MAP_TYPE_ARRAY_OF_MAPS when https://github.com/aya-rs/aya/pull/70
+// will be merged. We can have array of maps to set separate process filters for ingress/egress
+// connections.
+
+#[map]
+static NETMON_FILTER_UID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_AUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_BINPATH_MAP: HashMap<[u8; MAX_FILE_PATH], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_BINNAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_BINPREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
+    LpmTrie::with_max_entries(1, 0);
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -88,6 +117,34 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
         return Err(0);
     };
 
+    // Filter event by process
+    let allow = if config.expose_events {
+        if !config.filter_mask.is_empty() {
+            let process_filter: ProcessFilter = ProcessFilter::new(
+                &NETMON_FILTER_UID_MAP,
+                &NETMON_FILTER_EUID_MAP,
+                &NETMON_FILTER_AUID_MAP,
+                &NETMON_FILTER_BINNAME_MAP,
+                &NETMON_FILTER_BINPATH_MAP,
+                &NETMON_FILTER_BINPREFIX_MAP,
+            );
+            if config.deny_list {
+                !process_filter.filter(config.filter_mask, proc)
+            } else {
+                process_filter.filter(config.filter_mask, proc)
+            }
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
     unsafe {
         let p = event as *mut NetworkMsg as *mut u8;
         // TcpConV4Established
@@ -106,9 +163,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
         return Err(0);
     }
 
-    if config.expose_events {
-        util::copy_proc(proc, &mut event.process);
-    }
+    util::copy_proc(proc, &mut event.process);
     Ok(0)
 }
 
@@ -134,6 +189,34 @@ fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
         return Err(0);
     };
 
+    // Filter event by process
+    let allow = if config.expose_events {
+        if !config.filter_mask.is_empty() {
+            let process_filter: ProcessFilter = ProcessFilter::new(
+                &NETMON_FILTER_UID_MAP,
+                &NETMON_FILTER_EUID_MAP,
+                &NETMON_FILTER_AUID_MAP,
+                &NETMON_FILTER_BINNAME_MAP,
+                &NETMON_FILTER_BINPATH_MAP,
+                &NETMON_FILTER_BINPREFIX_MAP,
+            );
+            if config.deny_list {
+                !process_filter.filter(config.filter_mask, proc)
+            } else {
+                process_filter.filter(config.filter_mask, proc)
+            }
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
     unsafe {
         let p = event as *mut NetworkMsg as *mut u8;
         // TcpConV6Established
@@ -152,9 +235,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
         return Err(0);
     }
 
-    if config.expose_events {
-        util::copy_proc(proc, &mut event.process);
-    }
+    util::copy_proc(proc, &mut event.process);
     Ok(0)
 }
 
@@ -180,6 +261,34 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
         return Err(0);
     };
 
+    // Filter event by process
+    let allow = if config.expose_events {
+        if !config.filter_mask.is_empty() {
+            let process_filter: ProcessFilter = ProcessFilter::new(
+                &NETMON_FILTER_UID_MAP,
+                &NETMON_FILTER_EUID_MAP,
+                &NETMON_FILTER_AUID_MAP,
+                &NETMON_FILTER_BINNAME_MAP,
+                &NETMON_FILTER_BINPATH_MAP,
+                &NETMON_FILTER_BINPREFIX_MAP,
+            );
+            if config.deny_list {
+                !process_filter.filter(config.filter_mask, proc)
+            } else {
+                process_filter.filter(config.filter_mask, proc)
+            }
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
     unsafe {
         let s = ctx.arg::<*const sock>(0);
         let family = (*s).__sk_common.skc_family;
@@ -192,9 +301,7 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
                     return Err(0);
                 };
                 parse_v4_sock(event, s);
-                if config.expose_events {
-                    util::copy_proc(proc, &mut event.process);
-                }
+                util::copy_proc(proc, &mut event.process);
                 Ok(0)
             }
             AF_INET6 => {
@@ -205,9 +312,7 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
-                if config.expose_events {
-                    util::copy_proc(proc, &mut event.process);
-                }
+                util::copy_proc(proc, &mut event.process);
                 Ok(0)
             }
             _ => Err(0),
@@ -237,6 +342,34 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32>
         return Err(0);
     };
 
+    // Filter event by process
+    let allow = if config.expose_events {
+        if !config.filter_mask.is_empty() {
+            let process_filter: ProcessFilter = ProcessFilter::new(
+                &NETMON_FILTER_UID_MAP,
+                &NETMON_FILTER_EUID_MAP,
+                &NETMON_FILTER_AUID_MAP,
+                &NETMON_FILTER_BINNAME_MAP,
+                &NETMON_FILTER_BINPATH_MAP,
+                &NETMON_FILTER_BINPREFIX_MAP,
+            );
+            if config.deny_list {
+                !process_filter.filter(config.filter_mask, proc)
+            } else {
+                process_filter.filter(config.filter_mask, proc)
+            }
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
     unsafe {
         let s = ctx.arg::<*const sock>(0);
         let family = (*s).__sk_common.skc_family;
@@ -250,9 +383,7 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32>
                 };
                 parse_v4_sock(event, s);
 
-                if config.expose_events {
-                    util::copy_proc(proc, &mut event.process);
-                }
+                util::copy_proc(proc, &mut event.process);
                 Ok(0)
             }
             AF_INET6 => {
@@ -263,9 +394,7 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32>
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
-                if config.expose_events {
-                    util::copy_proc(proc, &mut event.process);
-                }
+                util::copy_proc(proc, &mut event.process);
                 Ok(0)
             }
             _ => Err(0),
