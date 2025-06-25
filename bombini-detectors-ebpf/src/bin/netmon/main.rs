@@ -118,26 +118,22 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
     };
 
     // Filter event by process
-    let allow = if config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &NETMON_FILTER_UID_MAP,
-                &NETMON_FILTER_EUID_MAP,
-                &NETMON_FILTER_AUID_MAP,
-                &NETMON_FILTER_BINNAME_MAP,
-                &NETMON_FILTER_BINPATH_MAP,
-                &NETMON_FILTER_BINPREFIX_MAP,
-            );
-            if config.deny_list {
-                !process_filter.filter(config.filter_mask, proc)
-            } else {
-                process_filter.filter(config.filter_mask, proc)
-            }
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &NETMON_FILTER_UID_MAP,
+            &NETMON_FILTER_EUID_MAP,
+            &NETMON_FILTER_AUID_MAP,
+            &NETMON_FILTER_BINNAME_MAP,
+            &NETMON_FILTER_BINPATH_MAP,
+            &NETMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
         } else {
-            true
+            process_filter.filter(config.filter_mask, proc)
         }
     } else {
-        false
+        true
     };
 
     // Skip argument parsing if event is not exported
@@ -190,26 +186,22 @@ fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
     };
 
     // Filter event by process
-    let allow = if config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &NETMON_FILTER_UID_MAP,
-                &NETMON_FILTER_EUID_MAP,
-                &NETMON_FILTER_AUID_MAP,
-                &NETMON_FILTER_BINNAME_MAP,
-                &NETMON_FILTER_BINPATH_MAP,
-                &NETMON_FILTER_BINPREFIX_MAP,
-            );
-            if config.deny_list {
-                !process_filter.filter(config.filter_mask, proc)
-            } else {
-                process_filter.filter(config.filter_mask, proc)
-            }
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &NETMON_FILTER_UID_MAP,
+            &NETMON_FILTER_EUID_MAP,
+            &NETMON_FILTER_AUID_MAP,
+            &NETMON_FILTER_BINNAME_MAP,
+            &NETMON_FILTER_BINPATH_MAP,
+            &NETMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
         } else {
-            true
+            process_filter.filter(config.filter_mask, proc)
         }
     } else {
-        false
+        true
     };
 
     // Skip argument parsing if event is not exported
@@ -262,26 +254,22 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
     };
 
     // Filter event by process
-    let allow = if config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &NETMON_FILTER_UID_MAP,
-                &NETMON_FILTER_EUID_MAP,
-                &NETMON_FILTER_AUID_MAP,
-                &NETMON_FILTER_BINNAME_MAP,
-                &NETMON_FILTER_BINPATH_MAP,
-                &NETMON_FILTER_BINPREFIX_MAP,
-            );
-            if config.deny_list {
-                !process_filter.filter(config.filter_mask, proc)
-            } else {
-                process_filter.filter(config.filter_mask, proc)
-            }
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &NETMON_FILTER_UID_MAP,
+            &NETMON_FILTER_EUID_MAP,
+            &NETMON_FILTER_AUID_MAP,
+            &NETMON_FILTER_BINNAME_MAP,
+            &NETMON_FILTER_BINPATH_MAP,
+            &NETMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
         } else {
-            true
+            process_filter.filter(config.filter_mask, proc)
         }
     } else {
-        false
+        true
     };
 
     // Skip argument parsing if event is not exported
@@ -343,26 +331,22 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32>
     };
 
     // Filter event by process
-    let allow = if config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &NETMON_FILTER_UID_MAP,
-                &NETMON_FILTER_EUID_MAP,
-                &NETMON_FILTER_AUID_MAP,
-                &NETMON_FILTER_BINNAME_MAP,
-                &NETMON_FILTER_BINPATH_MAP,
-                &NETMON_FILTER_BINPREFIX_MAP,
-            );
-            if config.deny_list {
-                !process_filter.filter(config.filter_mask, proc)
-            } else {
-                process_filter.filter(config.filter_mask, proc)
-            }
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &NETMON_FILTER_UID_MAP,
+            &NETMON_FILTER_EUID_MAP,
+            &NETMON_FILTER_AUID_MAP,
+            &NETMON_FILTER_BINNAME_MAP,
+            &NETMON_FILTER_BINPATH_MAP,
+            &NETMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
         } else {
-            true
+            process_filter.filter(config.filter_mask, proc)
         }
     } else {
-        false
+        true
     };
 
     // Skip argument parsing if event is not exported
