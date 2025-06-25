@@ -550,7 +550,6 @@ fn test_iouring_allow_list_file() {
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let config_contents = r#"
-expose-events: true
 process_allow_list:
   uid:
     - 0
