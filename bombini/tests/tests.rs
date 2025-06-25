@@ -612,3 +612,86 @@ process_allow_list:
 
     //let _ = fs::remove_dir_all(bombini_temp_dir);
 }
+
+#[test]
+#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
+fn test_filemon_open_allow_list_file() {
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
+    let _ = fs::copy(&config, &tmp_config);
+    tmp_config.pop();
+    config.pop();
+    let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
+    let config_contents = r#"
+file-open:
+  expose-events: true
+path-truncate:
+  disable: true
+path-unlink:
+  disable: true
+process_allow_list:
+  binary:
+    name:
+      - tail
+    path:
+      - /usr/bin/cat
+"#;
+    let filemon_config = tmp_config.join("filemon.yaml");
+    let _ = fs::write(&filemon_config, config_contents);
+    let bombini_log =
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
+    let event_log = temp_dir.path().join("events.log");
+
+    let bombini = Command::new(EXE_BOMBINI)
+        .args([
+            "--config-dir",
+            tmp_config.to_str().unwrap(),
+            "--bpf-objs",
+            bpf_objs.to_str().unwrap(),
+            "--event-log",
+            event_log.to_str().unwrap(),
+            "--detector",
+            "procmon",
+            "--detector",
+            "filemon",
+        ])
+        .env("RUST_LOG", "debug")
+        .stderr(bombini_log.try_clone().unwrap())
+        .spawn();
+
+    if bombini.is_err() {
+        panic!("{:?}", bombini.err().unwrap());
+    }
+    let mut bombini = bombini.expect("failed to start bombini");
+    // Wait for detectors being loaded
+    thread::sleep(Duration::from_millis(2000));
+
+    let test_path = filemon_config.to_str().unwrap();
+    let tail_status = Command::new("tail")
+        .args([test_path])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start tail");
+
+    assert!(tail_status.success());
+
+    // Wait Events being processed
+    thread::sleep(Duration::from_millis(500));
+
+    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
+
+    let _ = bombini.wait().unwrap();
+
+    // TODO: more precise check
+    let events = fs::read_to_string(&event_log).expect("can't read events");
+    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
+    ma::assert_ge!(events.matches("\"filename\":\"tail\"").count(), 1);
+    assert_eq!(events.matches(test_path).count(), 5); //Process + FileInfo
+
+    let _ = fs::remove_dir_all(bombini_temp_dir);
+}
