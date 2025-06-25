@@ -11,7 +11,6 @@ Inspired by this [example](https://github.com/armosec/curing) and [post](https:/
 IOUringMon detector supports process allow/deny list for event filtering:
 
 ```yaml
-expose-events: true
 process_allow_list:
   uid:
     - 0

@@ -77,30 +77,27 @@ fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event) -> Result<i32, i
         event.opcode = (*req).opcode;
         event.flags = (*req).flags;
     }
-    if config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &IOURINGMON_FILTER_UID_MAP,
-                &IOURINGMON_FILTER_EUID_MAP,
-                &IOURINGMON_FILTER_AUID_MAP,
-                &IOURINGMON_FILTER_BINNAME_MAP,
-                &IOURINGMON_FILTER_BINPATH_MAP,
-                &IOURINGMON_FILTER_BINPREFIX_MAP,
-            );
-            let mut allow = process_filter.filter(config.filter_mask, proc);
-            if config.deny_list {
-                allow = !allow;
-            }
-            if allow {
-                util::copy_proc(proc, &mut event.process);
-                return Ok(0);
-            }
-            return Err(0);
+    if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &IOURINGMON_FILTER_UID_MAP,
+            &IOURINGMON_FILTER_EUID_MAP,
+            &IOURINGMON_FILTER_AUID_MAP,
+            &IOURINGMON_FILTER_BINNAME_MAP,
+            &IOURINGMON_FILTER_BINPATH_MAP,
+            &IOURINGMON_FILTER_BINPREFIX_MAP,
+        );
+        let mut allow = process_filter.filter(config.filter_mask, proc);
+        if config.deny_list {
+            allow = !allow;
         }
-        util::copy_proc(proc, &mut event.process);
-        return Ok(0);
+        if allow {
+            util::copy_proc(proc, &mut event.process);
+            return Ok(0);
+        }
+        return Err(0);
     }
-    Err(0)
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
 }
 
 #[panic_handler]
