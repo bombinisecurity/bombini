@@ -1,0 +1,12 @@
+file-open:
+  expose-events: true
+path-truncate:
+  disable: true
+path-unlink:
+  expose-events: true
+process_allow_list:
+  binary:
+    name:
+      - tail
+    path:
+      - /usr/bin/cat
