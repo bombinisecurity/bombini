@@ -19,15 +19,24 @@ For each file hook the following options are supported:
 * `disable` disables detection for current hook. False by default.
 * `expose-events` sends events to user-mode. True by default.
 
+FileMon detector supports process allow/deny list for event filtering. It is global for all hooks.
+The detailed description of process filter config section can be found in ProcMon [config section](procmon.md#config).
+
 Config example:
 
 ```yaml
 file-open:
-  disable: true
-path-truncate:
   expose-events: true
+path-truncate:
+  disable: true
 path-unlink:
   expose-events: true
+process_allow_list:
+  binary:
+    name:
+      - tail
+    path:
+      - /usr/bin/cat
 ```
 
 ### Event
