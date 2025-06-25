@@ -32,7 +32,7 @@ static FILEMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
 // Filter maps
 
 // It's better to use BPF_MAP_TYPE_ARRAY_OF_MAPS when https://github.com/aya-rs/aya/pull/70
-// will be merged. We can array of maps to set separate process filters fo hooks
+// will be merged. We can have array of maps to set separate process filters for hooks
 #[map]
 static FILEMON_FILTER_UID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
 
