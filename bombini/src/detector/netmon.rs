@@ -42,10 +42,14 @@ impl Detector for NetMon {
             anyhow::bail!("Config for io_uringmon must be provided");
         };
         let docs = YamlLoader::load_from_str(yaml_config.as_ref())?;
-        let doc = &docs[0];
+        let config = if docs.is_empty() {
+            NetMonConfig { filter: None }
+        } else {
+            let doc = &docs[0];
+            NetMonConfig::new(doc)?
+        };
 
         let config_opts = CONFIG.read().await;
-        let config = NetMonConfig::new(doc)?;
         let mut ebpf_loader = EbpfLoader::new();
         let mut ebpf_loader_ref = ebpf_loader
             .map_pin_path(config_opts.maps_pin_path.as_ref().unwrap())
@@ -67,11 +71,9 @@ impl Detector for NetMon {
 
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
-            expose_events: false,
             filter_mask: ProcessFilterMask::empty(),
             deny_list: false,
         };
-        config.expose_events = self.config.expose_events;
         if let Some(filter) = &self.config.filter {
             let filter_config = match filter {
                 ProcessFilter::AllowList(f) => f,
@@ -124,7 +126,6 @@ impl Detector for NetMon {
 
 /// Yaml provided user config
 struct NetMonConfig {
-    pub expose_events: bool,
     pub filter: Option<ProcessFilter>,
 }
 
@@ -138,24 +139,16 @@ impl NetMonConfig {
         {
             anyhow::bail!("config supports only allow or deny list");
         }
-        let Some(expose_events) = yaml.get(&Yaml::from_str("expose-events")) else {
-            anyhow::bail!("expose-events must be set")
-        };
         if let Some(filter) = yaml.get(&Yaml::from_str("process_allow_list")) {
             Ok(NetMonConfig {
-                expose_events: expose_events.as_bool().unwrap_or(false),
                 filter: Some(ProcessFilter::AllowList(ProcessFilterConfig::new(filter)?)),
             })
         } else if let Some(filter) = yaml.get(&Yaml::from_str("process_deny_list")) {
             Ok(NetMonConfig {
-                expose_events: expose_events.as_bool().unwrap_or(false),
                 filter: Some(ProcessFilter::DenyList(ProcessFilterConfig::new(filter)?)),
             })
         } else {
-            Ok(NetMonConfig {
-                expose_events: expose_events.as_bool().unwrap_or(false),
-                filter: None,
-            })
+            Ok(NetMonConfig { filter: None })
         }
     }
 }

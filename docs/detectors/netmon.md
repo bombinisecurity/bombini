@@ -12,11 +12,9 @@ Hooks:
 
 ### Config
 
-`expose-events` sends events to user-mode. False by default.
 NetMon detector supports process allow/deny list for event filtering:
 
 ```yaml
-expose-events: true
 process_allow_list:
   binary:
     name:
