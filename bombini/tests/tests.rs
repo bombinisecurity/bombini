@@ -626,7 +626,7 @@ fn test_filemon_open_allow_list_file() {
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let config_contents = r#"
 file-open:
-  expose-events: true
+  disable: false
 path-truncate:
   disable: true
 path-unlink:

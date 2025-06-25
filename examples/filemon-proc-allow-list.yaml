@@ -1,9 +1,9 @@
 file-open:
-  expose-events: true
+  disable: false
 path-truncate:
   disable: true
 path-unlink:
-  expose-events: true
+  disable: true
 process_allow_list:
   binary:
     name:

@@ -79,26 +79,22 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     };
 
     // Filter event by process
-    let allow = if config.file_open_config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &FILEMON_FILTER_UID_MAP,
-                &FILEMON_FILTER_EUID_MAP,
-                &FILEMON_FILTER_AUID_MAP,
-                &FILEMON_FILTER_BINNAME_MAP,
-                &FILEMON_FILTER_BINPATH_MAP,
-                &FILEMON_FILTER_BINPREFIX_MAP,
-            );
-            if config.deny_list {
-                !process_filter.filter(config.filter_mask, proc)
-            } else {
-                process_filter.filter(config.filter_mask, proc)
-            }
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &FILEMON_FILTER_UID_MAP,
+            &FILEMON_FILTER_EUID_MAP,
+            &FILEMON_FILTER_AUID_MAP,
+            &FILEMON_FILTER_BINNAME_MAP,
+            &FILEMON_FILTER_BINPATH_MAP,
+            &FILEMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
         } else {
-            true
+            process_filter.filter(config.filter_mask, proc)
         }
     } else {
-        false
+        true
     };
 
     // Skip argument parsing if event is not exported
@@ -155,26 +151,22 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     };
 
     // Filter event by process
-    let allow = if config.path_truncate_config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &FILEMON_FILTER_UID_MAP,
-                &FILEMON_FILTER_EUID_MAP,
-                &FILEMON_FILTER_AUID_MAP,
-                &FILEMON_FILTER_BINNAME_MAP,
-                &FILEMON_FILTER_BINPATH_MAP,
-                &FILEMON_FILTER_BINPREFIX_MAP,
-            );
-            if config.deny_list {
-                !process_filter.filter(config.filter_mask, proc)
-            } else {
-                process_filter.filter(config.filter_mask, proc)
-            }
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &FILEMON_FILTER_UID_MAP,
+            &FILEMON_FILTER_EUID_MAP,
+            &FILEMON_FILTER_AUID_MAP,
+            &FILEMON_FILTER_BINNAME_MAP,
+            &FILEMON_FILTER_BINPATH_MAP,
+            &FILEMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
         } else {
-            true
+            process_filter.filter(config.filter_mask, proc)
         }
     } else {
-        false
+        true
     };
 
     // Skip argument parsing if event is not exported
@@ -218,26 +210,22 @@ fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     };
 
     // Filter event by process
-    let allow = if config.path_unlink_config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &FILEMON_FILTER_UID_MAP,
-                &FILEMON_FILTER_EUID_MAP,
-                &FILEMON_FILTER_AUID_MAP,
-                &FILEMON_FILTER_BINNAME_MAP,
-                &FILEMON_FILTER_BINPATH_MAP,
-                &FILEMON_FILTER_BINPREFIX_MAP,
-            );
-            if config.deny_list {
-                !process_filter.filter(config.filter_mask, proc)
-            } else {
-                process_filter.filter(config.filter_mask, proc)
-            }
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &FILEMON_FILTER_UID_MAP,
+            &FILEMON_FILTER_EUID_MAP,
+            &FILEMON_FILTER_AUID_MAP,
+            &FILEMON_FILTER_BINNAME_MAP,
+            &FILEMON_FILTER_BINPATH_MAP,
+            &FILEMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
         } else {
-            true
+            process_filter.filter(config.filter_mask, proc)
         }
     } else {
-        false
+        true
     };
 
     // Skip argument parsing if event is not exported

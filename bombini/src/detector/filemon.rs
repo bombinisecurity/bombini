@@ -13,10 +13,7 @@ use yaml_rust2::{Yaml, YamlLoader};
 use std::path::Path;
 
 use bombini_common::{
-    config::{
-        filemon::{Config, HookConfig},
-        procmon::ProcessFilterMask,
-    },
+    config::{filemon::Config, procmon::ProcessFilterMask},
     constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
 };
 
@@ -71,18 +68,6 @@ impl Detector for FileMon {
 
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
-            file_open_config: HookConfig {
-                expose_events: self.config.open.expose_events,
-                disable: self.config.open.disable,
-            },
-            path_truncate_config: HookConfig {
-                expose_events: self.config.truncate.expose_events,
-                disable: self.config.truncate.disable,
-            },
-            path_unlink_config: HookConfig {
-                expose_events: self.config.unlink.expose_events,
-                disable: self.config.unlink.disable,
-            },
             filter_mask: ProcessFilterMask::empty(),
             deny_list: false,
         };
@@ -174,7 +159,6 @@ impl FileMonConfig {
 
 #[derive(Default)]
 struct FileHookConfig {
-    pub expose_events: bool,
     pub disable: bool,
 }
 
@@ -185,9 +169,6 @@ impl FileHookConfig {
         };
 
         let mut config = Self::default();
-        if let Some(expose_events) = yaml.get(&Yaml::from_str("expose-events")) {
-            config.expose_events = expose_events.as_bool().unwrap_or(true);
-        }
         if let Some(disable) = yaml.get(&Yaml::from_str("disable")) {
             config.disable = disable.as_bool().unwrap_or(false);
         }
@@ -195,7 +176,7 @@ impl FileHookConfig {
     }
 }
 
-/// IOUringMon Filter map names
+/// FileMon Filter map names
 const FILTER_UID_MAP_NAME: &str = "FILEMON_FILTER_UID_MAP";
 
 const FILTER_EUID_MAP_NAME: &str = "FILEMON_FILTER_EUID_MAP";
