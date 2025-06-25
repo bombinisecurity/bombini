@@ -12,11 +12,19 @@ Hooks:
 
 ### Config
 
+`expose-events` sends events to user-mode. False by default.
+NetMon detector supports process allow/deny list for event filtering:
+
 ```yaml
-expose-events: false
+expose-events: true
+process_allow_list:
+  binary:
+    name:
+      - curl
 ```
 
-`expose-events` sends events to user-mode. False by default.
+The detailed description of process filter config section can be found in ProcMon [config section](procmon.md#config).
+Allow/deny process filter list is common for ingress/egress connections.
 
 ### Event
 
