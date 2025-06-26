@@ -690,7 +690,8 @@ process_allow_list:
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"tail\"").count(), 1);
-    assert_eq!(events.matches(test_path).count(), 5); //Process + FileInfo
-
+    let mut file_path = String::from("\"path\":\"");
+    file_path.push_str(&test_path);
+    assert_eq!(events.matches(&file_path).count(), 1);
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
