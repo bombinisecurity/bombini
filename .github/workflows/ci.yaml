@@ -6,8 +6,8 @@ on:
     branches:
       - "main"
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  ubuntu-24_04:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: cargo-bins/cargo-binstall@main
@@ -15,10 +15,9 @@ jobs:
         with:
           toolchain: nightly
           components: clippy rustfmt
+      - uses: lima-vm/lima-actions/setup@v1
+        id: lima-actions-setup
       - run: cargo binstall -y bpf-linker
-
-      - name: Build Bombini
-        run: cargo xtask build
 
       - name: Linting
         run: |
@@ -27,10 +26,24 @@ jobs:
           cd bombini-detectors-ebpf
           cargo clippy --workspace --all-features -- -D warnings
           cargo fmt --all -- --check
-      - name: Test Bombini
+
+      - name: Build tests
         run: |
-          sudo -E echo "run cargo test: " `uname -a`
-          cargo xtask test
+          cargo xtask test --release --no-run
+          limactl start --name=default --cpus=1 --memory=2 template://ubuntu-lts
+      - uses: lima-vm/lima-actions/ssh@v1
+      - name: Run tests in lima vm
+        run: |
+          ssh lima-default 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf"/'\'' /etc/default/grub'
+          ssh lima-default sudo update-grub
+          limactl stop
+          limactl start
+          rsync -a -e ssh . lima-default:/tmp/repo
+          ssh lima-default "cd /tmp/repo && sudo $(find ./target/release/deps/tests-* -type f -executable) --test-threads 1"
+      - name: Get Bombini logs from lima vm
+        if: failure()
+        run: |
+          rsync -a -e ssh 'lima-default:/tmp/bombini-test-*'' /tmp
       - name: Upload Bombini logs
         if: failure()
         uses: actions/upload-artifact@v4
