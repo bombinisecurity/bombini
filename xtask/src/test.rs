@@ -16,6 +16,9 @@ pub struct Options {
     /// Build and run the release target
     #[clap(long)]
     pub release: bool,
+    /// Just build do not run
+    #[clap(long)]
+    pub no_run: bool,
     /// The command used to wrap cargo
     #[clap(short, long, default_value = "sudo -E")]
     pub runner: String,
@@ -42,7 +45,10 @@ pub fn test(opts: Options) -> Result<(), anyhow::Error> {
     args.push(cargo_path.to_str().unwrap());
     args.push("test");
     if opts.release {
-        args.push("--release")
+        args.push("--release");
+    }
+    if opts.no_run {
+        args.push("--no-run");
     }
     args.push("--");
     args.push("--test-threads");
