@@ -82,7 +82,6 @@ fn test_detectors_load() {
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_procmon_file() {
     let (temp_dir, config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -139,7 +138,6 @@ fn test_procmon_file() {
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_gtfobins_detector_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -210,7 +208,6 @@ fn test_gtfobins_detector_file() {
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_filemon_unlink_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -284,7 +281,6 @@ fn test_filemon_unlink_file() {
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_netmon_tcp_ip4_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -370,7 +366,6 @@ fn test_netmon_tcp_ip4_file() {
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_procmon_allow_list_file() {
     let (temp_dir, config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -466,7 +461,6 @@ process_allow_list:
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_procmon_deny_list_file() {
     let (temp_dir, config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -537,7 +531,6 @@ process_deny_list:
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_iouring_allow_list_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -609,11 +602,10 @@ process_allow_list:
         1
     );
 
-    //let _ = fs::remove_dir_all(bombini_temp_dir);
+    let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
 #[test]
-#[ignore = "Github CI runners doesn't support bpf LSM. TODO: Run tests in VM"]
 fn test_filemon_open_allow_list_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
