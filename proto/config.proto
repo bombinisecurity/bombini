@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package config;
+
+// Configuration file for ProcMon detector
+message ProcMonConfig {
+    // Flag for exporting events from kernel to user mode.
+    bool expose_events = 1;
+    // Process Filter Configuration.
+    ProcessFilter process_filter = 2;
+}
+
+// Filter Events using process information.
+// Filtering is based on pattern: uid AND euid AND auid AND (binary.name OR binary.prefix OR binary.path).
+// All variables in the pattern are optional. if deny_list is true filter acts as a deny list, otherwise it
+// is an allow list.
+message ProcessFilter {
+    // List of UID's to filter.
+    repeated uint32 uid = 1;
+    // List of EUID's to filter.
+    repeated uint32 euid = 2;
+    // List of AUID's (login uid) to filter.
+    repeated uint32 auid = 3;
+    // Binary filter args
+    BinaryFilter binary = 4;
+    // if true acts like deny list
+    bool deny_list = 5;
+}
+
+// Binary filtering args
+message BinaryFilter {
+    // List of executables names to filter.
+    repeated string name = 1;
+    // List of full executable paths to filter.
+    repeated string path = 2;
+    // List of executable path prefixes to filter.
+    repeated string prefix = 3;
+}
+
+// Configuration file for FileMon detector.
+message FileMonConfig {
+    // security_file_open config.
+    FileHookConfig file_open = 1;
+    // security_path_truncate config.
+    FileHookConfig path_truncate = 2;
+    // security_path_unlink config.
+    FileHookConfig path_unlink = 3;
+    // Filter File events by Process information.
+    ProcessFilter process_filter = 4;
+}
+
+// FileMon hook configuration
+message FileHookConfig {
+    // do not load ebpf program
+    bool disable = 1;
+}
+
+// Configuration file for NetMon detector.
+message NetMonConfig {
+    // Filter Network events by Process information.
+    ProcessFilter process_filter = 1;
+}
+
+// Configuration file for IOUringMon detector.
+message IOUringMonConfig {
+    // Filter io_uring events by Process information.
+    ProcessFilter process_filter = 1;
+}
+
+// Configuration file for GTFOBinsDetector.
+message GTFOBinsConfig {
+    // Block execution of GTFOBins binaries.
+    bool enforce = 1;
+    // GTFOBins executables names.
+    repeated string gtfobins = 2;
+}
