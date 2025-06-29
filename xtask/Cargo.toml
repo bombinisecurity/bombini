@@ -9,3 +9,4 @@ clap = { version = "4.1", features = ["derive"] }
 which = "7.0"
 tar = "0.4"
 flate2 = "1.1"
+prost-build = "0.14.1"
