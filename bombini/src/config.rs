@@ -1,6 +1,6 @@
 //! Config provides a global configuration for agent
 
-use yaml_rust2::YamlLoader;
+use serde::Deserialize;
 
 use clap::{Args, Parser};
 
@@ -15,7 +15,7 @@ pub const EVENT_MAP_NAME: &str = "EVENT_MAP";
 pub const PROCMON_PROC_MAP_NAME: &str = "PROCMON_PROC_MAP";
 
 // Config holds options for cli interface and global agent parameters
-#[derive(Default, Clone, Debug, Parser)]
+#[derive(Default, Clone, Debug, Parser, Deserialize)]
 #[command(name = "bombini", version)]
 #[command(about = "Ebpf-based agent for observability and security monitoring", long_about = None)]
 pub struct Config {
@@ -49,9 +49,11 @@ pub struct Config {
 
     /// YAML config dir with global config and detector configs
     #[arg(long, value_name = "DIR")]
+    #[serde(skip)]
     pub config_dir: String,
 
     #[command(flatten)]
+    #[serde(skip)]
     pub transmit_opts: TransmitterOpts,
 }
 
@@ -81,68 +83,21 @@ impl Config {
 
     /// Creates new config from args and yaml
     pub fn init(&mut self) -> Result<(), anyhow::Error> {
-        //TODO: maybe change to serde_yaml
         let args = Config::parse();
         self.config_dir = args.config_dir.to_string();
 
         let mut config_path = PathBuf::from(&self.config_dir);
         config_path.push("config.yaml"); // Global config name
 
-        // YAML overrides command line args.
+        // YAML is overrided by command line args.
         let s = std::fs::read_to_string(&config_path)?;
-        let docs = YamlLoader::load_from_str(&s)?;
-
-        // TODO: check that config has required field
-        let doc = &docs[0];
-
-        if let Some(v) = doc["bpf_objs"].as_str() {
-            let mut abs_bpf_objs = PathBuf::from(&self.config_dir).canonicalize()?;
-            let bpf_objs = PathBuf::from(v.to_string());
-            if bpf_objs.is_absolute() {
-                self.bpf_objs = Some(bpf_objs.to_str().unwrap().to_string());
-            } else {
-                abs_bpf_objs.push(bpf_objs);
-                self.bpf_objs = Some(abs_bpf_objs.to_str().unwrap().to_string());
-            }
-        }
-
-        if let Some(v) = doc["maps_pin_path"].as_str() {
-            let mut abs_pin_path = PathBuf::from(&self.config_dir).canonicalize()?;
-            let pin_path = PathBuf::from(v.to_string());
-            if pin_path.is_absolute() {
-                self.maps_pin_path = Some(pin_path.to_str().unwrap().to_string());
-            } else {
-                abs_pin_path.push(pin_path);
-                self.maps_pin_path = Some(abs_pin_path.to_str().unwrap().to_string());
-            }
-        }
-
-        if let Some(v) = doc["event_map_size"].as_i64() {
-            self.event_map_size = Some(v as u32);
-        } else {
-            self.event_map_size = Some(65536);
-        }
-
-        if let Some(v) = doc["event_channel_size"].as_i64() {
-            self.event_channel_size = Some(v as usize);
-        } else {
-            self.event_channel_size = Some(64);
-        }
-
-        if let Some(v) = doc["procmon_proc_map_size"].as_i64() {
-            self.procmon_proc_map_size = Some(v as u32);
-        } else {
-            self.procmon_proc_map_size = Some(8192);
-        }
-
-        if let Some(detectors) = doc["detectors"].as_vec() {
-            self.detectors = Some(
-                detectors
-                    .iter()
-                    .map(|v| v.as_str().unwrap().to_string())
-                    .collect(),
-            );
-        }
+        let config: Config = serde_yml::from_str(&s)?;
+        self.bpf_objs = config.bpf_objs;
+        self.maps_pin_path = config.maps_pin_path;
+        self.event_channel_size = config.event_channel_size;
+        self.event_map_size = config.event_map_size;
+        self.procmon_proc_map_size = config.procmon_proc_map_size;
+        self.detectors = config.detectors;
 
         // Redefine config from file if command args are set
         if let Some(v) = args.bpf_objs.as_deref() {
