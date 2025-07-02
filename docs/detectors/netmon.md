@@ -15,7 +15,7 @@ Hooks:
 NetMon detector supports process allow/deny list for event filtering:
 
 ```yaml
-process_allow_list:
+process_filter:
   binary:
     name:
       - curl

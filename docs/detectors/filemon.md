@@ -24,13 +24,13 @@ The detailed description of process filter config section can be found in ProcMo
 Config example:
 
 ```yaml
-file-open:
+file_open:
   disable: false
-path-truncate:
+path_truncate:
   disable: true
-path-unlink:
+path_unlink:
   disable: true
-process_allow_list:
+process_filter:
   binary:
     name:
       - tail
