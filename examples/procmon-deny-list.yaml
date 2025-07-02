@@ -1,8 +1,9 @@
 # Deny list filter for Process events. if event is satisfied the following pattern,
 # it will NOT be exposed.
 # Pattern: uid AND euid AND auid and (binary.name OR binary.prefix OR binary.path)
-expose-events: true
-process_deny_list:
+expose_events: true
+process_filter:
+  deny_list: true
   uid:
     - 1000
   euid:

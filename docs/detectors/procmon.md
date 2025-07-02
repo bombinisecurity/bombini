@@ -9,8 +9,9 @@ can produce events about when the process starts and ends.
 Procmon detector supports allow/deny list for events filtereing. Let's look at the config example.
 
 ```yaml
-expose-events: true
-process_allow_list:
+expose_events: true
+process_filter:
+  deny_list: false
   uid:
     - 0
   euid:
@@ -27,14 +28,15 @@ process_allow_list:
       - /usr/bin/uname
 ```
 
-`expose-events` sends events to user-mode. False by default.
-If you want to send events you should set expose-events to true no matter using filters or not.
-Filter list section is start by defining allow list `process_allow_list`:
-events that DO satisfy the following conditions will be send to user space,
-or deny list `process_deny_list`: events that do NOT satisfiy the following conditions will be
-send to user space. Next level of hierarchy provide the types of conditions: `uid`, `eud`, `auid`, `binary`.
-This types of conditions combined with logical "AND". Values are represented as arrays, are combined with
-logical "OR". `name`, `prefix`, `path` in the `binary` section are combined with logical "OR" too.
+`expose_events` sends events to user-mode. False by default.
+If you want to send events you should set expose_events to true with filters or without.
+Filter list section is start by defining `process_filter`.
+events that DO satisfy the following conditions will be send to user space.
+`deny_list` is set false by default. It indicates that filter is acts like deny lists:
+events that do NOT satisfiy the following conditions will be
+send to user space. Conditions: `uid`, `eud`, `auid`, `binary` are combined with logical "AND".
+The values in these fields are represented as arrays, and are combined with
+logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combined with logical "OR".
 
 
 ### Event

@@ -1,8 +1,8 @@
 # Allow list filter for Process events. if event is satisfied the following pattern,
 # it will be exposed.
 # Pattern: uid AND euid AND auid and (binary.name OR binary.prefix OR binary.path)
-expose-events: true
-process_allow_list:
+expose_events: true
+process_filter:
   uid:
     - 0
   euid:
