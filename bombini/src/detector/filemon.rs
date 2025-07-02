@@ -8,8 +8,6 @@ use aya::maps::{
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
-use yaml_rust2::{Yaml, YamlLoader};
-
 use std::path::Path;
 
 use bombini_common::{
@@ -19,13 +17,12 @@ use bombini_common::{
 
 use crate::{
     config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME},
-    init_process_filter_maps, resize_process_filter_maps,
+    init_process_filter_maps,
+    proto::config::FileMonConfig,
+    resize_process_filter_maps,
 };
 
-use super::{
-    procmon::{ProcessFilter, ProcessFilterConfig},
-    Detector,
-};
+use super::Detector;
 
 pub struct FileMon {
     ebpf: Ebpf,
@@ -41,11 +38,9 @@ impl Detector for FileMon {
         let Some(yaml_config) = yaml_config else {
             anyhow::bail!("Config for filemon must be provided");
         };
-        let docs = YamlLoader::load_from_str(yaml_config.as_ref())?;
-        let doc = &docs[0];
 
+        let config: FileMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
         let config_opts = CONFIG.read().await;
-        let config = FileMonConfig::new(doc)?;
         let mut ebpf_loader = EbpfLoader::new();
         let mut ebpf_loader_ref = ebpf_loader
             .map_pin_path(config_opts.maps_pin_path.as_ref().unwrap())
@@ -54,12 +49,8 @@ impl Detector for FileMon {
                 PROCMON_PROC_MAP_NAME,
                 config_opts.procmon_proc_map_size.unwrap(),
             );
-        if let Some(filter) = &config.filter {
-            let filter_config = match filter {
-                ProcessFilter::AllowList(f) => f,
-                ProcessFilter::DenyList(f) => f,
-            };
-            resize_process_filter_maps!(filter_config, ebpf_loader_ref);
+        if let Some(filter) = &config.process_filter {
+            resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
@@ -71,15 +62,9 @@ impl Detector for FileMon {
             filter_mask: ProcessFilterMask::empty(),
             deny_list: false,
         };
-        if let Some(filter) = &self.config.filter {
-            let filter_config = match filter {
-                ProcessFilter::AllowList(f) => f,
-                ProcessFilter::DenyList(f) => {
-                    config.deny_list = true;
-                    f
-                }
-            };
-            config.filter_mask = init_process_filter_maps!(filter_config, &mut self.ebpf);
+        if let Some(filter) = &self.config.process_filter {
+            config.filter_mask = init_process_filter_maps!(filter, &mut self.ebpf);
+            config.deny_list = filter.deny_list;
         }
 
         let mut config_map: Array<_, Config> =
@@ -91,88 +76,40 @@ impl Detector for FileMon {
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
         let btf = Btf::from_sys_fs()?;
 
-        if !self.config.open.disable {
-            let open: &mut Lsm = self
-                .ebpf
-                .program_mut("file_open_capture")
-                .unwrap()
-                .try_into()?;
-            open.load("file_open", &btf)?;
-            open.attach()?;
+        if let Some(open_cfg) = self.config.file_open {
+            if !open_cfg.disable {
+                let open: &mut Lsm = self
+                    .ebpf
+                    .program_mut("file_open_capture")
+                    .unwrap()
+                    .try_into()?;
+                open.load("file_open", &btf)?;
+                open.attach()?;
+            }
         }
-        if !self.config.truncate.disable {
-            let truncate: &mut Lsm = self
-                .ebpf
-                .program_mut("path_truncate_capture")
-                .unwrap()
-                .try_into()?;
-            truncate.load("path_truncate", &btf)?;
-            truncate.attach()?;
+        if let Some(truncate_cfg) = self.config.path_truncate {
+            if !truncate_cfg.disable {
+                let truncate: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_truncate_capture")
+                    .unwrap()
+                    .try_into()?;
+                truncate.load("path_truncate", &btf)?;
+                truncate.attach()?;
+            }
         }
-        if !self.config.unlink.disable {
-            let unlink: &mut Lsm = self
-                .ebpf
-                .program_mut("path_unlink_capture")
-                .unwrap()
-                .try_into()?;
-            unlink.load("path_unlink", &btf)?;
-            unlink.attach()?;
+        if let Some(unlink_cfg) = self.config.path_unlink {
+            if !unlink_cfg.disable {
+                let unlink: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_unlink_capture")
+                    .unwrap()
+                    .try_into()?;
+                unlink.load("path_unlink", &btf)?;
+                unlink.attach()?;
+            }
         }
         Ok(())
-    }
-}
-
-/// Yaml provided user config
-#[derive(Default)]
-struct FileMonConfig {
-    pub open: FileHookConfig,
-    pub truncate: FileHookConfig,
-    pub unlink: FileHookConfig,
-    pub filter: Option<ProcessFilter>,
-}
-
-impl FileMonConfig {
-    pub fn new(yaml: &Yaml) -> Result<Self, anyhow::Error> {
-        let Some(yaml) = yaml.as_hash() else {
-            anyhow::bail!("yaml must be a hash")
-        };
-        let mut config = Self::default();
-        if let Some(hook) = yaml.get(&Yaml::from_str("file-open")) {
-            config.open = FileHookConfig::new(hook)?;
-        }
-
-        if let Some(hook) = yaml.get(&Yaml::from_str("path-truncate")) {
-            config.truncate = FileHookConfig::new(hook)?;
-        }
-
-        if let Some(hook) = yaml.get(&Yaml::from_str("path-unlink")) {
-            config.unlink = FileHookConfig::new(hook)?;
-        }
-        if let Some(filter) = yaml.get(&Yaml::from_str("process_allow_list")) {
-            config.filter = Some(ProcessFilter::AllowList(ProcessFilterConfig::new(filter)?));
-        } else if let Some(filter) = yaml.get(&Yaml::from_str("process_deny_list")) {
-            config.filter = Some(ProcessFilter::DenyList(ProcessFilterConfig::new(filter)?));
-        }
-        Ok(config)
-    }
-}
-
-#[derive(Default)]
-struct FileHookConfig {
-    pub disable: bool,
-}
-
-impl FileHookConfig {
-    pub fn new(yaml: &Yaml) -> Result<Self, anyhow::Error> {
-        let Some(yaml) = yaml.as_hash() else {
-            anyhow::bail!("yaml must be a hash")
-        };
-
-        let mut config = Self::default();
-        if let Some(disable) = yaml.get(&Yaml::from_str("disable")) {
-            config.disable = disable.as_bool().unwrap_or(false);
-        }
-        Ok(config)
     }
 }
 

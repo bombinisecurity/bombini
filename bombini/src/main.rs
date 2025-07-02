@@ -5,6 +5,7 @@ use tokio::signal;
 mod config;
 mod detector;
 mod monitor;
+mod proto;
 mod registry;
 mod transmitter;
 mod transmuter;

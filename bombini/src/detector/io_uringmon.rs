@@ -10,8 +10,6 @@ use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
 use std::path::Path;
 
-use yaml_rust2::{Yaml, YamlLoader};
-
 use bombini_common::{
     config::io_uringmon::Config,
     config::procmon::ProcessFilterMask,
@@ -20,18 +18,17 @@ use bombini_common::{
 
 use crate::{
     config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME},
-    init_process_filter_maps, resize_process_filter_maps,
+    init_process_filter_maps,
+    proto::config::IoUringMonConfig,
+    resize_process_filter_maps,
 };
 
-use super::{
-    procmon::{ProcessFilter, ProcessFilterConfig},
-    Detector,
-};
+use super::Detector;
 
 pub struct IOUringMon {
     ebpf: Ebpf,
     /// User supplied config
-    config: IOUringMonConfig,
+    config: IoUringMonConfig,
 }
 
 impl Detector for IOUringMon {
@@ -43,14 +40,8 @@ impl Detector for IOUringMon {
         let Some(yaml_config) = yaml_config else {
             anyhow::bail!("Config for io_uringmon must be provided");
         };
-        let docs = YamlLoader::load_from_str(yaml_config.as_ref())?;
-        let config = if docs.is_empty() {
-            IOUringMonConfig { filter: None }
-        } else {
-            let doc = &docs[0];
-            IOUringMonConfig::new(doc)?
-        };
 
+        let config: IoUringMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
         let config_opts = CONFIG.read().await;
         let mut ebpf_loader = EbpfLoader::new();
         let mut ebpf_loader_ref = ebpf_loader
@@ -60,12 +51,8 @@ impl Detector for IOUringMon {
                 PROCMON_PROC_MAP_NAME,
                 config_opts.procmon_proc_map_size.unwrap(),
             );
-        if let Some(filter) = &config.filter {
-            let filter_config = match filter {
-                ProcessFilter::AllowList(f) => f,
-                ProcessFilter::DenyList(f) => f,
-            };
-            resize_process_filter_maps!(filter_config, ebpf_loader_ref);
+        if let Some(filter) = &config.process_filter {
+            resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
         Ok(IOUringMon { ebpf, config })
@@ -76,15 +63,9 @@ impl Detector for IOUringMon {
             filter_mask: ProcessFilterMask::empty(),
             deny_list: false,
         };
-        if let Some(filter) = &self.config.filter {
-            let filter_config = match filter {
-                ProcessFilter::AllowList(f) => f,
-                ProcessFilter::DenyList(f) => {
-                    config.deny_list = true;
-                    f
-                }
-            };
-            config.filter_mask = init_process_filter_maps!(filter_config, &mut self.ebpf);
+        if let Some(filter) = &self.config.process_filter {
+            config.filter_mask = init_process_filter_maps!(filter, &mut self.ebpf);
+            config.deny_list = filter.deny_list;
         }
         let mut config_map: Array<_, Config> =
             Array::try_from(self.ebpf.map_mut("IOURINGMON_CONFIG").unwrap())?;
@@ -102,35 +83,6 @@ impl Detector for IOUringMon {
         submit.load("io_uring_submit_req", &btf)?;
         submit.attach()?;
         Ok(())
-    }
-}
-
-/// Yaml provided user config
-struct IOUringMonConfig {
-    pub filter: Option<ProcessFilter>,
-}
-
-impl IOUringMonConfig {
-    pub fn new(yaml: &Yaml) -> Result<Self, anyhow::Error> {
-        let Some(yaml) = yaml.as_hash() else {
-            anyhow::bail!("yaml must be a hash")
-        };
-        if yaml.contains_key(&Yaml::from_str("process_allow_list"))
-            && yaml.contains_key(&Yaml::from_str("process_deny_list"))
-        {
-            anyhow::bail!("config supports only allow or deny list");
-        }
-        if let Some(filter) = yaml.get(&Yaml::from_str("process_allow_list")) {
-            Ok(IOUringMonConfig {
-                filter: Some(ProcessFilter::AllowList(ProcessFilterConfig::new(filter)?)),
-            })
-        } else if let Some(filter) = yaml.get(&Yaml::from_str("process_deny_list")) {
-            Ok(IOUringMonConfig {
-                filter: Some(ProcessFilter::DenyList(ProcessFilterConfig::new(filter)?)),
-            })
-        } else {
-            Ok(IOUringMonConfig { filter: None })
-        }
     }
 }
 

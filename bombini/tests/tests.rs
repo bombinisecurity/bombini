@@ -91,7 +91,7 @@ fn test_procmon_file() {
     tmp_config.pop();
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
-    let _ = fs::write(tmp_config.join("procmon.yaml"), "expose-events: true");
+    let _ = fs::write(tmp_config.join("procmon.yaml"), "expose_events: true");
     let event_log = temp_dir.path().join("events.log");
 
     let bombini = Command::new(EXE_BOMBINI)
@@ -376,8 +376,8 @@ fn test_procmon_allow_list_file() {
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let config_contents = r#"
-expose-events: true
-process_allow_list:
+expose_events: true
+process_filter:
   uid:
     - 0
   euid:
@@ -471,8 +471,9 @@ fn test_procmon_deny_list_file() {
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let config_contents = r#"
-expose-events: true
-process_deny_list:
+expose_events: true
+process_filter:
+  deny_list: true
   binary:
     name:
       - tail
@@ -543,7 +544,7 @@ fn test_iouring_allow_list_file() {
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let config_contents = r#"
-process_allow_list:
+process_filter:
   uid:
     - 0
   euid:
@@ -616,13 +617,13 @@ fn test_filemon_open_allow_list_file() {
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let config_contents = r#"
-file-open:
+file_open:
   disable: false
-path-truncate:
+path_truncate:
   disable: true
-path-unlink:
+path_unlink:
   disable: true
-process_allow_list:
+process_filter:
   binary:
     name:
       - tail
