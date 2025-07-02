@@ -1,6 +1,6 @@
-file-open:
+file_open:
   disable: true
-path-truncate:
+path_truncate:
   disable: false
-path-unlink:
+path_unlink:
   disable: false
