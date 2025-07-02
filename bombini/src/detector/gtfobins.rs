@@ -4,22 +4,17 @@ use aya::maps::hash_map::HashMap;
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError};
 
-use yaml_rust2::{Yaml, YamlLoader};
-
 use bombini_common::constants::MAX_FILENAME_SIZE;
 
 use std::path::Path;
+
+use crate::proto::config::GtfoBinsConfig;
 
 use super::{load_ebpf_obj, Detector};
 
 pub struct GTFOBinsDetector {
     ebpf: Ebpf,
-    config: Option<GTFOBinsConfig>,
-}
-
-struct GTFOBinsConfig {
-    /// Entry values for GTFOBins map
-    gtfobins_entries: Vec<([u8; MAX_FILENAME_SIZE], u32)>,
+    config: GtfoBinsConfig,
 }
 
 impl Detector for GTFOBinsDetector {
@@ -28,67 +23,28 @@ impl Detector for GTFOBinsDetector {
         U: AsRef<str>,
         P: AsRef<Path>,
     {
+        let Some(yaml_config) = yaml_config else {
+            anyhow::bail!("Config for GTFOBins detector must be provided");
+        };
         let ebpf = load_ebpf_obj(obj_path).await?;
-        if let Some(yaml_config) = yaml_config {
-            // Get config
-            let mut config = GTFOBinsConfig {
-                gtfobins_entries: Vec::new(),
-            };
 
-            let docs = YamlLoader::load_from_str(yaml_config.as_ref())?;
-            let Some(doc) = docs[0].as_hash() else {
-                anyhow::bail!("GTFObins config must be a Hash")
-            };
-
-            let enfroce = if let Some(value) = doc.get(&Yaml::from_str("enforce")) {
-                let Some(value) = value.as_bool() else {
-                    anyhow::bail!("enforce value must be a bool")
-                };
-                if value {
-                    1
-                } else {
-                    0
-                }
-            } else {
-                0
-            };
-
-            if let Some(entries) = doc.get(&Yaml::from_str("gtfobins")) {
-                let Some(entries) = entries.as_vec() else {
-                    anyhow::bail!("GTFObins binaries name must be a vec")
-                };
-                for entry in entries {
-                    let mut k = [0; MAX_FILENAME_SIZE];
-                    let Some(k_str) = entry.as_str() else {
-                        continue;
-                    };
-                    let k_str = k_str.as_bytes();
-                    let len = k_str.len();
-                    if len < MAX_FILENAME_SIZE {
-                        k[..len].clone_from_slice(k_str);
-                    } else {
-                        k.clone_from_slice(&k_str[..MAX_FILENAME_SIZE]);
-                    }
-
-                    config.gtfobins_entries.push((k, enfroce));
-                }
-            }
-            Ok(GTFOBinsDetector {
-                ebpf,
-                config: Some(config),
-            })
-        } else {
-            Ok(GTFOBinsDetector { ebpf, config: None })
-        }
+        let config: GtfoBinsConfig = serde_yml::from_str(yaml_config.as_ref())?;
+        Ok(GTFOBinsDetector { ebpf, config })
     }
 
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
-        if let Some(config) = &self.config {
-            let mut file_names: HashMap<_, [u8; MAX_FILENAME_SIZE], u32> =
-                HashMap::try_from(self.ebpf.map_mut("GTFOBINS_NAME_MAP").unwrap())?;
-            for (k, v) in config.gtfobins_entries.iter() {
-                file_names.insert(k, v, 0)?;
+        let mut file_names: HashMap<_, [u8; MAX_FILENAME_SIZE], u32> =
+            HashMap::try_from(self.ebpf.map_mut("GTFOBINS_NAME_MAP").unwrap())?;
+        for bin in self.config.gtfobins.iter() {
+            let mut k = [0; MAX_FILENAME_SIZE];
+            let k_str = bin.as_bytes();
+            let len = k_str.len();
+            if len < MAX_FILENAME_SIZE {
+                k[..len].clone_from_slice(k_str);
+            } else {
+                k.clone_from_slice(&k_str[..MAX_FILENAME_SIZE]);
             }
+            file_names.insert(k, self.config.enforce as u32, 0)?;
         }
         Ok(())
     }
