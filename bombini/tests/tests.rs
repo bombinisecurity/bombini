@@ -672,7 +672,7 @@ process_filter:
     assert!(tail_status.success());
 
     // Wait Events being processed
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_millis(1000));
 
     let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
 
