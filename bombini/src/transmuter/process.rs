@@ -49,6 +49,8 @@ pub struct Process {
     pub binary_path: String,
     /// current work directory
     pub args: String,
+    /// cgroup name
+    pub cgroup_name: String,
 }
 
 impl Process {
@@ -74,6 +76,7 @@ impl Process {
             filename: str_from_bytes(&proc.filename),
             binary_path: str_from_bytes(&proc.binary_path),
             args,
+            cgroup_name: str_from_bytes(&proc.cgroup.cgroup_name),
         }
     }
 }
