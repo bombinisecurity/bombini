@@ -58,7 +58,8 @@ Event for `security_path_truncate` (truncating file):
     "secureexec": "",
     "filename": "tr",
     "binary_path": "/home/fedotoff/tr",
-    "args": ""
+    "args": "",
+    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
   },
   "hook": {
     "type": "PathTruncate",
@@ -86,7 +87,8 @@ Event for `security_path_unlink` (deleting file):
     "secureexec": "",
     "filename": "rm",
     "binary_path": "/usr/bin/rm",
-    "args": "bombini.log"
+    "args": "bombini.log",
+    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
   },
   "hook": {
     "type": "PathUnlink",
@@ -114,7 +116,8 @@ Event for `security_file_open` (opening file):
     "secureexec": "",
     "filename": "cat",
     "binary_path": "/usr/bin/cat",
-    "args": "/etc/passwd"
+    "args": "/etc/passwd",
+    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
   },
   "hook": {
     "type": "FileOpen",
