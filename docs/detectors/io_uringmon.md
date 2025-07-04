@@ -41,7 +41,8 @@ The detailed description of process filter config section can be found in ProcMo
     "secureexec": "",
     "filename": "program",
     "binary_path": "/home/fedotoff/curing/io_uring_example/program",
-    "args": ""
+    "args": "",
+    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
   },
   "opcode": "IORING_OP_OPENAT",
   "flags": 8208,

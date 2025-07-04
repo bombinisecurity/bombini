@@ -33,7 +33,8 @@ This detector has no config
     "secureexec": "",
     "filename": "bash",
     "binary_path": "/usr/bin/bash",
-    "args": ""
+    "args": "",
+    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
   },
   "command": "export HISTFILESIZE=0 && cat /etc/passwd",
   "timestamp": "2025-05-31T10:05:01.173Z"

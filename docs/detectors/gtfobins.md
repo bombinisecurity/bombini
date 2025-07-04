@@ -41,7 +41,8 @@ The GTFOBins event is looks like:
     "secureexec": "SETUID | SETGID",
     "filename": "xargs",
     "binary_path": "/home/fedotoff/xargs",
-    "args": "-a /dev/null sh -p"
+    "args": "-a /dev/null sh -p",
+    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
   },
   "timestamp": "2025-05-31T10:04:07.372Z",
 }

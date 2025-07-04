@@ -57,7 +57,8 @@ logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combin
       "secureexec": "",
       "filename": "git",
       "binary_path": "/usr/bin/git",
-      "args": "rev-parse --quiet --verify HEAD"
+      "args": "rev-parse --quiet --verify HEAD",
+      "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
     },
     "timestamp": "2025-05-31T09:04:45.896Z"
   }
@@ -78,7 +79,8 @@ logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combin
       "secureexec": "",
       "filename": "git",
       "binary_path": "/usr/bin/git",
-      "args": "rev-parse --quiet --verify HEAD"
+      "args": "rev-parse --quiet --verify HEAD",
+      "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
     },
     "timestamp": "2025-05-31T09:04:45.909Z"
   }
