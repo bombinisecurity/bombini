@@ -4,9 +4,9 @@
 use aya_ebpf::{
     bindings::BPF_ANY,
     helpers::{
-        bpf_d_path, bpf_get_current_pid_tgid, bpf_get_current_task_btf, bpf_probe_read_kernel,
-        bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf,
-        bpf_probe_read_user_str_bytes,
+        bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_get_current_task_btf,
+        bpf_probe_read_kernel, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes,
+        bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
     macros::{btf_tracepoint, fentry, lsm, map},
     maps::{
@@ -17,14 +17,14 @@ use aya_ebpf::{
 };
 
 use bombini_detectors_ebpf::vmlinux::{
-    cred, file, kernel_cap_t, kgid_t, kuid_t, linux_binprm, mm_struct, path, pid_t, qstr,
-    task_struct,
+    cgroup, cred, css_set, file, kernel_cap_t, kernfs_node, kgid_t, kuid_t, linux_binprm,
+    mm_struct, path, pid_t, qstr, task_struct,
 };
 
-use bombini_common::config::procmon::Config;
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
 use bombini_common::event::process::{ProcInfo, SecureExec};
 use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT};
+use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
 use bombini_detectors_ebpf::{
     event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
@@ -104,6 +104,23 @@ fn is_cap_gained(new: u64, old: u64) -> bool {
     (new & !old) != 0
 }
 
+#[inline(always)]
+unsafe fn get_cgroup_info(cgroup: &mut Cgroup, task: *const task_struct) -> Result<u32, u32> {
+    let cgroups = bpf_probe_read_kernel::<*mut css_set>(&(*task).cgroups as *const *mut _)
+        .map_err(|_| 0u32)?;
+    let cgrp = bpf_probe_read_kernel::<*mut cgroup>(&(*cgroups).dfl_cgrp as *const *mut _)
+        .map_err(|_| 0u32)?;
+    let kn = bpf_probe_read_kernel::<*mut kernfs_node>(&(*cgrp).kn as *const *mut _)
+        .map_err(|_| 0u32)?;
+    let name =
+        bpf_probe_read_kernel::<*const i8>(&(*kn).name as *const *const _).map_err(|_| 0u32)?;
+
+    aya_ebpf::memset(cgroup.cgroup_name.as_mut_ptr(), 0, cgroup.cgroup_name.len());
+    bpf_probe_read_kernel_str_bytes(name as *const _, &mut cgroup.cgroup_name).map_err(|_| 0u32)?;
+    cgroup.cgroup_id = bpf_get_current_cgroup_id();
+    Ok(0)
+}
+
 #[btf_tracepoint(function = "sched_process_exec")]
 pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
     event_capture!(ctx, MSG_PROCEXEC, false, try_execve)
@@ -179,6 +196,9 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32>
 
         // Get cred
         get_creds(proc, task)?;
+
+        // Get cgroups info (docker_id)
+        get_cgroup_info(&mut proc.cgroup, task)?;
 
         let loginuid =
             bpf_probe_read_kernel::<kuid_t>(&(*task).loginuid as *const _).map_err(|_| 0u32)?;

@@ -12,6 +12,7 @@ pub fn copy_proc(src: &ProcInfo, dst: &mut ProcInfo) {
     dst.ppid = src.ppid;
     dst.creds = src.creds.clone();
     dst.auid = src.auid;
+    dst.cgroup = src.cgroup.clone();
     unsafe {
         let _ = bpf_probe_read_kernel_buf(src.filename.as_ptr(), &mut dst.filename);
         let _ = bpf_probe_read_kernel_buf(src.args.as_ptr(), &mut dst.args);

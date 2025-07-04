@@ -5,7 +5,7 @@ use bitflags::bitflags;
 #[cfg(feature = "user")]
 use serde::Serialize;
 
-use crate::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH};
+use crate::constants::{DOCKER_ID_LENGTH, MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH};
 
 /// Process event
 #[derive(Clone, Debug)]
@@ -29,6 +29,8 @@ pub struct ProcInfo {
     pub binary_path: [u8; MAX_FILE_PATH],
     /// command line arguments without argv[0]
     pub args: [u8; MAX_ARGS_SIZE],
+    /// Cgroup info
+    pub cgroup: Cgroup,
 }
 
 /// Creds
@@ -43,6 +45,14 @@ pub struct Cred {
     pub cap_permitted: u64,
     pub cap_effective: u64,
     pub secureexec: SecureExec,
+}
+
+/// Cgroup info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct Cgroup {
+    pub cgroup_id: u64,
+    pub cgroup_name: [u8; DOCKER_ID_LENGTH],
 }
 
 bitflags! {
