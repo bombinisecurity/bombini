@@ -43,7 +43,7 @@ jobs:
       - name: Get Bombini logs from lima vm
         if: failure()
         run: |
-          rsync -a -e ssh 'lima-default:/tmp/bombini-test-*'' /tmp
+          rsync -a -e ssh 'lima-default:/tmp/bombini-test-*' /tmp
       - name: Upload Bombini logs
         if: failure()
         uses: actions/upload-artifact@v4
