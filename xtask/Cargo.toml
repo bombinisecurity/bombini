@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1"
-clap = { version = "4.1", features = ["derive"] }
-which = "7.0"
-tar = "0.4"
-flate2 = "1.1"
+anyhow = "1.0.98"
+clap = { version = "4.5.40", features = ["derive"] }
+which = "8.0.0"
+tar = "0.4.44"
+flate2 = "1.1.2"
 prost-build = "0.14.1"

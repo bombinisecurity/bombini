@@ -8,9 +8,9 @@ default = []
 user = ["aya", "serde"]
 
 [dependencies]
-aya = { version = "0.13", optional = true }
-bitflags = { version = "2.8.0"}
-serde = { version = "1.0", features = ["derive"], optional = true }
+aya = { version = "0.13.1", optional = true }
+bitflags = { version = "2.9.1"}
+serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 [lib]
 path = "src/lib.rs"
