@@ -41,7 +41,6 @@ impl Detector for ProcMon {
             anyhow::bail!("Config for procmon must be provided");
         };
         let config: ProcMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
-        log::info!("cfg: {:?}", &config);
         let config_opts = CONFIG.read().await;
         let mut ebpf_loader = EbpfLoader::new();
         let mut ebpf_loader_ref = ebpf_loader
