@@ -55,6 +55,7 @@ async fn start_monitor(config: &Config, monitor: &Monitor<'_>) -> Result<(), any
         monitor.monitor(USockTransmitter::new(file).await?).await;
         Ok(())
     } else {
+        // default: send events to stdout
         monitor.monitor(LogTransmitter).await;
         Ok(())
     }

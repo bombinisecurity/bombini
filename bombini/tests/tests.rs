@@ -64,7 +64,6 @@ fn test_detectors_load() {
             "gtfobins",
             "--detector",
             "histfile",
-            "--stdout",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
