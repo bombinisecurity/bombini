@@ -48,7 +48,7 @@ pub struct Config {
     pub detectors: Option<Vec<String>>,
 
     /// YAML config dir with global config and detector configs
-    #[arg(long, value_name = "DIR")]
+    #[arg(long, value_name = "DIR", default_value_t = String::from("/usr/local/lib/bombini/config"))]
     #[serde(skip)]
     pub config_dir: String,
 
@@ -58,12 +58,8 @@ pub struct Config {
 }
 
 #[derive(Default, Clone, Debug, Args)]
-#[group(required = true, multiple = false)]
+#[group(multiple = false)]
 pub struct TransmitterOpts {
-    /// Send events to stdout
-    #[arg(long)]
-    pub stdout: bool,
-
     /// File path to save events
     #[arg(long, value_name = "FILE")]
     pub event_log: Option<String>,
