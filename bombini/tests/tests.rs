@@ -52,6 +52,18 @@ fn test_detectors_load() {
             config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
+            "--detector",
+            "procmon",
+            "--detector",
+            "filemon",
+            "--detector",
+            "netmon",
+            "--detector",
+            "io_uringmon",
+            "--detector",
+            "gtfobins",
+            "--detector",
+            "histfile",
             "--stdout",
         ])
         .env("RUST_LOG", "debug")
