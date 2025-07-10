@@ -17,8 +17,8 @@ use aya_ebpf::{
 };
 
 use bombini_detectors_ebpf::vmlinux::{
-    cgroup, cred, css_set, file, kernel_cap_t, kernfs_node, kgid_t, kuid_t, linux_binprm,
-    mm_struct, path, pid_t, qstr, task_struct,
+    cgroup, cred, css_set, file, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path, pid_t,
+    qstr, task_struct,
 };
 
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
@@ -83,19 +83,18 @@ unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32
         bpf_probe_read_kernel::<*const cred>(&(*task).cred as *const *const _).map_err(|_| 0u32)?;
     let euid = bpf_probe_read_kernel::<kuid_t>(&(*cred).euid as *const _).map_err(|_| 0u32)?;
     let uid = bpf_probe_read_kernel::<kuid_t>(&(*cred).uid as *const _).map_err(|_| 0u32)?;
-    let cap_e = bpf_probe_read_kernel::<kernel_cap_t>(&(*cred).cap_effective as *const _)
-        .map_err(|_| 0u32)?;
-    let cap_i = bpf_probe_read_kernel::<kernel_cap_t>(&(*cred).cap_inheritable as *const _)
-        .map_err(|_| 0u32)?;
-    let cap_p = bpf_probe_read_kernel::<kernel_cap_t>(&(*cred).cap_permitted as *const _)
-        .map_err(|_| 0u32)?;
+    proc.creds.cap_effective =
+        bpf_probe_read_kernel::<u64>(&(*cred).cap_effective as *const _ as *const u64)
+            .map_err(|_| 0u32)?;
+    proc.creds.cap_inheritable =
+        bpf_probe_read_kernel::<u64>(&(*cred).cap_inheritable as *const _ as *const u64)
+            .map_err(|_| 0u32)?;
+    proc.creds.cap_permitted =
+        bpf_probe_read_kernel::<u64>(&(*cred).cap_permitted as *const _ as *const u64)
+            .map_err(|_| 0u32)?;
 
     proc.creds.uid = uid.val;
     proc.creds.euid = euid.val;
-    proc.creds.cap_effective = cap_e.val;
-    proc.creds.cap_inheritable = cap_i.val;
-    proc.creds.cap_permitted = cap_p.val;
-
     Ok(0)
 }
 
@@ -348,16 +347,16 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
                 creds_info.secureexec |= SecureExec::SETGID;
             }
             let new_cap_p =
-                bpf_probe_read_kernel::<kernel_cap_t>(&(*cred).cap_permitted as *const _)
+                bpf_probe_read_kernel::<u64>(&(*cred).cap_permitted as *const _ as *const u64)
                     .map_err(|_| 0i32)?;
             let task = bpf_get_current_task_btf() as *const task_struct;
             let task_cred = bpf_probe_read_kernel::<*const cred>(&(*task).cred as *const *const _)
                 .map_err(|_| 0i32)?;
             let old_cap_p =
-                bpf_probe_read_kernel::<kernel_cap_t>(&(*task_cred).cap_permitted as *const _)
+                bpf_probe_read_kernel::<u64>(&(*task_cred).cap_permitted as *const _ as *const u64)
                     .map_err(|_| 0i32)?;
 
-            if is_cap_gained(new_cap_p.val, old_cap_p.val) && euid == uid {
+            if is_cap_gained(new_cap_p, old_cap_p) && euid == uid {
                 creds_info.secureexec |= SecureExec::FILE_CAPS;
             }
         }
