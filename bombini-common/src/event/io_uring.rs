@@ -8,5 +8,5 @@ use crate::event::process::ProcInfo;
 pub struct IOUringMsg {
     pub process: ProcInfo,
     pub opcode: u8,
-    pub flags: u32,
+    pub flags: u64,
 }

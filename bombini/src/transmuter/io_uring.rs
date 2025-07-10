@@ -87,7 +87,7 @@ pub struct IOUringEvent {
     process: Process,
     /// io_uring_ops
     opcode: IOUringOp,
-    flags: u32,
+    flags: u64,
     /// Event's date and time
     timestamp: String,
 }
