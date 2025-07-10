@@ -8,6 +8,8 @@ use aya::maps::{
 use aya::programs::BtfTracePoint;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
+use procfs::sys::kernel::Version;
+
 use std::path::Path;
 
 use bombini_common::{
@@ -83,6 +85,10 @@ impl Detector for IOUringMon {
         submit.load("io_uring_submit_req", &btf)?;
         submit.attach()?;
         Ok(())
+    }
+
+    fn min_kenrel_verison(&self) -> Version {
+        Version::new(6, 5, 0)
     }
 }
 

@@ -75,7 +75,7 @@ fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event) -> Result<i32, i
     unsafe {
         let req: *const io_kiocb = ctx.arg(0);
         event.opcode = (*req).opcode;
-        event.flags = (*req).flags;
+        event.flags = (*req).flags as u64;
     }
     if !config.filter_mask.is_empty() {
         let process_filter: ProcessFilter = ProcessFilter::new(
