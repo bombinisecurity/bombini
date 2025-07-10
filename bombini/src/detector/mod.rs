@@ -33,7 +33,7 @@ pub trait Detector {
 
     /// Minimal supported kernel version for detector to load
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(5, 11, 0)
+        Version::new(5, 15, 0)
     }
 
     /// Initialize config maps for detector
