@@ -11,6 +11,10 @@ export HISTSIZE=0
 Detector attaches to `/bin/bash` `readline` func with uretprobe and uses **lpm_trie**
 map to check for commands above.
 
+### Required Linux Kernel Version
+
+5.15 or greater
+
 ### Config
 
 This detector has no config

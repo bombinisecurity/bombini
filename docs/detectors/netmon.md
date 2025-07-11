@@ -10,6 +10,10 @@ Hooks:
 - `tcp_close`: collect connection close events
 - `inet_csk_accept`: collect TCP v4/v6 ingress connections
 
+### Required Linux Kernel Version
+
+5.15 or greater
+
 ### Config
 
 NetMon detector supports process allow/deny list for event filtering:
