@@ -6,6 +6,12 @@ Detector for file operations. Each event has process information. Supported hook
 * `path_truncate` hook provides info about path truncated by truncate syscall.
 * `path_unlink` provides info about path being deleted.
 
+### Required Linux Kernel Version
+
+* `security_file_open`: 5.15 or greater
+* `path_truncate`: 6.5 or greater 
+* `path_unlink`: 6.5 or greater
+
 ### Config
 
 Config represents a dictionary with supported LSM BPF file hooks:

@@ -1,8 +1,11 @@
 ## Procmon
 
 Procmon is the main detector that collects information about process being spawend and detached.
-Information about living process is stored shared map and other detectors are using it. Procmon
-can produce events about when the process starts and ends.
+Information about living process is stored shared map and other detectors are using it.
+
+### Required Linux Kernel Version
+
+5.15 or greater
 
 ### Config
 

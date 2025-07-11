@@ -6,6 +6,10 @@ submits.
 
 Inspired by this [example](https://github.com/armosec/curing) and [post](https://www.armosec.io/blog/io_uring-rootkit-bypasses-linux-security/).
 
+### Required Linux Kernel Version
+
+6.8 or greater
+
 ### Config
 
 IOUringMon detector supports process allow/deny list for event filtering:
