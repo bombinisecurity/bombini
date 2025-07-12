@@ -11,6 +11,15 @@ export HISTSIZE=0
 Detector attaches to `/bin/bash` `readline` func with uretprobe and uses **lpm_trie**
 map to check for commands above.
 
+**NOTE**
+
+1. Be sure that Bombini is started before `/bin/bash` process.
+2. If you use Bombini container mount `/bin/bash` inside the container.
+
+```bash
+docker run --pid=host --rm -it --privileged --env "RUST_LOG=info" -v <your-config-dir>:/usr/local/lib/bombini/config:ro -v /bin/bash:/bin/bash:ro -v /sys/fs/bpf:/sys/fs/bpf bombini
+```
+
 ### Required Linux Kernel Version
 
 5.15 or greater
