@@ -5,20 +5,23 @@ Detector for file operations. Each event has process information. Supported hook
 * `security_file_open` hook  provides info about file owner/permissions + permissions with process accessed the file.
 * `path_truncate` hook provides info about path truncated by truncate syscall.
 * `path_unlink` provides info about path being deleted.
+* `path_chmod` provides info about changing file permissions.
 
 ### Required Linux Kernel Version
 
 * `security_file_open`: 5.15 or greater
 * `path_truncate`: 6.5 or greater 
 * `path_unlink`: 6.5 or greater
+* `path_chmod`: 6.5 or greater
 
 ### Config
 
 Config represents a dictionary with supported LSM BPF file hooks:
 
-* file-open
-* path-truncate
-* path-unlink
+* file_open
+* path_truncate
+* path_unlink
+* path_chmod
 
 For each file hook the following options are supported:
 
@@ -35,6 +38,8 @@ file_open:
 path_truncate:
   disable: true
 path_unlink:
+  disable: true
+path_chmod:
   disable: true
 process_filter:
   binary:
@@ -135,5 +140,35 @@ Event for `security_file_open` (opening file):
     "i_mode": "-rw-r--r--"
   },
   "timestamp": "2025-05-31T10:02:45.887Z"
+}
+```
+
+Event for `security_path_chmod` (file permissions change):
+
+```json
+{
+  "type": "FileEvent",
+  "process": {
+    "pid": 1235041,
+    "tid": 1235041,
+    "ppid": 437558,
+    "uid": 1000,
+    "euid": 1000,
+    "auid": 1000,
+    "cap_inheritable": 0,
+    "cap_permitted": 0,
+    "cap_effective": 0,
+    "secureexec": "",
+    "filename": "chmod",
+    "binary_path": "/usr/bin/chmod",
+    "args": "+s ./gdb",
+    "cgroup_name": "tmux-spawn-dc94c31c-0fb9-42e5-b878-730cf00753d0.scope"
+  },
+  "hook": {
+    "type": "PathChmod",
+    "path": "/home/fedotoff/gdb",
+    "i_mode": "?rwsr-sr-x"
+  },
+  "timestamp": "2025-07-12T19:55:50.771Z"
 }
 ```
