@@ -112,7 +112,7 @@ unsafe fn get_cgroup_info(cgroup: &mut Cgroup, task: *const task_struct) -> Resu
     let kn = bpf_probe_read_kernel::<*mut kernfs_node>(&(*cgrp).kn as *const *mut _)
         .map_err(|_| 0u32)?;
     let name =
-        bpf_probe_read_kernel::<*const i8>(&(*kn).name as *const *const _).map_err(|_| 0u32)?;
+        bpf_probe_read_kernel::<*const _>(&(*kn).name as *const *const _).map_err(|_| 0u32)?;
 
     aya_ebpf::memset(cgroup.cgroup_name.as_mut_ptr(), 0, cgroup.cgroup_name.len());
     bpf_probe_read_kernel_str_bytes(name as *const _, &mut cgroup.cgroup_name).map_err(|_| 0u32)?;
@@ -365,7 +365,7 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
         let file: *mut file = (*binprm).file;
         let _ = bpf_d_path(
             &(*file).f_path as *const _ as *mut aya_ebpf::bindings::path,
-            creds_info.binary_path.as_mut_ptr() as *mut i8,
+            creds_info.binary_path.as_mut_ptr() as *mut _,
             creds_info.binary_path.len() as u32,
         );
         let _ = PROCMON_CRED_SHARED_MAP.insert(&pid_tgid, creds_info, BPF_ANY as u64);

@@ -112,7 +112,7 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         }
         let _ = bpf_d_path(
             &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
-            event.path.as_mut_ptr() as *mut i8,
+            event.path.as_mut_ptr() as *mut _,
             event.path.len() as u32,
         );
         event.flags = (*fp).f_flags;
@@ -179,7 +179,7 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         let p: *const path = ctx.arg(0);
         let _ = bpf_d_path(
             p as *const _ as *mut aya_ebpf::bindings::path,
-            event.path.as_mut_ptr() as *mut i8,
+            event.path.as_mut_ptr() as *mut _,
             event.path.len() as u32,
         );
     }
@@ -243,7 +243,7 @@ fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
         let _ = bpf_d_path(
             p as *const _ as *mut aya_ebpf::bindings::path,
-            event.path.as_mut_ptr() as *mut i8,
+            event.path.as_mut_ptr() as *mut _,
             event.path.len() as u32,
         );
     }
