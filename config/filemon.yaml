@@ -4,3 +4,5 @@ path_truncate:
   disable: false
 path_unlink:
   disable: false
+path_chmod:
+  disable: false

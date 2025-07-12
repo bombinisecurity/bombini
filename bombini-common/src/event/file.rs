@@ -28,3 +28,5 @@ pub const HOOK_FILE_OPEN: u8 = 0;
 pub const HOOK_PATH_TRUNCATE: u8 = 1;
 
 pub const HOOK_PATH_UNLINK: u8 = 2;
+
+pub const HOOK_PATH_CHMOD: u8 = 3;

@@ -109,6 +109,17 @@ impl Detector for FileMon {
                 unlink.attach()?;
             }
         }
+        if let Some(chmod_cfg) = self.config.path_chmod {
+            if !chmod_cfg.disable {
+                let chmod: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_chmod_capture")
+                    .unwrap()
+                    .try_into()?;
+                chmod.load("path_chmod", &btf)?;
+                chmod.attach()?;
+            }
+        }
         Ok(())
     }
 }
