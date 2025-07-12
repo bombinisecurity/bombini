@@ -1,6 +1,8 @@
 //! Transmutes FileEvent to serialized format
 
-use bombini_common::event::file::{FileMsg, HOOK_FILE_OPEN, HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK};
+use bombini_common::event::file::{
+    FileMsg, HOOK_FILE_OPEN, HOOK_PATH_CHMOD, HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK,
+};
 
 use bitflags::bitflags;
 use serde::{Serialize, Serializer};
@@ -167,6 +169,14 @@ pub struct PathInfo {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct ChmodInfo {
+    /// full path
+    path: String,
+    /// i_mode
+    i_mode: Imode,
+}
+
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[repr(u8)]
 #[allow(dead_code)]
@@ -174,6 +184,7 @@ pub enum LsmFileHook {
     FileOpen(FileOpenInfo),
     PathTruncate(PathInfo),
     PathUnlink(PathInfo),
+    PathChmod(ChmodInfo),
 }
 
 impl FileEvent {
@@ -211,6 +222,17 @@ impl FileEvent {
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::PathUnlink(info),
+                    timestamp: transmute_ktime(ktime),
+                }
+            }
+            HOOK_PATH_CHMOD => {
+                let info = ChmodInfo {
+                    path: str_from_bytes(&event.path),
+                    i_mode: event.i_mode.into(),
+                };
+                Self {
+                    process: Process::new(event.process),
+                    hook: LsmFileHook::PathChmod(info),
                     timestamp: transmute_ktime(ktime),
                 }
             }

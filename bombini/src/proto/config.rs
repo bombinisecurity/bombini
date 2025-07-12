@@ -60,8 +60,11 @@ pub struct FileMonConfig {
     /// security_path_unlink config.
     #[prost(message, optional, tag = "3")]
     pub path_unlink: ::core::option::Option<FileHookConfig>,
-    /// Filter File events by Process information.
+    /// security_path_chmod config.
     #[prost(message, optional, tag = "4")]
+    pub path_chmod: ::core::option::Option<FileHookConfig>,
+    /// Filter File events by Process information.
+    #[prost(message, optional, tag = "5")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// FileMon hook configuration
