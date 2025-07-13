@@ -776,6 +776,8 @@ path_chmod:
   disable: true
 path_chown:
   disable: true
+sb_mount:
+  disable: true
 process_filter:
   binary:
     name:
