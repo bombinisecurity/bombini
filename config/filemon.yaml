@@ -10,3 +10,5 @@ path_chown:
   disable: false
 sb_mount:
   disable: false
+mmap_file:
+  disable: true

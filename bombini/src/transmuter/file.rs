@@ -1,7 +1,7 @@
 //! Transmutes FileEvent to serialized format
 
 use bombini_common::event::file::{
-    FileMsg, HOOK_FILE_OPEN, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN, HOOK_PATH_TRUNCATE,
+    FileMsg, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN, HOOK_PATH_TRUNCATE,
     HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
 };
 
@@ -18,6 +18,39 @@ bitflags! {
         const O_RDONLY =    0b00000001;
         const O_WRONLY =    0b00000010;
         const O_RDWR =      0b00000100;
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Debug, Serialize)]
+    #[repr(C)]
+    pub struct ProtMode: u32 {
+        const PROT_READ =   0b00000001;
+        const PROT_WRITE =  0b00000010;
+        const PROT_EXEC =   0b00000100;
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Debug, Serialize)]
+    #[repr(C)]
+    pub struct SharingType: u32 {
+        const MAP_SHARED     = 0x1;
+        const MAP_PRIVATE    = 0x2;
+        const MAP_DROPPABLAE = 0x8;
+        const MAP_TYPE       = 0xf;
+        const MAP_FIXED      = 0x10;
+        const MAP_ANONYMOUS  = 0x20;
+        const MAP_GROWSDOWN	 = 0x00100;
+        const MAP_DENYWRITE  = 0x00800;
+        const MAP_EXECUTABLE = 0x01000;
+        const MAP_LOCKED     = 0x02000;
+        const MAP_NORESERVE  = 0x04000;
+        const MAP_POPULATE   = 0x08000;
+        const MAP_NONBLOCK   = 0x10000;
+        const MAP_STACK      = 0x20000;
+        const MAP_HUGETLB    = 0x40000;
+        const MAP_SYNC       = 0x80000;
     }
 }
 
@@ -198,6 +231,16 @@ pub struct MountInfo {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct MmapInfo {
+    /// full path
+    path: String,
+    /// mmap protection
+    prot: ProtMode,
+    /// mmap flags
+    flags: SharingType,
+}
+
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[repr(u8)]
 #[allow(dead_code)]
@@ -208,6 +251,7 @@ pub enum LsmFileHook {
     PathChmod(ChmodInfo),
     PathChown(ChownInfo),
     SbMount(MountInfo),
+    MmapFile(MmapInfo),
 }
 
 impl FileEvent {
@@ -280,6 +324,18 @@ impl FileEvent {
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::SbMount(info),
+                    timestamp: transmute_ktime(ktime),
+                }
+            }
+            HOOK_MMAP_FILE => {
+                let info = MmapInfo {
+                    path: str_from_bytes(&event.path),
+                    prot: ProtMode::from_bits_truncate(event.prot),
+                    flags: SharingType::from_bits_truncate(event.flags),
+                };
+                Self {
+                    process: Process::new(event.process),
+                    hook: LsmFileHook::MmapFile(info),
                     timestamp: transmute_ktime(ktime),
                 }
             }
