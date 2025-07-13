@@ -1,18 +1,20 @@
 ## FileMon
 
-Detector for file operations. Each event has process information. Supported hooks:
+Detector for file operations. Each event has process information. Supported LSM hooks:
 
-* `security_file_open` hook  provides info about file owner/permissions + permissions with process accessed the file.
+* `file_open` hook  provides info about file owner/permissions + permissions with process accessed the file.
 * `path_truncate` hook provides info about path truncated by truncate syscall.
 * `path_unlink` provides info about path being deleted.
 * `path_chmod` provides info about changing file permissions.
+* `path_chown` provides info about changing file owner.
 
 ### Required Linux Kernel Version
 
-* `security_file_open`: 5.15 or greater
+* `file_open`: 5.15 or greater
 * `path_truncate`: 6.5 or greater 
 * `path_unlink`: 6.5 or greater
 * `path_chmod`: 6.5 or greater
+* `path_chown`: 6.5 or greater
 
 ### Config
 
@@ -22,6 +24,7 @@ Config represents a dictionary with supported LSM BPF file hooks:
 * path_truncate
 * path_unlink
 * path_chmod
+* path_chown
 
 For each file hook the following options are supported:
 
@@ -40,6 +43,8 @@ path_truncate:
 path_unlink:
   disable: true
 path_chmod:
+  disable: true
+path_chown:
   disable: true
 process_filter:
   binary:
@@ -170,5 +175,36 @@ Event for `security_path_chmod` (file permissions change):
     "i_mode": "?rwsr-sr-x"
   },
   "timestamp": "2025-07-12T19:55:50.771Z"
+}
+```
+
+Event for `security_path_chown` (file owner change):
+
+```json
+{
+  "type": "FileEvent",
+  "process": {
+    "pid": 1321712,
+    "tid": 1321712,
+    "ppid": 1321711,
+    "uid": 0,
+    "euid": 0,
+    "auid": 1000,
+    "cap_inheritable": 0,
+    "cap_permitted": 2199023255551,
+    "cap_effective": 2199023255551,
+    "secureexec": "",
+    "filename": "chown",
+    "binary_path": "/usr/bin/chown",
+    "args": "0:0 ./gdb",
+    "cgroup_name": "tmux-spawn-dc94c31c-0fb9-42e5-b878-730cf00753d0.scope"
+  },
+  "hook": {
+    "type": "PathChown",
+    "path": "/home/fedotoff/gdb",
+    "uid": 0,
+    "gid": 0
+  },
+  "timestamp": "2025-07-13T08:41:14.865Z"
 }
 ```
