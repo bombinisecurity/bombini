@@ -7,6 +7,7 @@ Detector for file operations. Each event has process information. Supported LSM 
 * `path_unlink` provides info about path being deleted.
 * `path_chmod` provides info about changing file permissions.
 * `path_chown` provides info about changing file owner.
+* `sb_mount` provides info about mounted devices.
 
 ### Required Linux Kernel Version
 
@@ -15,6 +16,7 @@ Detector for file operations. Each event has process information. Supported LSM 
 * `path_unlink`: 6.5 or greater
 * `path_chmod`: 6.5 or greater
 * `path_chown`: 6.5 or greater
+* `sb_mount`: 6.5 or greater
 
 ### Config
 
@@ -25,6 +27,7 @@ Config represents a dictionary with supported LSM BPF file hooks:
 * path_unlink
 * path_chmod
 * path_chown
+* sb_mount
 
 For each file hook the following options are supported:
 
@@ -45,6 +48,8 @@ path_unlink:
 path_chmod:
   disable: true
 path_chown:
+  disable: true
+sb_mount:
   disable: true
 process_filter:
   binary:
@@ -206,5 +211,36 @@ Event for `security_path_chown` (file owner change):
     "gid": 0
   },
   "timestamp": "2025-07-13T08:41:14.865Z"
+}
+```
+
+Event for `security_sb_mount` (mount block device):
+
+```json
+{
+  "type": "FileEvent",
+  "process": {
+    "pid": 1405679,
+    "tid": 1405679,
+    "ppid": 1405372,
+    "uid": 0,
+    "euid": 0,
+    "auid": 4294967295,
+    "cap_inheritable": 0,
+    "cap_permitted": 2199023255551,
+    "cap_effective": 2199023255551,
+    "secureexec": "",
+    "filename": "busybox",
+    "binary_path": "/bin/busybox",
+    "args": "/dev/sda1 /mnt/hola",
+    "cgroup_name": "docker-c13111a07506639ef1a9a6fbe20e23848ea538a606ca913e91fbd4b715ea3385.scope"
+  },
+  "hook": {
+    "type": "SbMount",
+    "dev": "/dev/sda1",
+    "mnt": "/mnt/hola",
+    "flags": 1141528336
+  },
+  "timestamp": "2025-07-13T09:32:51.206Z"
 }
 ```
