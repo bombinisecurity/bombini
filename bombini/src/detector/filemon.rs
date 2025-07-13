@@ -131,6 +131,17 @@ impl Detector for FileMon {
                 chown.attach()?;
             }
         }
+        if let Some(sb_mount_cfg) = self.config.sb_mount {
+            if !sb_mount_cfg.disable {
+                let sb_mount: &mut Lsm = self
+                    .ebpf
+                    .program_mut("sb_mount_capture")
+                    .unwrap()
+                    .try_into()?;
+                sb_mount.load("sb_mount", &btf)?;
+                sb_mount.attach()?;
+            }
+        }
         Ok(())
     }
 }

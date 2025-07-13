@@ -8,3 +8,5 @@ path_chmod:
   disable: false
 path_chown:
   disable: false
+sb_mount:
+  disable: false

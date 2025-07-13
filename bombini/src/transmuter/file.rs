@@ -1,7 +1,8 @@
 //! Transmutes FileEvent to serialized format
 
 use bombini_common::event::file::{
-    FileMsg, HOOK_FILE_OPEN, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN, HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK,
+    FileMsg, HOOK_FILE_OPEN, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN, HOOK_PATH_TRUNCATE,
+    HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
 };
 
 use bitflags::bitflags;
@@ -187,6 +188,16 @@ pub struct ChownInfo {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct MountInfo {
+    /// device name
+    dev: String,
+    /// mount path
+    mnt: String,
+    /// mount flags
+    flags: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[repr(u8)]
 #[allow(dead_code)]
@@ -196,6 +207,7 @@ pub enum LsmFileHook {
     PathUnlink(PathInfo),
     PathChmod(ChmodInfo),
     PathChown(ChownInfo),
+    SbMount(MountInfo),
 }
 
 impl FileEvent {
@@ -256,6 +268,18 @@ impl FileEvent {
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::PathChown(info),
+                    timestamp: transmute_ktime(ktime),
+                }
+            }
+            HOOK_SB_MOUNT => {
+                let info = MountInfo {
+                    dev: str_from_bytes(&event.name),
+                    mnt: str_from_bytes(&event.path),
+                    flags: event.flags,
+                };
+                Self {
+                    process: Process::new(event.process),
+                    hook: LsmFileHook::SbMount(info),
                     timestamp: transmute_ktime(ktime),
                 }
             }

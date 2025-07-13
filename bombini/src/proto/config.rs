@@ -66,8 +66,11 @@ pub struct FileMonConfig {
     /// security_path_chown config.
     #[prost(message, optional, tag = "5")]
     pub path_chown: ::core::option::Option<FileHookConfig>,
-    /// Filter File events by Process information.
+    /// security_sb_mount config.
     #[prost(message, optional, tag = "6")]
+    pub sb_mount: ::core::option::Option<FileHookConfig>,
+    /// Filter File events by Process information.
+    #[prost(message, optional, tag = "7")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// FileMon hook configuration
