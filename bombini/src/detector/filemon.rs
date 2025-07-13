@@ -142,6 +142,17 @@ impl Detector for FileMon {
                 sb_mount.attach()?;
             }
         }
+        if let Some(mmap_file_cfg) = self.config.mmap_file {
+            if !mmap_file_cfg.disable {
+                let mmap_file: &mut Lsm = self
+                    .ebpf
+                    .program_mut("mmap_file_capture")
+                    .unwrap()
+                    .try_into()?;
+                mmap_file.load("mmap_file", &btf)?;
+                mmap_file.attach()?;
+            }
+        }
         Ok(())
     }
 }

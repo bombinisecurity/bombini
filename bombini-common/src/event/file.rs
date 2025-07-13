@@ -16,7 +16,10 @@ pub struct FileMsg {
     pub name: [u8; MAX_FILENAME_SIZE],
     /// flags passed to open()
     /// or mount flags from sb_mount()
+    /// mmap flags
     pub flags: u32,
+    /// mmap protection falgs
+    pub prot: u32,
     /// File owner UID
     pub uid: u32,
     /// Group owner GID
@@ -36,3 +39,5 @@ pub const HOOK_PATH_CHMOD: u8 = 3;
 pub const HOOK_PATH_CHOWN: u8 = 4;
 
 pub const HOOK_SB_MOUNT: u8 = 5;
+
+pub const HOOK_MMAP_FILE: u8 = 6;
