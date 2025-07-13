@@ -120,6 +120,17 @@ impl Detector for FileMon {
                 chmod.attach()?;
             }
         }
+        if let Some(chown_cfg) = self.config.path_chown {
+            if !chown_cfg.disable {
+                let chown: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_chown_capture")
+                    .unwrap()
+                    .try_into()?;
+                chown.load("path_chown", &btf)?;
+                chown.attach()?;
+            }
+        }
         Ok(())
     }
 }
