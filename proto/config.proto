@@ -47,8 +47,10 @@ message FileMonConfig {
     FileHookConfig path_unlink = 3;
     // security_path_chmod config.
     FileHookConfig path_chmod = 4;
+    // security_path_chown config.
+    FileHookConfig path_chown = 5;
     // Filter File events by Process information.
-    ProcessFilter process_filter = 5;
+    ProcessFilter process_filter = 6;
 }
 
 // FileMon hook configuration
