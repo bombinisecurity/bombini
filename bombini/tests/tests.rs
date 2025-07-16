@@ -757,7 +757,7 @@ process_filter:
 }
 
 #[test]
-fn test_filemon_open_allow_list_file() {
+fn test_filemon_open_mmap_allow_list_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -768,6 +768,8 @@ fn test_filemon_open_allow_list_file() {
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let config_contents = r#"
 file_open:
+  disable: false
+mmap_file:
   disable: false
 path_truncate:
   disable: true
@@ -783,8 +785,6 @@ process_filter:
   binary:
     name:
       - tail
-    path:
-      - /usr/bin/cat
 "#;
     let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
@@ -838,6 +838,7 @@ process_filter:
     let events = fs::read_to_string(&event_log).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"tail\"").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(&test_path);
