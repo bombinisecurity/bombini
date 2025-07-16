@@ -3,6 +3,7 @@
 Detector for file operations. Each event has process information. Supported LSM hooks:
 
 * `file_open` hook  provides info about file owner/permissions + permissions with process accessed the file.
+* `mmap_file` hook proivdes info about mmaped file: path, protetcion flags.
 * `path_truncate` hook provides info about path truncated by truncate syscall.
 * `path_unlink` provides info about path being deleted.
 * `path_chmod` provides info about changing file permissions.
@@ -12,6 +13,7 @@ Detector for file operations. Each event has process information. Supported LSM 
 ### Required Linux Kernel Version
 
 * `file_open`: 5.15 or greater
+* `mmap_file`: 5.15 or greater
 * `path_truncate`: 6.5 or greater 
 * `path_unlink`: 6.5 or greater
 * `path_chmod`: 6.5 or greater
@@ -23,6 +25,7 @@ Detector for file operations. Each event has process information. Supported LSM 
 Config represents a dictionary with supported LSM BPF file hooks:
 
 * file_open
+* mmap_file
 * path_truncate
 * path_unlink
 * path_chmod
@@ -40,6 +43,8 @@ Config example:
 
 ```yaml
 file_open:
+  disable: false
+mmap_file:
   disable: false
 path_truncate:
   disable: true
@@ -242,5 +247,36 @@ Event for `security_sb_mount` (mount block device):
     "flags": 1141528336
   },
   "timestamp": "2025-07-13T09:32:51.206Z"
+}
+```
+
+Event for `security_mmap_file`:
+
+```json
+{
+  "type": "FileEvent",
+  "process": {
+    "pid": 1766332,
+    "tid": 1766332,
+    "ppid": 1766324,
+    "uid": 1000,
+    "euid": 1000,
+    "auid": 1000,
+    "cap_inheritable": 0,
+    "cap_permitted": 0,
+    "cap_effective": 0,
+    "secureexec": "",
+    "filename": "date",
+    "binary_path": "/usr/bin/date",
+    "args": "+%s",
+    "cgroup_name": "vte-spawn-7067a0a7-11d2-4d41-9dd5-43fc1ac45d56.scope"
+  },
+  "hook": {
+    "type": "MmapFile",
+    "path": "/usr/lib/locale/locale-archive",
+    "prot": "PROT_READ",
+    "flags": "MAP_SHARED"
+  },
+  "timestamp": "2025-07-16T18:09:50.559Z"
 }
 ```
