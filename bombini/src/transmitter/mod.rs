@@ -1,7 +1,7 @@
 //! Transmitter provides interface to send serialized event into different sources
 
 pub mod file;
-pub mod log;
+pub mod stdout;
 pub mod unix_sock;
 
 pub trait Transmitter {

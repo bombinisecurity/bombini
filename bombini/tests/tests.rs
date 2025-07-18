@@ -67,6 +67,7 @@ fn test_detectors_load() {
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
+        .stdout(Stdio::null())
         .spawn();
     if bombini.is_err() {
         panic!("{:?}", bombini.err().unwrap());

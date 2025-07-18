@@ -14,7 +14,7 @@ use config::{Config, CONFIG};
 use monitor::Monitor;
 use registry::Registry;
 use transmitter::file::FileTransmitter;
-use transmitter::log::LogTransmitter;
+use transmitter::stdout::StdoutTransmitter;
 use transmitter::unix_sock::USockTransmitter;
 
 #[tokio::main]
@@ -56,7 +56,7 @@ async fn start_monitor(config: &Config, monitor: &Monitor<'_>) -> Result<(), any
         Ok(())
     } else {
         // default: send events to stdout
-        monitor.monitor(LogTransmitter).await;
+        monitor.monitor(StdoutTransmitter).await;
         Ok(())
     }
 }
