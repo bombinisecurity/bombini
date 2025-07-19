@@ -153,6 +153,17 @@ impl Detector for FileMon {
                 mmap_file.attach()?;
             }
         }
+        if let Some(file_ioctl_cfg) = self.config.file_ioctl {
+            if !file_ioctl_cfg.disable {
+                let file_ioctl: &mut Lsm = self
+                    .ebpf
+                    .program_mut("file_ioctl_capture")
+                    .unwrap()
+                    .try_into()?;
+                file_ioctl.load("file_ioctl", &btf)?;
+                file_ioctl.attach()?;
+            }
+        }
         Ok(())
     }
 }

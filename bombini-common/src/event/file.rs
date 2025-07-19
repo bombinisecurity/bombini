@@ -16,7 +16,7 @@ pub struct FileMsg {
     pub name: [u8; MAX_FILENAME_SIZE],
     /// flags passed to open()
     /// or mount flags from sb_mount()
-    /// mmap flags
+    /// mmap flags, or ioctl cmd
     pub flags: u32,
     /// mmap protection falgs
     pub prot: u32,
@@ -41,3 +41,5 @@ pub const HOOK_PATH_CHOWN: u8 = 4;
 pub const HOOK_SB_MOUNT: u8 = 5;
 
 pub const HOOK_MMAP_FILE: u8 = 6;
+
+pub const HOOK_FILE_IOCTL: u8 = 7;

@@ -72,8 +72,11 @@ pub struct FileMonConfig {
     /// security_mmap_file config.
     #[prost(message, optional, tag = "7")]
     pub mmap_file: ::core::option::Option<FileHookConfig>,
-    /// Filter File events by Process information.
+    /// security_file_ioctl config.
     #[prost(message, optional, tag = "8")]
+    pub file_ioctl: ::core::option::Option<FileHookConfig>,
+    /// Filter File events by Process information.
+    #[prost(message, optional, tag = "9")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// FileMon hook configuration
