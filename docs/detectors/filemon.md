@@ -9,16 +9,18 @@ Detector for file operations. Each event has process information. Supported LSM 
 * `path_chmod` provides info about changing file permissions.
 * `path_chown` provides info about changing file owner.
 * `sb_mount` provides info about mounted devices.
+* `file_ioctl` provides info about ioctl commands.
 
 ### Required Linux Kernel Version
 
 * `file_open`: 5.15 or greater
 * `mmap_file`: 5.15 or greater
-* `path_truncate`: 6.5 or greater 
+* `sb_mount`: 5.15 or greater
+* `file_ioctl`: 5.15 or greater
+* `path_truncate`: 6.5 or greater
 * `path_unlink`: 6.5 or greater
 * `path_chmod`: 6.5 or greater
 * `path_chown`: 6.5 or greater
-* `sb_mount`: 6.5 or greater
 
 ### Config
 
@@ -31,6 +33,7 @@ Config represents a dictionary with supported LSM BPF file hooks:
 * path_chmod
 * path_chown
 * sb_mount
+* file_ioctl
 
 For each file hook the following options are supported:
 
@@ -278,5 +281,36 @@ Event for `security_mmap_file`:
     "flags": "MAP_SHARED"
   },
   "timestamp": "2025-07-16T18:09:50.559Z"
+}
+```
+
+Event for `security_file_ioctl`:
+
+```
+{
+  "type": "FileEvent",
+  "process": {
+    "pid": 42233,
+    "tid": 42233,
+    "ppid": 42231,
+    "uid": 1000,
+    "euid": 1000,
+    "auid": 1000,
+    "cap_inheritable": 0,
+    "cap_permitted": 0,
+    "cap_effective": 0,
+    "secureexec": "",
+    "filename": "sed",
+    "binary_path": "/usr/bin/sed",
+    "args": "--follow-symlinks s/// /dev/null",
+    "cgroup_name": "vte-spawn-db86626c-4758-4859-b61c-854f5c17628f.scope"
+  },
+  "hook": {
+    "type": "FileIoctl",
+    "path": "/dev/null",
+    "i_mode": "crw-rw-rw-",
+    "cmd": 21505
+  },
+  "timestamp": "2025-07-19T16:27:59.768Z"
 }
 ```
