@@ -1,8 +1,8 @@
 //! Transmutes FileEvent to serialized format
 
 use bombini_common::event::file::{
-    FileMsg, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN, HOOK_PATH_TRUNCATE,
-    HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
+    FileMsg, HOOK_FILE_IOCTL, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN,
+    HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
 };
 
 use bitflags::bitflags;
@@ -241,6 +241,16 @@ pub struct MmapInfo {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct IoctlInfo {
+    /// full path
+    path: String,
+    /// i_mode
+    i_mode: Imode,
+    /// cmd
+    cmd: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[repr(u8)]
 #[allow(dead_code)]
@@ -252,6 +262,7 @@ pub enum LsmFileHook {
     PathChown(ChownInfo),
     SbMount(MountInfo),
     MmapFile(MmapInfo),
+    FileIoctl(IoctlInfo),
 }
 
 impl FileEvent {
@@ -336,6 +347,18 @@ impl FileEvent {
                 Self {
                     process: Process::new(event.process),
                     hook: LsmFileHook::MmapFile(info),
+                    timestamp: transmute_ktime(ktime),
+                }
+            }
+            HOOK_FILE_IOCTL => {
+                let info = IoctlInfo {
+                    path: str_from_bytes(&event.path),
+                    i_mode: event.i_mode.into(),
+                    cmd: event.flags,
+                };
+                Self {
+                    process: Process::new(event.process),
+                    hook: LsmFileHook::FileIoctl(info),
                     timestamp: transmute_ktime(ktime),
                 }
             }

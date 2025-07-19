@@ -12,3 +12,5 @@ sb_mount:
   disable: false
 mmap_file:
   disable: true
+file_ioctl:
+  disable: true

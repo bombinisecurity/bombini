@@ -53,8 +53,10 @@ message FileMonConfig {
     FileHookConfig sb_mount = 6;
     // security_mmap_file config.
     FileHookConfig mmap_file = 7;
+    // security_file_ioctl config.
+    FileHookConfig file_ioctl = 8;
     // Filter File events by Process information.
-    ProcessFilter process_filter = 8;
+    ProcessFilter process_filter = 9;
 }
 
 // FileMon hook configuration
