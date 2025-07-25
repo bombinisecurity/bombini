@@ -2,12 +2,22 @@
 /// Configuration file for ProcMon detector
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ProcMonConfig {
-    /// Flag for exporting events from kernel to user mode.
+    /// Flag for exporting  ProcessExec and ProcessExit events from kernel to user mode.
     #[prost(bool, tag = "1")]
     pub expose_events: bool,
-    /// Process Filter Configuration.
+    /// SET_UID hook config.
     #[prost(message, optional, tag = "2")]
+    pub setuid: ::core::option::Option<ProcHookConfig>,
+    /// Process Filter Configuration.
+    #[prost(message, optional, tag = "3")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
+}
+/// ProcMon hook configuration
+#[derive(serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ProcHookConfig {
+    /// do not load ebpf program
+    #[prost(bool, tag = "1")]
+    pub disable: bool,
 }
 /// Filter Events using process information.
 /// Filtering is based on pattern: uid AND euid AND auid AND (binary.name OR binary.prefix OR binary.path).

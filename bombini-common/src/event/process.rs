@@ -65,3 +65,26 @@ bitflags! {
         const FILE_CAPS = 0b00000100;
     }
 }
+
+/// Set UID info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcSetUid {
+    pub process: ProcInfo,
+    pub euid: u32,
+    pub uid: u32,
+    pub fsuid: u32,
+    pub flags: LsmSetUidFlags,
+}
+
+bitflags! {
+    #[derive(Clone, Debug, PartialEq)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
+    #[repr(C)]
+    pub struct LsmSetUidFlags: u32 {
+        const LSM_SETID_ID = 0b00000001;
+        const LSM_SETID_RE = 0b00000010;
+        const LSM_SETID_RES = 0b00000100;
+        const LSM_SETID_FS = 0b00001000;
+    }
+}
