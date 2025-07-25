@@ -22,8 +22,8 @@ use bombini_detectors_ebpf::vmlinux::{
 };
 
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
-use bombini_common::event::process::{ProcInfo, SecureExec};
-use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT};
+use bombini_common::event::process::{LsmSetUidFlags, ProcInfo, SecureExec};
+use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID};
 use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
 use bombini_detectors_ebpf::{
@@ -39,7 +39,7 @@ struct CredSharedInfo {
 
 /// Holds current live processes
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
+pub static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
 
 /// Holds process information gathered on bprm_commiting_creds
 #[map]
@@ -454,6 +454,65 @@ unsafe fn exec_map_get_init(pid: u32) -> Option<*mut ProcInfo> {
         return None;
     }
     PROCMON_PROC_MAP.get_ptr_mut(&pid)
+}
+
+// Privelage escalation hooks
+
+#[lsm(hook = "task_fix_setuid")]
+pub fn setuid_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_SETUID, false, try_setuid_capture)
+}
+
+fn try_setuid_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+    let Event::ProcSetUid(event) = event else {
+        return Err(0);
+    };
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    // Filter event by process
+    let allow = if !config.filter_mask.is_empty() {
+        let process_filter: ProcessFilter = ProcessFilter::new(
+            &PROCMON_FILTER_UID_MAP,
+            &PROCMON_FILTER_EUID_MAP,
+            &PROCMON_FILTER_AUID_MAP,
+            &PROCMON_FILTER_BINNAME_MAP,
+            &PROCMON_FILTER_BINPATH_MAP,
+            &PROCMON_FILTER_BINPREFIX_MAP,
+        );
+        if config.deny_list {
+            !process_filter.filter(config.filter_mask, proc)
+        } else {
+            process_filter.filter(config.filter_mask, proc)
+        }
+    } else {
+        true
+    };
+
+    // Skip argument parsing if event is not exported
+    if !allow {
+        return Err(0);
+    }
+
+    unsafe {
+        let creds: *const cred = ctx.arg(0);
+        event.flags = LsmSetUidFlags::from_bits_truncate(ctx.arg(2));
+        event.uid = (*creds).uid.val;
+        event.euid = (*creds).euid.val;
+        event.fsuid = (*creds).fsuid.val;
+    }
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
 }
 
 #[panic_handler]

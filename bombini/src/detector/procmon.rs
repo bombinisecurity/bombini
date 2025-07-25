@@ -97,6 +97,18 @@ impl Detector for ProcMon {
         let program: &mut Lsm = self.ebpf.program_mut("creds_capture").unwrap().try_into()?;
         program.load("bprm_committing_creds", &btf)?;
         program.attach()?;
+
+        if let Some(setuid_cfg) = self.config.setuid {
+            if !setuid_cfg.disable {
+                let setuid: &mut Lsm = self
+                    .ebpf
+                    .program_mut("setuid_capture")
+                    .unwrap()
+                    .try_into()?;
+                setuid.load("task_fix_setuid", &btf)?;
+                setuid.attach()?;
+            }
+        }
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 //! Transmutes Process to serializable struct
 
-use bombini_common::event::process::{ProcInfo, SecureExec};
+use bombini_common::event::process::{LsmSetUidFlags, ProcInfo, ProcSetUid, SecureExec};
 
 use serde::Serialize;
 
@@ -51,6 +51,21 @@ pub struct Process {
     pub args: String,
     /// cgroup name
     pub cgroup_name: String,
+}
+
+/// High-level event representation
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub struct ProcessSetUid {
+    /// Process Infro
+    process: Process,
+    euid: u32,
+    uid: u32,
+    fsuid: u32,
+    /// LSM_SETID_* flag values
+    flags: LsmSetUidFlags,
+    /// Event's date and time
+    timestamp: String,
 }
 
 impl Process {
@@ -104,3 +119,19 @@ impl ProcessExit {
 }
 
 impl Transmute for ProcessExit {}
+
+impl ProcessSetUid {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(event: ProcSetUid, ktime: u64) -> Self {
+        Self {
+            timestamp: transmute_ktime(ktime),
+            uid: event.uid,
+            euid: event.euid,
+            fsuid: event.fsuid,
+            flags: event.flags,
+            process: Process::new(event.process),
+        }
+    }
+}
+
+impl Transmute for ProcessSetUid {}
