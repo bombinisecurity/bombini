@@ -1,10 +1,10 @@
 //! Transmutes Process to serializable struct
 
 use bombini_common::event::process::{
-    LsmSetUidFlags, ProcCapset, ProcInfo, ProcSetUid, SecureExec,
+    Capabilities, LsmSetUidFlags, ProcCapset, ProcInfo, ProcSetUid, SecureExec,
 };
 
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 
 use super::{str_from_bytes, transmute_ktime, Transmute};
 
@@ -41,9 +41,12 @@ pub struct Process {
     pub euid: u32,
     /// login UID
     pub auid: u32,
-    pub cap_inheritable: u64,
-    pub cap_permitted: u64,
-    pub cap_effective: u64,
+    #[serde(serialize_with = "serialize_capabilities")]
+    pub cap_inheritable: Capabilities,
+    #[serde(serialize_with = "serialize_capabilities")]
+    pub cap_permitted: Capabilities,
+    #[serde(serialize_with = "serialize_capabilities")]
+    pub cap_effective: Capabilities,
     pub secureexec: SecureExec,
     /// executable name
     pub filename: String,
@@ -76,11 +79,25 @@ pub struct ProcessSetUid {
 pub struct ProcessCapset {
     /// Process Infro
     process: Process,
-    pub inheritable: u64,
-    pub permitted: u64,
-    pub effective: u64,
+    #[serde(serialize_with = "serialize_capabilities")]
+    pub inheritable: Capabilities,
+    #[serde(serialize_with = "serialize_capabilities")]
+    pub permitted: Capabilities,
+    #[serde(serialize_with = "serialize_capabilities")]
+    pub effective: Capabilities,
     /// Event's date and time
     timestamp: String,
+}
+
+fn serialize_capabilities<S>(caps: &Capabilities, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    if *caps == Capabilities::ALL_CAPS {
+        serializer.serialize_str("ALL_CAPS")
+    } else {
+        caps.serialize(serializer)
+    }
 }
 
 impl Process {

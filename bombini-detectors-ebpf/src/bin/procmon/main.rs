@@ -22,8 +22,8 @@ use bombini_detectors_ebpf::vmlinux::{
 };
 
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
-use bombini_common::event::process::{LsmSetUidFlags, ProcInfo, SecureExec};
-use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID, MSG_CAPSET};
+use bombini_common::event::process::{Capabilities, LsmSetUidFlags, ProcInfo, SecureExec};
+use bombini_common::event::{Event, MSG_CAPSET, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID};
 use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
 use bombini_detectors_ebpf::{
@@ -83,15 +83,18 @@ unsafe fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32
         bpf_probe_read_kernel::<*const cred>(&(*task).cred as *const *const _).map_err(|_| 0u32)?;
     let euid = bpf_probe_read_kernel::<kuid_t>(&(*cred).euid as *const _).map_err(|_| 0u32)?;
     let uid = bpf_probe_read_kernel::<kuid_t>(&(*cred).uid as *const _).map_err(|_| 0u32)?;
-    proc.creds.cap_effective =
+    proc.creds.cap_effective = Capabilities::from_bits_retain(
         bpf_probe_read_kernel::<u64>(&(*cred).cap_effective as *const _ as *const u64)
-            .map_err(|_| 0u32)?;
-    proc.creds.cap_inheritable =
+            .map_err(|_| 0u32)?,
+    );
+    proc.creds.cap_inheritable = Capabilities::from_bits_retain(
         bpf_probe_read_kernel::<u64>(&(*cred).cap_inheritable as *const _ as *const u64)
-            .map_err(|_| 0u32)?;
-    proc.creds.cap_permitted =
+            .map_err(|_| 0u32)?,
+    );
+    proc.creds.cap_permitted = Capabilities::from_bits_retain(
         bpf_probe_read_kernel::<u64>(&(*cred).cap_permitted as *const _ as *const u64)
-            .map_err(|_| 0u32)?;
+            .map_err(|_| 0u32)?,
+    );
 
     proc.creds.uid = uid.val;
     proc.creds.euid = euid.val;
@@ -458,8 +461,7 @@ unsafe fn exec_map_get_init(pid: u32) -> Option<*mut ProcInfo> {
 
 // Privelage escalation hooks
 #[inline(always)]
-fn filter_by_process(config:&Config, proc: &ProcInfo) -> Result<(), i32> {
-
+fn filter_by_process(config: &Config, proc: &ProcInfo) -> Result<(), i32> {
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
         let process_filter: ProcessFilter = ProcessFilter::new(
@@ -485,7 +487,6 @@ fn filter_by_process(config:&Config, proc: &ProcInfo) -> Result<(), i32> {
     }
 
     Ok(())
-
 }
 
 #[lsm(hook = "task_fix_setuid")]
@@ -549,9 +550,9 @@ fn try_capset_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
 
     unsafe {
         let creds: *const cred = ctx.arg(0);
-        event.effective = (*creds).cap_effective.val;
-        event.inheritable = (*creds).cap_inheritable.val;
-        event.permitted = (*creds).cap_permitted.val;
+        event.effective = Capabilities::from_bits_retain((*creds).cap_effective.val);
+        event.inheritable = Capabilities::from_bits_retain((*creds).cap_inheritable.val);
+        event.permitted = Capabilities::from_bits_retain((*creds).cap_permitted.val)
     }
     util::copy_proc(proc, &mut event.process);
     Ok(0)
