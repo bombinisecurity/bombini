@@ -109,6 +109,17 @@ impl Detector for ProcMon {
                 setuid.attach()?;
             }
         }
+        if let Some(capset_cfg) = self.config.capset {
+            if !capset_cfg.disable {
+                let capset: &mut Lsm = self
+                    .ebpf
+                    .program_mut("capset_capture")
+                    .unwrap()
+                    .try_into()?;
+                capset.load("capset", &btf)?;
+                capset.attach()?;
+            }
+        }
         Ok(())
     }
 }

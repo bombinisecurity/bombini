@@ -6,10 +6,12 @@ package config;
 message ProcMonConfig {
     // Flag for exporting  ProcessExec and ProcessExit events from kernel to user mode.
     bool expose_events = 1;
-    // SET_UID hook config.
+    // setuid hook config.
     ProcHookConfig setuid = 2;
+    // capset hook config.
+    ProcHookConfig capset = 3;
     // Process Filter Configuration.
-    ProcessFilter process_filter = 3;
+    ProcessFilter process_filter = 4;
 }
 
 // ProcMon hook configuration

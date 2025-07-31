@@ -1,3 +1,5 @@
 expose_events: false
 setuid:
   disable: true
+capset:
+  disable: true
