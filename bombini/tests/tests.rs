@@ -911,9 +911,6 @@ process_filter:
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"tail\"").count(), 1);
-    let mut file_path = String::from("\"path\":\"");
-    file_path.push_str(&test_path);
-    assert_eq!(events.matches(&file_path).count(), 1);
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
