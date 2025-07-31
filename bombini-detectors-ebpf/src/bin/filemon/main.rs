@@ -59,28 +59,8 @@ static FILEMON_FILTER_BINPREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
 
 const FMODE_EXEC: u32 = 1 << 5;
 
-#[lsm(hook = "file_open")]
-pub fn file_open_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, false, try_open)
-}
-
-fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
-    let Event::File(event) = event else {
-        return Err(0);
-    };
-    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
-    let Some(proc) = proc else {
-        return Err(0);
-    };
-
+#[inline(always)]
+fn filter_by_process(config: &Config, proc: &ProcInfo) -> Result<(), i32> {
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
         let process_filter: ProcessFilter = ProcessFilter::new(
@@ -104,6 +84,33 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     if !allow {
         return Err(0);
     }
+
+    Ok(())
+}
+
+#[lsm(hook = "file_open")]
+pub fn file_open_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_FILE, false, try_open)
+}
+
+fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+    let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let Event::File(event) = event else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_FILE_OPEN;
     unsafe {
@@ -153,29 +160,7 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     };
 
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &FILEMON_FILTER_UID_MAP,
-            &FILEMON_FILTER_EUID_MAP,
-            &FILEMON_FILTER_AUID_MAP,
-            &FILEMON_FILTER_BINNAME_MAP,
-            &FILEMON_FILTER_BINPATH_MAP,
-            &FILEMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
-
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_PATH_TRUNCATE;
     unsafe {
@@ -212,29 +197,7 @@ fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     };
 
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &FILEMON_FILTER_UID_MAP,
-            &FILEMON_FILTER_EUID_MAP,
-            &FILEMON_FILTER_AUID_MAP,
-            &FILEMON_FILTER_BINNAME_MAP,
-            &FILEMON_FILTER_BINPATH_MAP,
-            &FILEMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
-
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_PATH_UNLINK;
     unsafe {
@@ -276,29 +239,7 @@ fn try_chmod(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     };
 
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &FILEMON_FILTER_UID_MAP,
-            &FILEMON_FILTER_EUID_MAP,
-            &FILEMON_FILTER_AUID_MAP,
-            &FILEMON_FILTER_BINNAME_MAP,
-            &FILEMON_FILTER_BINPATH_MAP,
-            &FILEMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
-
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_PATH_CHMOD;
     unsafe {
@@ -336,29 +277,7 @@ fn try_chown(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     };
 
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &FILEMON_FILTER_UID_MAP,
-            &FILEMON_FILTER_EUID_MAP,
-            &FILEMON_FILTER_AUID_MAP,
-            &FILEMON_FILTER_BINNAME_MAP,
-            &FILEMON_FILTER_BINPATH_MAP,
-            &FILEMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
-
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_PATH_CHOWN;
     unsafe {
@@ -397,29 +316,7 @@ fn try_sb_mount(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     };
 
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &FILEMON_FILTER_UID_MAP,
-            &FILEMON_FILTER_EUID_MAP,
-            &FILEMON_FILTER_AUID_MAP,
-            &FILEMON_FILTER_BINNAME_MAP,
-            &FILEMON_FILTER_BINPATH_MAP,
-            &FILEMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
-
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_SB_MOUNT;
     unsafe {
@@ -460,29 +357,7 @@ fn try_mmap_file(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     };
 
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &FILEMON_FILTER_UID_MAP,
-            &FILEMON_FILTER_EUID_MAP,
-            &FILEMON_FILTER_AUID_MAP,
-            &FILEMON_FILTER_BINNAME_MAP,
-            &FILEMON_FILTER_BINPATH_MAP,
-            &FILEMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
-
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_MMAP_FILE;
     unsafe {
@@ -523,29 +398,7 @@ fn try_file_ioctl(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     };
 
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &FILEMON_FILTER_UID_MAP,
-            &FILEMON_FILTER_EUID_MAP,
-            &FILEMON_FILTER_AUID_MAP,
-            &FILEMON_FILTER_BINNAME_MAP,
-            &FILEMON_FILTER_BINPATH_MAP,
-            &FILEMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
-
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
+    filter_by_process(config, proc)?;
 
     event.hook = HOOK_FILE_IOCTL;
     unsafe {
