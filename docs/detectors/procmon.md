@@ -41,6 +41,18 @@ send to user space. Conditions: `uid`, `eud`, `auid`, `binary` are combined with
 The values in these fields are represented as arrays, and are combined with
 logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combined with logical "OR".
 
+### Privilege escalation detection hooks
+
+Procmon helps to monitor privilege escalation during process execution. It uses LSM hooks for this:
+
+* security_task_fix_setuid
+
+To enable `setuid` events put this to config:
+
+```yaml
+setuid:
+  disable: false
+```
 
 ### Event
 
@@ -87,4 +99,33 @@ logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combin
     },
     "timestamp": "2025-05-31T09:04:45.909Z"
   }
+```
+
+Privilege escalation events:
+
+```json
+
+  "type": "ProcessSetUid",
+  "process": {
+    "pid": 1630276,
+    "tid": 1630276,
+    "ppid": 1630275,
+    "uid": 1000,
+    "euid": 0,
+    "auid": 0,
+    "cap_inheritable": 0,
+    "cap_permitted": 2199023255551,
+    "cap_effective": 2199023255551,
+    "secureexec": "",
+    "filename": "sudo",
+    "binary_path": "/usr/bin/sudo",
+    "args": "-u nobody true",
+    "cgroup_name": ""
+  },
+  "euid": 65534,
+  "uid": 65534,
+  "fsuid": 65534,
+  "flags": "LSM_SETID_RES",
+  "timestamp": "2025-07-31T07:40:10.920Z"
+}
 ```
