@@ -5,11 +5,14 @@ pub struct ProcMonConfig {
     /// Flag for exporting  ProcessExec and ProcessExit events from kernel to user mode.
     #[prost(bool, tag = "1")]
     pub expose_events: bool,
-    /// SET_UID hook config.
+    /// setuid hook config.
     #[prost(message, optional, tag = "2")]
     pub setuid: ::core::option::Option<ProcHookConfig>,
-    /// Process Filter Configuration.
+    /// capset hook config.
     #[prost(message, optional, tag = "3")]
+    pub capset: ::core::option::Option<ProcHookConfig>,
+    /// Process Filter Configuration.
+    #[prost(message, optional, tag = "4")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// ProcMon hook configuration

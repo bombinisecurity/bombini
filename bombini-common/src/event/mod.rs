@@ -27,8 +27,10 @@ pub enum Event {
     Network(network::NetworkMsg) = 3,
     /// IOUring submit request event type
     IOUring(io_uring::IOUringMsg) = 4,
-    /// Proc Setuid
+    /// Proc setuid
     ProcSetUid(process::ProcSetUid) = 5,
+    /// Proc capset
+    ProcCapset(process::ProcCapset) = 6,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
@@ -49,6 +51,8 @@ pub const MSG_NETWORK: u8 = 3;
 pub const MSG_IOURING: u8 = 4;
 /// Process setuid message code
 pub const MSG_SETUID: u8 = 5;
+/// Process capset message code
+pub const MSG_CAPSET: u8 = 6;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code

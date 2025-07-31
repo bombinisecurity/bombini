@@ -23,7 +23,7 @@ use bombini_detectors_ebpf::vmlinux::{
 
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
 use bombini_common::event::process::{LsmSetUidFlags, ProcInfo, SecureExec};
-use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID};
+use bombini_common::event::{Event, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID, MSG_CAPSET};
 use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
 use bombini_detectors_ebpf::{
@@ -457,28 +457,8 @@ unsafe fn exec_map_get_init(pid: u32) -> Option<*mut ProcInfo> {
 }
 
 // Privelage escalation hooks
-
-#[lsm(hook = "task_fix_setuid")]
-pub fn setuid_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_SETUID, false, try_setuid_capture)
-}
-
-fn try_setuid_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::ProcSetUid(event) = event else {
-        return Err(0);
-    };
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
-    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
-    let Some(proc) = proc else {
-        return Err(0);
-    };
+#[inline(always)]
+fn filter_by_process(config:&Config, proc: &ProcInfo) -> Result<(), i32> {
 
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
@@ -504,12 +484,74 @@ fn try_setuid_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         return Err(0);
     }
 
+    Ok(())
+
+}
+
+#[lsm(hook = "task_fix_setuid")]
+pub fn setuid_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_SETUID, false, try_setuid_capture)
+}
+
+fn try_setuid_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+    let Event::ProcSetUid(event) = event else {
+        return Err(0);
+    };
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    filter_by_process(config, proc)?;
+
     unsafe {
         let creds: *const cred = ctx.arg(0);
         event.flags = LsmSetUidFlags::from_bits_truncate(ctx.arg(2));
         event.uid = (*creds).uid.val;
         event.euid = (*creds).euid.val;
         event.fsuid = (*creds).fsuid.val;
+    }
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
+}
+
+#[lsm(hook = "capset")]
+pub fn capset_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_CAPSET, false, try_capset_capture)
+}
+
+fn try_capset_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+    let Event::ProcCapset(event) = event else {
+        return Err(0);
+    };
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    filter_by_process(config, proc)?;
+
+    unsafe {
+        let creds: *const cred = ctx.arg(0);
+        event.effective = (*creds).cap_effective.val;
+        event.inheritable = (*creds).cap_inheritable.val;
+        event.permitted = (*creds).cap_permitted.val;
     }
     util::copy_proc(proc, &mut event.process);
     Ok(0)

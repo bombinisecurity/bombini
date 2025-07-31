@@ -77,6 +77,16 @@ pub struct ProcSetUid {
     pub flags: LsmSetUidFlags,
 }
 
+/// Capset info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcCapset {
+    pub process: ProcInfo,
+    pub effective: u64,
+    pub inheritable: u64,
+    pub permitted: u64,
+}
+
 bitflags! {
     #[derive(Clone, Debug, PartialEq)]
     #[cfg_attr(feature = "user", derive(Serialize))]

@@ -8,16 +8,16 @@ use gtfobins::GTFOBinsEvent;
 use histfile::HistFileEvent;
 use io_uring::IOUringEvent;
 use network::NetworkEvent;
+use process::ProcessCapset;
 use process::ProcessExec;
 use process::ProcessExit;
+use process::ProcessSetUid;
 
 use chrono::{DateTime, SecondsFormat};
 use nix::time::{clock_gettime, ClockId};
 use serde::Serialize;
 
 use std::time::Duration;
-
-use crate::transmuter::process::ProcessSetUid;
 
 mod file;
 mod gtfobins;
@@ -48,6 +48,7 @@ impl Transmuter {
             (Event::ProcExec, ProcessExec),
             (Event::ProcExit, ProcessExit),
             (Event::ProcSetUid, ProcessSetUid),
+            (Event::ProcCapset, ProcessCapset),
             (Event::File, FileEvent),
             (Event::GTFOBins, GTFOBinsEvent),
             (Event::HistFile, HistFileEvent),
