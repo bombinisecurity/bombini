@@ -46,11 +46,19 @@ logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combin
 Procmon helps to monitor privilege escalation during process execution. It uses LSM hooks for this:
 
 * security_task_fix_setuid
+* security_capset
 
 To enable `setuid` events put this to config:
 
 ```yaml
 setuid:
+  disable: false
+```
+
+Enabling `capset` events:
+
+```yaml
+capset:
   disable: false
 ```
 
@@ -127,5 +135,31 @@ Privilege escalation events:
   "fsuid": 65534,
   "flags": "LSM_SETID_RES",
   "timestamp": "2025-07-31T07:40:10.920Z"
+}
+```
+
+```json
+{
+  "type": "ProcessCapset",
+  "process": {
+    "pid": 2223566,
+    "tid": 2223566,
+    "ppid": 2223565,
+    "uid": 0,
+    "euid": 0,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
+    "secureexec": "",
+    "filename": "capsh",
+    "binary_path": "/usr/sbin/capsh",
+    "args": "--caps=cap_sys_admin=ep cap_net_raw=ep -- -c id",
+    "cgroup_name": "tmux-spawn-3662cb8b-5ff9-4f3a-a06c-18bf7fb11928.scope"
+  },
+  "inheritable": "",
+  "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
+  "effective": "CAP_NET_RAW | CAP_SYS_ADMIN",
+  "timestamp": "2025-07-31T20:19:24.606Z"
 }
 ```
