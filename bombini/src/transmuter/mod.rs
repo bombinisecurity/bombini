@@ -19,6 +19,8 @@ use serde::Serialize;
 
 use std::time::Duration;
 
+use crate::transmuter::process::ProcessPrctl;
+
 mod file;
 mod gtfobins;
 mod histfile;
@@ -49,6 +51,7 @@ impl Transmuter {
             (Event::ProcExit, ProcessExit),
             (Event::ProcSetUid, ProcessSetUid),
             (Event::ProcCapset, ProcessCapset),
+            (Event::ProcPrctl, ProcessPrctl),
             (Event::File, FileEvent),
             (Event::GTFOBins, GTFOBinsEvent),
             (Event::HistFile, HistFileEvent),

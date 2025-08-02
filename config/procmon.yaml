@@ -3,3 +3,5 @@ setuid:
   disable: true
 capset:
   disable: true
+prctl:
+  disable: true

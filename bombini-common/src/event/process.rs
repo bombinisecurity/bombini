@@ -189,3 +189,27 @@ bitflags! {
         | Self::CAP_CHECKPOINT_RESTORE.bits();
     }
 }
+
+/// Enumeration of prctl supported commands
+#[derive(Clone, Debug)]
+#[repr(u8)]
+pub enum PrctlCmd {
+    Opcode(u8) = 0,
+    PrSetDumpable(u8) = 4,
+    PrSetKeepCaps(u8) = 8,
+    PrSetName { name: [u8; 16] } = 15,
+    PrSetSecurebits(u32) = 28,
+}
+
+pub const PR_SET_DUMPABLE: u8 = 4;
+pub const PR_SET_KEEPCAPS: u8 = 8;
+pub const PR_SET_NAME: u8 = 15;
+pub const PR_SET_SECUREBITS: u8 = 28;
+
+/// Prctl info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcPrctl {
+    pub process: ProcInfo,
+    pub cmd: PrctlCmd,
+}
