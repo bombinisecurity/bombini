@@ -22,8 +22,11 @@ use bombini_detectors_ebpf::vmlinux::{
 };
 
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
-use bombini_common::event::process::{Capabilities, LsmSetUidFlags, ProcInfo, SecureExec};
-use bombini_common::event::{Event, MSG_CAPSET, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID};
+use bombini_common::event::process::{
+    Capabilities, LsmSetUidFlags, PrctlCmd, ProcInfo, SecureExec, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
+    PR_SET_NAME, PR_SET_SECUREBITS,
+};
+use bombini_common::event::{Event, MSG_CAPSET, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID};
 use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
 use bombini_detectors_ebpf::{
@@ -553,6 +556,49 @@ fn try_capset_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         event.effective = Capabilities::from_bits_retain((*creds).cap_effective.val);
         event.inheritable = Capabilities::from_bits_retain((*creds).cap_inheritable.val);
         event.permitted = Capabilities::from_bits_retain((*creds).cap_permitted.val)
+    }
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
+}
+
+#[lsm(hook = "task_prctl")]
+pub fn task_prctl_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_PRCTL, false, try_task_prctl_capture)
+}
+
+fn try_task_prctl_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+    let Event::ProcPrctl(event) = event else {
+        return Err(0);
+    };
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    filter_by_process(config, proc)?;
+
+    unsafe {
+        let cmd: u8 = ctx.arg(0);
+        match cmd {
+            PR_SET_DUMPABLE => event.cmd = PrctlCmd::PrSetDumpable(ctx.arg::<u8>(1)),
+            PR_SET_KEEPCAPS => event.cmd = PrctlCmd::PrSetKeepCaps(ctx.arg::<u8>(1)),
+            PR_SET_SECUREBITS => event.cmd = PrctlCmd::PrSetSecurebits(ctx.arg::<u32>(1)),
+            PR_SET_NAME => {
+                let name_ptr: *const u8 = ctx.arg(1);
+                let mut name: [u8; 16] = [0; 16];
+                bpf_probe_read_user_str_bytes(name_ptr, &mut name).map_err(|_| 0i32)?;
+                event.cmd = PrctlCmd::PrSetName { name };
+            }
+            _ => event.cmd = PrctlCmd::Opcode(cmd),
+        }
     }
     util::copy_proc(proc, &mut event.process);
     Ok(0)

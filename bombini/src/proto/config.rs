@@ -11,8 +11,11 @@ pub struct ProcMonConfig {
     /// capset hook config.
     #[prost(message, optional, tag = "3")]
     pub capset: ::core::option::Option<ProcHookConfig>,
-    /// Process Filter Configuration.
+    /// prctl hook config.
     #[prost(message, optional, tag = "4")]
+    pub prctl: ::core::option::Option<ProcHookConfig>,
+    /// Process Filter Configuration.
+    #[prost(message, optional, tag = "5")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// ProcMon hook configuration

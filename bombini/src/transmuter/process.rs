@@ -1,7 +1,7 @@
 //! Transmutes Process to serializable struct
 
 use bombini_common::event::process::{
-    Capabilities, LsmSetUidFlags, ProcCapset, ProcInfo, ProcSetUid, SecureExec,
+    Capabilities, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl, ProcSetUid, SecureExec,
 };
 
 use serde::{Serialize, Serializer};
@@ -87,6 +87,27 @@ pub struct ProcessCapset {
     pub effective: Capabilities,
     /// Event's date and time
     timestamp: String,
+}
+
+/// High-level event representation
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub struct ProcessPrctl {
+    /// Process Infro
+    process: Process,
+    cmd: PrctlCmdUser,
+    timestamp: String,
+}
+
+/// Enumeration of prctl supported commands
+#[derive(Clone, Debug, Serialize)]
+#[repr(u8)]
+pub enum PrctlCmdUser {
+    Opcode(u8) = 0,
+    PrSetDumpable(u8) = 4,
+    PrSetKeepCaps(u8) = 8,
+    PrSetName { name: String } = 15,
+    PrSetSecurebits(u32) = 28,
 }
 
 fn serialize_capabilities<S>(caps: &Capabilities, serializer: S) -> Result<S::Ok, S::Error>
@@ -182,3 +203,25 @@ impl ProcessCapset {
 }
 
 impl Transmute for ProcessCapset {}
+
+impl ProcessPrctl {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(event: ProcPrctl, ktime: u64) -> Self {
+        let cmd = match event.cmd {
+            PrctlCmd::Opcode(op) => PrctlCmdUser::Opcode(op),
+            PrctlCmd::PrSetDumpable(v) => PrctlCmdUser::PrSetDumpable(v),
+            PrctlCmd::PrSetKeepCaps(v) => PrctlCmdUser::PrSetKeepCaps(v),
+            PrctlCmd::PrSetSecurebits(v) => PrctlCmdUser::PrSetSecurebits(v),
+            PrctlCmd::PrSetName { name } => PrctlCmdUser::PrSetName {
+                name: str_from_bytes(&name),
+            },
+        };
+        Self {
+            timestamp: transmute_ktime(ktime),
+            cmd,
+            process: Process::new(event.process),
+        }
+    }
+}
+
+impl Transmute for ProcessPrctl {}

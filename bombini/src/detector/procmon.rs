@@ -120,6 +120,17 @@ impl Detector for ProcMon {
                 capset.attach()?;
             }
         }
+        if let Some(prctl_cfg) = self.config.prctl {
+            if !prctl_cfg.disable {
+                let prctl: &mut Lsm = self
+                    .ebpf
+                    .program_mut("task_prctl_capture")
+                    .unwrap()
+                    .try_into()?;
+                prctl.load("task_prctl", &btf)?;
+                prctl.attach()?;
+            }
+        }
         Ok(())
     }
 }

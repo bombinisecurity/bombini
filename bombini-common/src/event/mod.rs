@@ -31,6 +31,8 @@ pub enum Event {
     ProcSetUid(process::ProcSetUid) = 5,
     /// Proc capset
     ProcCapset(process::ProcCapset) = 6,
+    /// Proc prctl
+    ProcPrctl(process::ProcPrctl) = 7,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
@@ -53,6 +55,8 @@ pub const MSG_IOURING: u8 = 4;
 pub const MSG_SETUID: u8 = 5;
 /// Process capset message code
 pub const MSG_CAPSET: u8 = 6;
+/// Process prctl message code
+pub const MSG_PRCTL: u8 = 7;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code
