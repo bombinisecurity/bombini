@@ -47,6 +47,7 @@ Procmon helps to monitor privilege escalation during process execution. It uses 
 
 * security_task_fix_setuid
 * security_capset
+* security_task_prctl
 
 To enable `setuid` events put this to config:
 
@@ -59,6 +60,13 @@ Enabling `capset` events:
 
 ```yaml
 capset:
+  disable: false
+```
+
+Enabling `prctl` events:
+
+```yaml
+prctl:
   disable: false
 ```
 
@@ -161,5 +169,31 @@ Privilege escalation events:
   "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
   "effective": "CAP_NET_RAW | CAP_SYS_ADMIN",
   "timestamp": "2025-07-31T20:19:24.606Z"
+}
+```
+
+```json
+{
+  "type": "ProcessPrctl",
+  "process": {
+    "pid": 32905,
+    "tid": 32905,
+    "ppid": 11551,
+    "uid": 1000,
+    "euid": 1000,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "capsh",
+    "binary_path": "/usr/sbin/capsh",
+    "args": "--keep=1 -- -c echo KEEPCAPS enabled",
+    "cgroup_name": "tmux-spawn-3e82004d-4296-4bb2-9099-41e00b937ee7.scope"
+  },
+  "cmd": {
+    "PrSetKeepCaps": 1
+  },
+  "timestamp": "2025-08-02T13:38:03.693Z"
 }
 ```
