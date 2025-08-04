@@ -2,7 +2,10 @@
 #![no_main]
 
 use aya_ebpf::{
-    helpers::bpf_get_current_pid_tgid,
+    helpers::{
+        bpf_get_current_pid_tgid, bpf_probe_read_kernel, bpf_probe_read_kernel_str_bytes,
+        bpf_probe_read_user_buf,
+    },
     macros::{btf_tracepoint, map},
     maps::{hash_map::HashMap, lpm_trie::LpmTrie, Array},
     programs::BtfTracePointContext,
@@ -10,10 +13,11 @@ use aya_ebpf::{
 
 use bombini_common::config::io_uringmon::Config;
 use bombini_common::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
+use bombini_common::event::io_uring::IOUringOp;
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, MSG_IOURING};
 
-use bombini_detectors_ebpf::vmlinux::io_kiocb;
+use bombini_detectors_ebpf::vmlinux::{file, filename, io_kiocb, open_how, sockaddr};
 
 use bombini_detectors_ebpf::{
     event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
@@ -74,8 +78,60 @@ fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event) -> Result<i32, i
 
     unsafe {
         let req: *const io_kiocb = ctx.arg(0);
-        event.opcode = (*req).opcode;
-        event.flags = (*req).flags as u64;
+        event.opcode = core::mem::transmute::<u8, IOUringOp>((*req).opcode);
+        match event.opcode {
+            IOUringOp::IORING_OP_OPENAT | IOUringOp::IORING_OP_OPENAT2 => {
+                let open_data = bpf_probe_read_kernel::<io_open>(
+                    &(*req).__bindgen_anon_1.cmd as *const _ as *const _,
+                )
+                .map_err(|_| 0i32)?;
+                let filename_data =
+                    bpf_probe_read_kernel::<filename>(open_data.filename as *const _)
+                        .map_err(|_| 0i32)?;
+                bpf_probe_read_kernel_str_bytes(filename_data.name as *const _, &mut event.path)
+                    .map_err(|_| 0i32)?;
+                event.flags = open_data.how.flags;
+            }
+            IOUringOp::IORING_OP_STATX => {
+                let statx_data = bpf_probe_read_kernel::<io_statx>(
+                    &(*req).__bindgen_anon_1.cmd as *const _ as *const _,
+                )
+                .map_err(|_| 0i32)?;
+                let filename_data =
+                    bpf_probe_read_kernel::<filename>(statx_data.filename as *const _)
+                        .map_err(|_| 0i32)?;
+                bpf_probe_read_kernel_str_bytes(filename_data.name as *const _, &mut event.path)
+                    .map_err(|_| 0i32)?;
+            }
+            IOUringOp::IORING_OP_UNLINKAT => {
+                let unlink_data = bpf_probe_read_kernel::<io_unlink>(
+                    &(*req).__bindgen_anon_1.cmd as *const _ as *const _,
+                )
+                .map_err(|_| 0i32)?;
+                let filename_data =
+                    bpf_probe_read_kernel::<filename>(unlink_data.filename as *const _)
+                        .map_err(|_| 0i32)?;
+                bpf_probe_read_kernel_str_bytes(filename_data.name as *const _, &mut event.path)
+                    .map_err(|_| 0i32)?;
+            }
+            IOUringOp::IORING_OP_CONNECT => {
+                let connect_data = bpf_probe_read_kernel::<io_connect>(
+                    &(*req).__bindgen_anon_1.cmd as *const _ as *const _,
+                )
+                .map_err(|_| 0i32)?;
+                bpf_probe_read_user_buf(connect_data.addr as *const u8, &mut event.sockaddr)
+                    .map_err(|_| 0i32)?;
+            }
+            IOUringOp::IORING_OP_ACCEPT => {
+                let accept_data = bpf_probe_read_kernel::<io_accept>(
+                    &(*req).__bindgen_anon_1.cmd as *const _ as *const _,
+                )
+                .map_err(|_| 0i32)?;
+                bpf_probe_read_user_buf(accept_data.addr as *const u8, &mut event.sockaddr)
+                    .map_err(|_| 0i32)?;
+            }
+            _ => {}
+        }
     }
     if !config.filter_mask.is_empty() {
         let process_filter: ProcessFilter = ProcessFilter::new(
@@ -98,6 +154,63 @@ fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event) -> Result<i32, i
     }
     util::copy_proc(proc, &mut event.process);
     Ok(0)
+}
+
+#[repr(C)]
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub struct io_open {
+    pub file: *mut file,
+    pub dfd: i32,
+    pub file_slot: u32,
+    pub filename: *mut filename,
+    pub how: open_how,
+    pub nofile: u32,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub struct io_statx {
+    pub file: *mut file,
+    pub dfd: i32,
+    pub mask: u32,
+    pub flags: u32,
+    pub filename: *mut filename,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub struct io_connect {
+    pub file: *mut file,
+    pub addr: *mut sockaddr,
+    pub addr_len: i32,
+    pub in_progress: bool,
+    pub seen_econnaborted: bool,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub struct io_unlink {
+    pub file: *mut file,
+    pub dfd: i32,
+    pub flags: u32,
+    pub filename: *mut filename,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub struct io_accept {
+    pub file: *mut file,
+    pub addr: *mut sockaddr,
+    pub addr_len: *mut i32,
+    pub flags: i32,
+    pub iou_flags: i32,
+    pub file_slot: u32,
+    pub nofile: u32,
 }
 
 #[panic_handler]
