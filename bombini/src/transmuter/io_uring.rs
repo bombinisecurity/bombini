@@ -1,83 +1,16 @@
 //! Transmutes IOUringEvent to serialized format
+//!
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-use bombini_common::event::io_uring::IOUringMsg;
+use bombini_common::event::io_uring::{IOUringMsg, IOUringOp};
 
 use serde::Serialize;
 
+use crate::transmuter::str_from_bytes;
+
+use super::file::{AccessMode, CreationFlags};
 use super::process::Process;
 use super::{transmute_ktime, Transmute};
-
-#[allow(non_camel_case_types)]
-#[allow(dead_code)]
-#[derive(Clone, Debug, Serialize)]
-#[repr(u8)]
-enum IOUringOp {
-    IORING_OP_NOP,
-    IORING_OP_READV,
-    IORING_OP_WRITEV,
-    IORING_OP_FSYNC,
-    IORING_OP_READ_FIXED,
-    IORING_OP_WRITE_FIXED,
-    IORING_OP_POLL_ADD,
-    IORING_OP_POLL_REMOVE,
-    IORING_OP_SYNC_FILE_RANGE,
-    IORING_OP_SENDMSG,
-    IORING_OP_RECVMSG,
-    IORING_OP_TIMEOUT,
-    IORING_OP_TIMEOUT_REMOVE,
-    IORING_OP_ACCEPT,
-    IORING_OP_ASYNC_CANCEL,
-    IORING_OP_LINK_TIMEOUT,
-    IORING_OP_CONNECT,
-    IORING_OP_FALLOCATE,
-    IORING_OP_OPENAT,
-    IORING_OP_CLOSE,
-    IORING_OP_FILES_UPDATE,
-    IORING_OP_STATX,
-    IORING_OP_READ,
-    IORING_OP_WRITE,
-    IORING_OP_FADVISE,
-    IORING_OP_MADVISE,
-    IORING_OP_SEND,
-    IORING_OP_RECV,
-    IORING_OP_OPENAT2,
-    IORING_OP_EPOLL_CTL,
-    IORING_OP_SPLICE,
-    IORING_OP_PROVIDE_BUFFERS,
-    IORING_OP_REMOVE_BUFFERS,
-    IORING_OP_TEE,
-    IORING_OP_SHUTDOWN,
-    IORING_OP_RENAMEAT,
-    IORING_OP_UNLINKAT,
-    IORING_OP_MKDIRAT,
-    IORING_OP_SYMLINKAT,
-    IORING_OP_LINKAT,
-    IORING_OP_MSG_RING,
-    IORING_OP_FSETXATTR,
-    IORING_OP_SETXATTR,
-    IORING_OP_FGETXATTR,
-    IORING_OP_GETXATTR,
-    IORING_OP_SOCKET,
-    IORING_OP_URING_CMD,
-    IORING_OP_SEND_ZC,
-    IORING_OP_SENDMSG_ZC,
-    IORING_OP_READ_MULTISHOT,
-    IORING_OP_WAITID,
-    IORING_OP_FUTEX_WAIT,
-    IORING_OP_FUTEX_WAKE,
-    IORING_OP_FUTEX_WAITV,
-    IORING_OP_FIXED_FD_INSTALL,
-    IORING_OP_FTRUNCATE,
-    IORING_OP_BIND,
-    IORING_OP_LISTEN,
-    IORING_OP_RECV_ZC,
-    IORING_OP_EPOLL_WAIT,
-    IORING_OP_READV_FIXED,
-    IORING_OP_WRITEV_FIXED,
-
-    /* this goes last, obviously */
-    IORING_OP_LAST,
-}
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
@@ -87,18 +20,74 @@ pub struct IOUringEvent {
     process: Process,
     /// io_uring_ops
     opcode: IOUringOp,
-    flags: u64,
+    /// extra info for operation
+    #[serde(skip_serializing_if = "no_iouring_extra_info")]
+    op_info: IOUringOpInfo,
     /// Event's date and time
     timestamp: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[repr(u8)]
+#[allow(dead_code)]
+#[serde(untagged)]
+pub enum IOUringOpInfo {
+    FileOpen {
+        path: String,
+        access_flags: AccessMode,
+        creation_flags: CreationFlags,
+    },
+    Statx {
+        path: String,
+    },
+    Unlinkat {
+        path: String,
+    },
+    ConnectAccept {
+        addr: IpAddr,
+        port: u16,
+    },
+    NoInfo,
+}
+
+fn no_iouring_extra_info(info: &IOUringOpInfo) -> bool {
+    matches!(info, IOUringOpInfo::NoInfo)
 }
 
 impl IOUringEvent {
     /// Constructs High level event representation from low eBPF message
     pub fn new(event: IOUringMsg, ktime: u64) -> Self {
+        let op_info = match event.opcode {
+            IOUringOp::IORING_OP_OPENAT | IOUringOp::IORING_OP_OPENAT2 => IOUringOpInfo::FileOpen {
+                path: str_from_bytes(&event.path),
+                access_flags: AccessMode::from_bits_truncate(1 << (event.flags & 3)),
+                creation_flags: CreationFlags::from_bits_truncate(event.flags as u32),
+            },
+            IOUringOp::IORING_OP_STATX => IOUringOpInfo::Statx {
+                path: str_from_bytes(&event.path),
+            },
+            IOUringOp::IORING_OP_UNLINKAT => IOUringOpInfo::Unlinkat {
+                path: str_from_bytes(&event.path),
+            },
+            IOUringOp::IORING_OP_CONNECT | IOUringOp::IORING_OP_ACCEPT => {
+                match event.sockaddr[0] /* sa_family */ {
+                    2 /* AF_INET */ => {
+                        let addr = IpAddr::V4(Ipv4Addr::new(event.sockaddr[4], event.sockaddr[5], event.sockaddr[6], event.sockaddr[7]));
+                        IOUringOpInfo::ConnectAccept { addr, port: u16::from_be_bytes(event.sockaddr[2..4].try_into().unwrap()) }
+                    },
+                    10 /* AF_INET6 */ => {
+                        let addr = IpAddr::V6(Ipv6Addr::from_bits(u128::from_be_bytes(event.sockaddr[4..21].try_into().unwrap())));
+                        IOUringOpInfo::ConnectAccept { addr, port: u16::from_be_bytes(event.sockaddr[2..4].try_into().unwrap()) }
+                    },
+                    _ => IOUringOpInfo::NoInfo,
+                }
+            }
+            _ => IOUringOpInfo::NoInfo,
+        };
         Self {
             process: Process::new(event.process),
-            opcode: unsafe { std::mem::transmute::<u8, IOUringOp>(event.opcode) },
-            flags: event.flags,
+            opcode: event.opcode,
+            op_info,
             timestamp: transmute_ktime(ktime),
         }
     }
