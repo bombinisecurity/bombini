@@ -1,7 +1,8 @@
 //! Transmutes Process to serializable struct
 
 use bombini_common::event::process::{
-    Capabilities, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl, ProcSetUid, SecureExec,
+    Capabilities, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcCreateUserNs, ProcInfo, ProcPrctl,
+    ProcSetUid, SecureExec,
 };
 
 use serde::{Serialize, Serializer};
@@ -121,6 +122,15 @@ where
     }
 }
 
+/// High-level event representation
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub struct ProcessCreateUserNs {
+    /// Process Infro
+    process: Process,
+    timestamp: String,
+}
+
 impl Process {
     /// Constructs High level event representation from low eBPF
     pub fn new(mut proc: ProcInfo) -> Self {
@@ -225,3 +235,15 @@ impl ProcessPrctl {
 }
 
 impl Transmute for ProcessPrctl {}
+
+impl ProcessCreateUserNs {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(event: ProcCreateUserNs, ktime: u64) -> Self {
+        Self {
+            timestamp: transmute_ktime(ktime),
+            process: Process::new(event.process),
+        }
+    }
+}
+
+impl Transmute for ProcessCreateUserNs {}

@@ -213,3 +213,10 @@ pub struct ProcPrctl {
     pub process: ProcInfo,
     pub cmd: PrctlCmd,
 }
+
+/// create_user_ns info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcCreateUserNs {
+    pub process: ProcInfo,
+}

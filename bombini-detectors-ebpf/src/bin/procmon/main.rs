@@ -26,7 +26,9 @@ use bombini_common::event::process::{
     Capabilities, LsmSetUidFlags, PrctlCmd, ProcInfo, SecureExec, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
     PR_SET_NAME, PR_SET_SECUREBITS,
 };
-use bombini_common::event::{Event, MSG_CAPSET, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID};
+use bombini_common::event::{
+    Event, MSG_CAPSET, MSG_CREATE_USER_NS, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID,
+};
 use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
 use bombini_detectors_ebpf::{
@@ -600,6 +602,33 @@ fn try_task_prctl_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32
             _ => event.cmd = PrctlCmd::Opcode(cmd),
         }
     }
+    util::copy_proc(proc, &mut event.process);
+    Ok(0)
+}
+
+#[lsm(hook = "create_user_ns")]
+pub fn create_user_ns_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_CREATE_USER_NS, false, try_create_user_ns_capture)
+}
+
+fn try_create_user_ns_capture(_ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+    let Event::ProcCreateUserNs(event) = event else {
+        return Err(0);
+    };
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    filter_by_process(config, proc)?;
     util::copy_proc(proc, &mut event.process);
     Ok(0)
 }

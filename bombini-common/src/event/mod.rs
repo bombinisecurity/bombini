@@ -33,6 +33,8 @@ pub enum Event {
     ProcCapset(process::ProcCapset) = 6,
     /// Proc prctl
     ProcPrctl(process::ProcPrctl) = 7,
+    /// create_user_ns
+    ProcCreateUserNs(process::ProcCreateUserNs) = 8,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
@@ -57,6 +59,8 @@ pub const MSG_SETUID: u8 = 5;
 pub const MSG_CAPSET: u8 = 6;
 /// Process prctl message code
 pub const MSG_PRCTL: u8 = 7;
+/// Process create_user_ns message code
+pub const MSG_CREATE_USER_NS: u8 = 8;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code
