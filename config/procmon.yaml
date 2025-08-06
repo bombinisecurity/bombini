@@ -5,3 +5,5 @@ capset:
   disable: true
 prctl:
   disable: true
+create_user_ns:
+  disable: true

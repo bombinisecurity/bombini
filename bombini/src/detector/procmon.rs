@@ -131,6 +131,17 @@ impl Detector for ProcMon {
                 prctl.attach()?;
             }
         }
+        if let Some(create_user_ns_cfg) = self.config.create_user_ns {
+            if !create_user_ns_cfg.disable {
+                let create_user_ns: &mut Lsm = self
+                    .ebpf
+                    .program_mut("create_user_ns_capture")
+                    .unwrap()
+                    .try_into()?;
+                create_user_ns.load("userns_create", &btf)?;
+                create_user_ns.attach()?;
+            }
+        }
         Ok(())
     }
 }
