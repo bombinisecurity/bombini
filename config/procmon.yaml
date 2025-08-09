@@ -1,11 +1,11 @@
 expose_events: false
 setuid:
-  disable: true
+  enabled: false
 capset:
-  disable: true
+  enabled: false
 prctl:
-  disable: true
+  enabled: false
 create_user_ns:
-  disable: true
+  enabled: false
 ptrace_access_check:
-  disable: true
+  enabled: false

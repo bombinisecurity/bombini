@@ -77,7 +77,7 @@ impl Detector for FileMon {
         let btf = Btf::from_sys_fs()?;
 
         if let Some(open_cfg) = self.config.file_open {
-            if !open_cfg.disable {
+            if open_cfg.enabled {
                 let open: &mut Lsm = self
                     .ebpf
                     .program_mut("file_open_capture")
@@ -88,7 +88,7 @@ impl Detector for FileMon {
             }
         }
         if let Some(truncate_cfg) = self.config.path_truncate {
-            if !truncate_cfg.disable {
+            if truncate_cfg.enabled {
                 let truncate: &mut Lsm = self
                     .ebpf
                     .program_mut("path_truncate_capture")
@@ -99,7 +99,7 @@ impl Detector for FileMon {
             }
         }
         if let Some(unlink_cfg) = self.config.path_unlink {
-            if !unlink_cfg.disable {
+            if unlink_cfg.enabled {
                 let unlink: &mut Lsm = self
                     .ebpf
                     .program_mut("path_unlink_capture")
@@ -110,7 +110,7 @@ impl Detector for FileMon {
             }
         }
         if let Some(chmod_cfg) = self.config.path_chmod {
-            if !chmod_cfg.disable {
+            if chmod_cfg.enabled {
                 let chmod: &mut Lsm = self
                     .ebpf
                     .program_mut("path_chmod_capture")
@@ -121,7 +121,7 @@ impl Detector for FileMon {
             }
         }
         if let Some(chown_cfg) = self.config.path_chown {
-            if !chown_cfg.disable {
+            if chown_cfg.enabled {
                 let chown: &mut Lsm = self
                     .ebpf
                     .program_mut("path_chown_capture")
@@ -132,7 +132,7 @@ impl Detector for FileMon {
             }
         }
         if let Some(sb_mount_cfg) = self.config.sb_mount {
-            if !sb_mount_cfg.disable {
+            if sb_mount_cfg.enabled {
                 let sb_mount: &mut Lsm = self
                     .ebpf
                     .program_mut("sb_mount_capture")
@@ -143,7 +143,7 @@ impl Detector for FileMon {
             }
         }
         if let Some(mmap_file_cfg) = self.config.mmap_file {
-            if !mmap_file_cfg.disable {
+            if mmap_file_cfg.enabled {
                 let mmap_file: &mut Lsm = self
                     .ebpf
                     .program_mut("mmap_file_capture")
@@ -154,7 +154,7 @@ impl Detector for FileMon {
             }
         }
         if let Some(file_ioctl_cfg) = self.config.file_ioctl {
-            if !file_ioctl_cfg.disable {
+            if file_ioctl_cfg.enabled {
                 let file_ioctl: &mut Lsm = self
                     .ebpf
                     .program_mut("file_ioctl_capture")

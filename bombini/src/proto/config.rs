@@ -29,7 +29,7 @@ pub struct ProcMonConfig {
 pub struct ProcHookConfig {
     /// do not load ebpf program
     #[prost(bool, tag = "1")]
-    pub disable: bool,
+    pub enabled: bool,
 }
 /// Filter Events using process information.
 /// Filtering is based on pattern: uid AND euid AND auid AND (binary.name OR binary.prefix OR binary.path).
@@ -50,16 +50,16 @@ pub struct ProcessFilter {
     pub auid: ::prost::alloc::vec::Vec<u32>,
     /// Binary filter args
     #[prost(message, optional, tag = "4")]
-    pub binary: ::core::option::Option<BinaryFilter>,
+    pub binary: ::core::option::Option<PathFilter>,
     /// if true acts like deny list
     #[prost(bool, tag = "5")]
     pub deny_list: bool,
 }
-/// Binary filtering args
+/// Path filtering args
 #[derive(serde::Deserialize)]
 #[serde(default)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct BinaryFilter {
+pub struct PathFilter {
     /// List of executables names to filter.
     #[prost(string, repeated, tag = "1")]
     pub name: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
@@ -106,7 +106,7 @@ pub struct FileMonConfig {
 pub struct FileHookConfig {
     /// do not load ebpf program
     #[prost(bool, tag = "1")]
-    pub disable: bool,
+    pub enabled: bool,
 }
 /// Configuration file for NetMon detector.
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]

@@ -373,7 +373,7 @@ fn test_filemon_ioctl_file() {
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let config_contents = r#"
 file_ioctl:
-  disable: false
+  enabled: true
 "#;
     let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
@@ -839,19 +839,19 @@ fn test_filemon_open_mmap_allow_list_file() {
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let config_contents = r#"
 file_open:
-  disable: false
+  enabled: true
 mmap_file:
-  disable: false
+  enabled: true
 path_truncate:
-  disable: true
+  enabled: false
 path_unlink:
-  disable: true
+  enabled: false
 path_chmod:
-  disable: true
+  enabled: false
 path_chown:
-  disable: true
+  enabled: false
 sb_mount:
-  disable: true
+  enabled: false
 process_filter:
   binary:
     name:
@@ -926,13 +926,13 @@ fn test_procmon_setuid_stdout() {
     let config_contents = r#"
 expose_events: false
 setuid:
-  disable: false
+  enabled: true
 capset:
-  disable: true
+  enabled: false
 prctl:
-  disable: true
+  enabled: false
 create_user_ns:
-  disable: true
+  enabled: false
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1002,13 +1002,13 @@ fn test_procmon_setcaps_stdout() {
     let config_contents = r#"
 expose_events: false
 setuid:
-  disable: true
+  enabled: false
 capset:
-  disable: false
+  enabled: true
 prctl:
-  disable: true
+  enabled: false
 create_user_ns:
-  disable: true
+  enabled: false
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1088,13 +1088,13 @@ fn test_procmon_prctl_stdout() {
     let config_contents = r#"
 expose_events: false
 setuid:
-  disable: true
+  enabled: false
 capset:
-  disable: true
+  enabled: false
 prctl:
-  disable: false
+  enabled: true
 create_user_ns:
-  disable: true
+  enabled: false
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1162,13 +1162,13 @@ fn test_procmon_create_user_ns_stdout() {
     let config_contents = r#"
 expose_events: false
 setuid:
-  disable: true
+  enabled: false
 capset:
-  disable: true
+  enabled: false
 prctl:
-  disable: true
+  enabled: false
 create_user_ns:
-  disable: false
+  enabled: true
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);

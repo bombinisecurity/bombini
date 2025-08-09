@@ -1,17 +1,17 @@
 file_open:
-  disable: false
+  enabled: true
 mmap_file:
-  disable: true
+  enabled: false
 path_truncate:
-  disable: true
+  enabled: false
 path_unlink:
-  disable: true
+  enabled: false
 path_chmod:
-  disable: true
+  enabled: false
 path_chown:
-  disable: true
+  enabled: false
 sb_mount:
-  disable: true
+  enabled: false
 process_filter:
   binary:
     name:
