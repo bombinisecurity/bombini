@@ -220,3 +220,25 @@ pub struct ProcPrctl {
 pub struct ProcCreateUserNs {
     pub process: ProcInfo,
 }
+
+/// ptrace_attach info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcPtraceAccessCheck {
+    pub process: ProcInfo,
+    pub child: ProcInfo,
+    pub mode: PtraceMode,
+}
+
+bitflags! {
+    #[derive(Clone, Debug, PartialEq)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
+    #[repr(C)]
+    pub struct PtraceMode: u32 {
+        const PTRACE_MODE_READ = 0b00000001;
+        const PTRACE_MODE_ATTACH = 0b00000010;
+        const PTRACE_MODE_NOAUDIT = 0b00000100;
+        const PTRACE_MODE_FSCRED = 0b00001000;
+        const PTRACE_MODE_REALCREDS = 0b00010000;
+    }
+}

@@ -17,8 +17,11 @@ pub struct ProcMonConfig {
     /// create_user_ns hook config.
     #[prost(message, optional, tag = "5")]
     pub create_user_ns: ::core::option::Option<ProcHookConfig>,
-    /// Process Filter Configuration.
+    /// ptrace_attach hook config.
     #[prost(message, optional, tag = "6")]
+    pub ptrace_access_check: ::core::option::Option<ProcHookConfig>,
+    /// Process Filter Configuration.
+    #[prost(message, optional, tag = "7")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// ProcMon hook configuration

@@ -35,6 +35,8 @@ pub enum Event {
     ProcPrctl(process::ProcPrctl) = 7,
     /// create_user_ns
     ProcCreateUserNs(process::ProcCreateUserNs) = 8,
+    /// ptrace_attach
+    ProcPtraceAccessCheck(process::ProcPtraceAccessCheck) = 9,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
@@ -61,6 +63,8 @@ pub const MSG_CAPSET: u8 = 6;
 pub const MSG_PRCTL: u8 = 7;
 /// Process create_user_ns message code
 pub const MSG_CREATE_USER_NS: u8 = 8;
+/// Process ptrace_attach message code
+pub const MSG_PTRACE_ACCESS_CHECK: u8 = 9;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code

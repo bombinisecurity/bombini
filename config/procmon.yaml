@@ -7,3 +7,5 @@ prctl:
   disable: true
 create_user_ns:
   disable: true
+ptrace_access_check:
+  disable: true

@@ -142,6 +142,17 @@ impl Detector for ProcMon {
                 create_user_ns.attach()?;
             }
         }
+        if let Some(ptrace_cfg) = self.config.ptrace_access_check {
+            if !ptrace_cfg.disable {
+                let ptrace: &mut Lsm = self
+                    .ebpf
+                    .program_mut("ptrace_access_check_capture")
+                    .unwrap()
+                    .try_into()?;
+                ptrace.load("ptrace_access_check", &btf)?;
+                ptrace.attach()?;
+            }
+        }
         Ok(())
     }
 }
