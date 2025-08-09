@@ -99,7 +99,7 @@ impl Detector for ProcMon {
         program.attach()?;
 
         if let Some(setuid_cfg) = self.config.setuid {
-            if !setuid_cfg.disable {
+            if setuid_cfg.enabled {
                 let setuid: &mut Lsm = self
                     .ebpf
                     .program_mut("setuid_capture")
@@ -110,7 +110,7 @@ impl Detector for ProcMon {
             }
         }
         if let Some(capset_cfg) = self.config.capset {
-            if !capset_cfg.disable {
+            if capset_cfg.enabled {
                 let capset: &mut Lsm = self
                     .ebpf
                     .program_mut("capset_capture")
@@ -121,7 +121,7 @@ impl Detector for ProcMon {
             }
         }
         if let Some(prctl_cfg) = self.config.prctl {
-            if !prctl_cfg.disable {
+            if prctl_cfg.enabled {
                 let prctl: &mut Lsm = self
                     .ebpf
                     .program_mut("task_prctl_capture")
@@ -132,7 +132,7 @@ impl Detector for ProcMon {
             }
         }
         if let Some(create_user_ns_cfg) = self.config.create_user_ns {
-            if !create_user_ns_cfg.disable {
+            if create_user_ns_cfg.enabled {
                 let create_user_ns: &mut Lsm = self
                     .ebpf
                     .program_mut("create_user_ns_capture")
@@ -143,7 +143,7 @@ impl Detector for ProcMon {
             }
         }
         if let Some(ptrace_cfg) = self.config.ptrace_access_check {
-            if !ptrace_cfg.disable {
+            if ptrace_cfg.enabled {
                 let ptrace: &mut Lsm = self
                     .ebpf
                     .program_mut("ptrace_access_check_capture")

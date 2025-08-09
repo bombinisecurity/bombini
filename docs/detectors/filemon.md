@@ -37,7 +37,7 @@ Config represents a dictionary with supported LSM BPF file hooks:
 
 For each file hook the following options are supported:
 
-* `disable` disables detection for current hook. False by default.
+* `enabled` enables detection for current hook. False by default.
 
 FileMon detector supports process allow/deny list for event filtering. It is global for all hooks.
 The detailed description of process filter config section can be found in ProcMon [config section](procmon.md#config).
@@ -46,19 +46,19 @@ Config example:
 
 ```yaml
 file_open:
-  disable: false
+  enabled: true
 mmap_file:
-  disable: false
+  enabled: true
 path_truncate:
-  disable: true
+  enabled: false
 path_unlink:
-  disable: true
+  enabled: false
 path_chmod:
-  disable: true
+  enabled: false
 path_chown:
-  disable: true
+  enabled: false
 sb_mount:
-  disable: true
+  enabled: false
 process_filter:
   binary:
     name:
