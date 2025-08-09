@@ -23,11 +23,12 @@ use bombini_detectors_ebpf::vmlinux::{
 
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
 use bombini_common::event::process::{
-    Capabilities, LsmSetUidFlags, PrctlCmd, ProcInfo, SecureExec, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
-    PR_SET_NAME, PR_SET_SECUREBITS,
+    Capabilities, LsmSetUidFlags, PrctlCmd, ProcInfo, PtraceMode, SecureExec, PR_SET_DUMPABLE,
+    PR_SET_KEEPCAPS, PR_SET_NAME, PR_SET_SECUREBITS,
 };
 use bombini_common::event::{
-    Event, MSG_CAPSET, MSG_CREATE_USER_NS, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT, MSG_SETUID,
+    Event, MSG_CAPSET, MSG_CREATE_USER_NS, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT,
+    MSG_PTRACE_ACCESS_CHECK, MSG_SETUID,
 };
 use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
@@ -630,6 +631,50 @@ fn try_create_user_ns_capture(_ctx: LsmContext, event: &mut Event) -> Result<i32
 
     filter_by_process(config, proc)?;
     util::copy_proc(proc, &mut event.process);
+    Ok(0)
+}
+
+#[lsm(hook = "ptrace_access_check")]
+pub fn ptrace_access_check_capture(ctx: LsmContext) -> i32 {
+    event_capture!(
+        ctx,
+        MSG_PTRACE_ACCESS_CHECK,
+        false,
+        try_ptrace_access_check_capture
+    )
+}
+
+fn try_ptrace_access_check_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+    let Event::ProcPtraceAccessCheck(event) = event else {
+        return Err(0);
+    };
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    filter_by_process(config, proc)?;
+
+    let proc_child = unsafe {
+        let child: *const task_struct = ctx.arg(0);
+        event.mode = PtraceMode::from_bits_truncate(ctx.arg(1));
+        let pid_child =
+            bpf_probe_read_kernel::<pid_t>(&(*child).pid as *const _).map_err(|_| 0i32)? as u32;
+        PROCMON_PROC_MAP.get(&pid_child)
+    };
+    let Some(proc_child) = proc_child else {
+        return Err(0);
+    };
+    util::copy_proc(proc, &mut event.process);
+    util::copy_proc(proc_child, &mut event.child);
     Ok(0)
 }
 

@@ -2,7 +2,7 @@
 
 use bombini_common::event::process::{
     Capabilities, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcCreateUserNs, ProcInfo, ProcPrctl,
-    ProcSetUid, SecureExec,
+    ProcPtraceAccessCheck, ProcSetUid, PtraceMode, SecureExec,
 };
 
 use serde::{Serialize, Serializer};
@@ -131,6 +131,17 @@ pub struct ProcessCreateUserNs {
     timestamp: String,
 }
 
+/// High-level event representation
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub struct ProcessPtraceAccessCheck {
+    /// Process Infro
+    process: Process,
+    child: Process,
+    mode: PtraceMode,
+    timestamp: String,
+}
+
 impl Process {
     /// Constructs High level event representation from low eBPF
     pub fn new(mut proc: ProcInfo) -> Self {
@@ -247,3 +258,17 @@ impl ProcessCreateUserNs {
 }
 
 impl Transmute for ProcessCreateUserNs {}
+
+impl ProcessPtraceAccessCheck {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(event: ProcPtraceAccessCheck, ktime: u64) -> Self {
+        Self {
+            timestamp: transmute_ktime(ktime),
+            process: Process::new(event.process),
+            child: Process::new(event.child),
+            mode: event.mode,
+        }
+    }
+}
+
+impl Transmute for ProcessPtraceAccessCheck {}
