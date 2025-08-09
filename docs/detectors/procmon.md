@@ -54,35 +54,35 @@ To enable `setuid` events put this to config:
 
 ```yaml
 setuid:
-  disable: false
+  enabled: true
 ```
 
 Enabling `capset` events:
 
 ```yaml
 capset:
-  disable: false
+  enabled: true
 ```
 
 Enabling `prctl` events:
 
 ```yaml
 prctl:
-  disable: false
+  enabled: true
 ```
 
 Enabling `create_user_ns` events:
 
 ```yaml
 create_user_ns:
-  disable: false
+  enabled: true
 ```
 
 Enabling `ptrace_access_check` events:
 
 ```yaml
 ptrace_access_check:
-  disable: false
+  enabled: true
 ```
 
 ### Event

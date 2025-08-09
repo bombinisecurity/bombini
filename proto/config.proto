@@ -23,7 +23,7 @@ message ProcMonConfig {
 // ProcMon hook configuration
 message ProcHookConfig {
     // do not load ebpf program
-    bool disable = 1;
+    bool enabled = 1;
 }
 
 // Filter Events using process information.
@@ -38,13 +38,13 @@ message ProcessFilter {
     // List of AUID's (login uid) to filter.
     repeated uint32 auid = 3;
     // Binary filter args
-    BinaryFilter binary = 4;
+    PathFilter binary = 4;
     // if true acts like deny list
     bool deny_list = 5;
 }
 
-// Binary filtering args
-message BinaryFilter {
+// Path filtering args
+message PathFilter {
     // List of executables names to filter.
     repeated string name = 1;
     // List of full executable paths to filter.
@@ -78,7 +78,7 @@ message FileMonConfig {
 // FileMon hook configuration
 message FileHookConfig {
     // do not load ebpf program
-    bool disable = 1;
+    bool enabled = 1;
 }
 
 // Configuration file for NetMon detector.

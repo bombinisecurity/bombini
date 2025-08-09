@@ -1,16 +1,16 @@
 file_open:
-  disable: true
+  enabled: false
 path_truncate:
-  disable: false
+  enabled: true
 path_unlink:
-  disable: false
+  enabled: true
 path_chmod:
-  disable: false
+  enabled: true
 path_chown:
-  disable: false
+  enabled: true
 sb_mount:
-  disable: false
+  enabled: true
 mmap_file:
-  disable: true
+  enabled: false
 file_ioctl:
-  disable: true
+  enabled: false
