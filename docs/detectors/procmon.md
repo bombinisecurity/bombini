@@ -78,6 +78,13 @@ create_user_ns:
   disable: false
 ```
 
+Enabling `ptrace_access_check` events:
+
+```yaml
+ptrace_access_check:
+  disable: false
+```
+
 ### Event
 
 ```json
@@ -225,5 +232,45 @@ Privilege escalation events:
     "cgroup_name": "tmux-spawn-1189a3a7-02ff-4528-bdc9-df8af74ea0f6.scope"
   },
   "timestamp": "2025-08-06T20:07:26.954Z"
+}
+```
+
+```json
+{
+  "type": "ProcessPtraceAccessCheck",
+  "process": {
+    "pid": 819092,
+    "tid": 819092,
+    "ppid": 716378,
+    "uid": 1000,
+    "euid": 1000,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "gdb",
+    "binary_path": "/usr/bin/gdb",
+    "args": "attach -p 818867",
+    "cgroup_name": "tmux-spawn-698afc5c-729c-4983-bf08-eccffb31140d.scope"
+  },
+  "child": {
+    "pid": 818867,
+    "tid": 818867,
+    "ppid": 9790,
+    "uid": 1000,
+    "euid": 1000,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "vim.basic",
+    "binary_path": "/usr/bin/vim.basic",
+    "args": "",
+    "cgroup_name": "tmux-spawn-1189a3a7-02ff-4528-bdc9-df8af74ea0f6.scope"
+  },
+  "mode": "PTRACE_MODE_ATTACH | PTRACE_MODE_REALCREDS",
+  "timestamp": "2025-08-09T15:15:55.916Z"
 }
 ```
