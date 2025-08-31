@@ -132,6 +132,32 @@ ptrace_access_check:
   }
 ```
 
+Fileless execution:
+
+```json
+{
+  "type": "ProcessExec",
+  "process": {
+    "pid": 133303,
+    "tid": 133303,
+    "ppid": 131958,
+    "uid": 0,
+    "euid": 0,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
+    "secureexec": "FILELESS_EXEC",
+    "filename": "memfd:fileless-exec-test",
+    "binary_path": "/memfd:fileless-exec-test (deleted)",
+    "args": "fileless-exec-test",
+    "cgroup_name": "app-gnome-code-3919.scope"
+  },
+  "timestamp": "2025-08-31T15:26:52.044Z"
+}
+```
+
+
 Privilege escalation events:
 
 ```json
