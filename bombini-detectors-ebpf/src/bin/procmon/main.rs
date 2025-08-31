@@ -17,8 +17,8 @@ use aya_ebpf::{
 };
 
 use bombini_detectors_ebpf::vmlinux::{
-    cgroup, cred, css_set, file, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path, pid_t,
-    qstr, task_struct,
+    cgroup, cred, css_set, file, inode, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path,
+    pid_t, qstr, task_struct,
 };
 
 use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
@@ -377,6 +377,15 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
             creds_info.binary_path.as_mut_ptr() as *mut _,
             creds_info.binary_path.len() as u32,
         );
+        let inode: *mut inode =
+            bpf_probe_read_kernel::<*mut inode>(&(*file).f_inode as *const *mut _)
+                .map_err(|_| 0i32)?;
+        let nlink = bpf_probe_read_kernel::<u32>(&(*inode).__bindgen_anon_1.__i_nlink as *const _)
+            .map_err(|_| 0i32)?;
+        if nlink == 0 {
+            // It means that file was deleted or memfd_create was used for fileless exec
+            creds_info.secureexec |= SecureExec::FILELESS_EXEC;
+        }
         let _ = PROCMON_CRED_SHARED_MAP.insert(&pid_tgid, creds_info, BPF_ANY as u64);
     }
     Ok(0)

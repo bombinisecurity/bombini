@@ -59,10 +59,13 @@ bitflags! {
     #[derive(Clone, Debug, PartialEq)]
     #[cfg_attr(feature = "user", derive(Serialize))]
     #[repr(C)]
+    /// extend AT_SECURE logic from https://man7.org/linux/man-pages/man3/getauxval.3.html
+    /// with more fields
     pub struct SecureExec: u32 {
         const SETUID = 0b00000001;
         const SETGID = 0b00000010;
         const FILE_CAPS = 0b00000100;
+        const FILELESS_EXEC = 0b00001000;
     }
 }
 
