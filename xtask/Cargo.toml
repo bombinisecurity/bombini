@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.99"
-clap = { version = "4.5.45", features = ["derive"] }
+clap = { version = "4.5.46", features = ["derive"] }
 which = "8.0.0"
 tar = "0.4.44"
 flate2 = "1.1.2"
