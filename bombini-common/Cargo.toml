@@ -9,7 +9,7 @@ user = ["aya", "serde"]
 
 [dependencies]
 aya = { version = "0.13.1", optional = true }
-bitflags = { version = "2.9.3"}
+bitflags = { version = "2.9.4"}
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 [lib]
