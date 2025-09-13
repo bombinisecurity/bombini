@@ -23,6 +23,9 @@ pub struct ProcMonConfig {
     /// Process Filter Configuration.
     #[prost(message, optional, tag = "7")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
+    /// Collect IMA hashes for executed binaries.
+    #[prost(bool, optional, tag = "8")]
+    pub ima_hash: ::core::option::Option<bool>,
 }
 /// ProcMon hook configuration
 #[derive(serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]

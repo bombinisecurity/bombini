@@ -5,7 +5,9 @@ use bitflags::bitflags;
 #[cfg(feature = "user")]
 use serde::Serialize;
 
-use crate::constants::{DOCKER_ID_LENGTH, MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH};
+use crate::constants::{
+    DOCKER_ID_LENGTH, MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_IMA_HASH_SIZE,
+};
 
 /// Process event
 #[derive(Clone, Debug)]
@@ -31,6 +33,8 @@ pub struct ProcInfo {
     pub args: [u8; MAX_ARGS_SIZE],
     /// Cgroup info
     pub cgroup: Cgroup,
+    /// IMA binary hash
+    pub ima_hash: ImaHash,
 }
 
 /// Creds
@@ -88,6 +92,14 @@ pub struct ProcCapset {
     pub effective: Capabilities,
     pub inheritable: Capabilities,
     pub permitted: Capabilities,
+}
+
+/// IMA file hash
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ImaHash {
+    pub algo: i8,
+    pub hash: [u8; MAX_IMA_HASH_SIZE],
 }
 
 bitflags! {
