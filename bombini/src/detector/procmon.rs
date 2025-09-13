@@ -64,8 +64,10 @@ impl Detector for ProcMon {
             expose_events: false,
             filter_mask: ProcessFilterMask::empty(),
             deny_list: false,
+            ima_hash: false,
         };
         config.expose_events = self.config.expose_events;
+        config.ima_hash = self.config.ima_hash.unwrap_or_default();
         if let Some(filter) = &self.config.process_filter {
             config.filter_mask = init_process_filter_maps!(filter, &mut self.ebpf);
             config.deny_list = filter.deny_list;

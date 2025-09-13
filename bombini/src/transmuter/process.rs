@@ -1,8 +1,8 @@
 //! Transmutes Process to serializable struct
 
 use bombini_common::event::process::{
-    Capabilities, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcCreateUserNs, ProcInfo, ProcPrctl,
-    ProcPtraceAccessCheck, ProcSetUid, PtraceMode, SecureExec,
+    Capabilities, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcCreateUserNs, ProcInfo,
+    ProcPrctl, ProcPtraceAccessCheck, ProcSetUid, PtraceMode, SecureExec,
 };
 
 use serde::{Serialize, Serializer};
@@ -57,6 +57,10 @@ pub struct Process {
     pub args: String,
     /// cgroup name
     pub cgroup_name: String,
+    /// IMA binary hash
+    #[serde(skip_serializing_if = "is_invalid_ima")]
+    #[serde(serialize_with = "serialize_ima")]
+    pub binary_ima_hash: ImaHash,
 }
 
 /// High-level event representation
@@ -122,6 +126,88 @@ where
     }
 }
 
+fn serialize_ima<S>(ima: &ImaHash, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match ima.algo {
+        1 => {
+            // MD5
+            let hash_str = format!(
+                "md5:{}",
+                ima.hash[..16]
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            );
+            serializer.serialize_str(&hash_str)
+        }
+        2 => {
+            // SHA1
+            let hash_str = format!(
+                "sha1:{}",
+                ima.hash[..20]
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            );
+            serializer.serialize_str(&hash_str)
+        }
+        4 => {
+            // SHA256
+            let hash_str = format!(
+                "sha256:{}",
+                ima.hash[..32]
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            );
+            serializer.serialize_str(&hash_str)
+        }
+        6 => {
+            // SHA512
+            let hash_str = format!(
+                "sha512:{}",
+                ima.hash
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            );
+            serializer.serialize_str(&hash_str)
+        }
+        13 => {
+            // WP512
+            let hash_str = format!(
+                "wp512:{}",
+                ima.hash
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            );
+            serializer.serialize_str(&hash_str)
+        }
+        17 => {
+            // SM3
+            let hash_str = format!(
+                "sm3:{}",
+                ima.hash[..32]
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            );
+            serializer.serialize_str(&hash_str)
+        }
+        _ => {
+            let hash_str = String::new();
+            serializer.serialize_str(&hash_str)
+        }
+    }
+}
+
+fn is_invalid_ima(ima: &ImaHash) -> bool {
+    ima.algo <= 0
+}
+
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -166,6 +252,7 @@ impl Process {
             binary_path: str_from_bytes(&proc.binary_path),
             args,
             cgroup_name: str_from_bytes(&proc.cgroup.cgroup_name),
+            binary_ima_hash: proc.ima_hash,
         }
     }
 }

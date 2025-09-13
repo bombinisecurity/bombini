@@ -7,6 +7,7 @@ pub struct Config {
     pub expose_events: bool,
     pub filter_mask: ProcessFilterMask,
     pub deny_list: bool,
+    pub ima_hash: bool,
 }
 
 bitflags! {
