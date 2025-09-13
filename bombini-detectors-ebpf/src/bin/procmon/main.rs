@@ -5,8 +5,8 @@ use aya_ebpf::{
     bindings::BPF_ANY,
     helpers::{
         bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_get_current_task_btf,
-        bpf_probe_read_kernel, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes,
-        bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
+        bpf_ima_inode_hash, bpf_probe_read_kernel, bpf_probe_read_kernel_buf,
+        bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
     macros::{btf_tracepoint, fentry, lsm, map},
     maps::{
@@ -17,20 +17,22 @@ use aya_ebpf::{
 };
 
 use bombini_detectors_ebpf::vmlinux::{
-    cgroup, cred, css_set, file, inode, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path,
-    pid_t, qstr, task_struct,
+    cgroup, cred, css_set, file, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path, pid_t,
+    qstr, task_struct,
 };
 
-use bombini_common::constants::{MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
+use bombini_common::config::procmon::Config;
+use bombini_common::constants::{
+    MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_IMA_HASH_SIZE,
+};
 use bombini_common::event::process::{
-    Capabilities, LsmSetUidFlags, PrctlCmd, ProcInfo, PtraceMode, SecureExec, PR_SET_DUMPABLE,
-    PR_SET_KEEPCAPS, PR_SET_NAME, PR_SET_SECUREBITS,
+    Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PrctlCmd, ProcInfo, PtraceMode, SecureExec,
+    PR_SET_DUMPABLE, PR_SET_KEEPCAPS, PR_SET_NAME, PR_SET_SECUREBITS,
 };
 use bombini_common::event::{
     Event, MSG_CAPSET, MSG_CREATE_USER_NS, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT,
     MSG_PTRACE_ACCESS_CHECK, MSG_SETUID,
 };
-use bombini_common::{config::procmon::Config, event::process::Cgroup};
 
 use bombini_detectors_ebpf::{
     event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
@@ -41,6 +43,8 @@ struct CredSharedInfo {
     pub secureexec: SecureExec,
     /// full binary path
     pub binary_path: [u8; MAX_FILE_PATH],
+    /// IMA hash for binary
+    pub ima_hash: ImaHash,
 }
 
 /// Holds current live processes
@@ -230,6 +234,14 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32>
             proc.creds.secureexec = cred_info.secureexec.clone();
             bpf_probe_read_kernel_str_bytes(cred_info.binary_path.as_ptr(), &mut proc.binary_path)
                 .map_err(|_| 0u32)?;
+            if cred_info.ima_hash.algo > 0 {
+                proc.ima_hash.algo = cred_info.ima_hash.algo;
+                bpf_probe_read_kernel_buf(
+                    cred_info.ima_hash.hash.as_ptr(),
+                    &mut proc.ima_hash.hash,
+                )
+                .map_err(|_| 0u32)?;
+            }
         }
         PROCMON_CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
     }
@@ -312,13 +324,21 @@ fn try_exit(_ctx: FEntryContext, event: &mut Event) -> Result<u32, u32> {
     Err(0)
 }
 
-#[lsm(hook = "bprm_committing_creds")]
+#[lsm(hook = "bprm_committing_creds", sleepable)]
 pub fn creds_capture(ctx: LsmContext) -> i32 {
     let _ = try_committing_creds(ctx);
     0
 }
 
 fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+
     let pid_tgid = bpf_get_current_pid_tgid();
     let Some(cred_ptr) = PROCMON_CRED_HEAP.get_ptr_mut(0) else {
         return Err(0);
@@ -329,6 +349,7 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
     let Some(creds_info) = creds_info else {
         return Err(0);
     };
+    creds_info.ima_hash.algo = 0;
     unsafe {
         aya_ebpf::memset(cred_ptr as *mut u8, 0, core::mem::size_of_val(creds_info));
         let binprm: *const linux_binprm = ctx.arg(0);
@@ -377,14 +398,19 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
             creds_info.binary_path.as_mut_ptr() as *mut _,
             creds_info.binary_path.len() as u32,
         );
-        let inode: *mut inode =
-            bpf_probe_read_kernel::<*mut inode>(&(*file).f_inode as *const *mut _)
-                .map_err(|_| 0i32)?;
+        let inode = (*file).f_inode;
         let nlink = bpf_probe_read_kernel::<u32>(&(*inode).__bindgen_anon_1.__i_nlink as *const _)
             .map_err(|_| 0i32)?;
         if nlink == 0 {
             // It means that file was deleted or memfd_create was used for fileless exec
             creds_info.secureexec |= SecureExec::FILELESS_EXEC;
+        }
+        if config.ima_hash {
+            creds_info.ima_hash.algo = bpf_ima_inode_hash(
+                inode as *mut aya_ebpf::bindings::inode,
+                creds_info.ima_hash.hash.as_mut_ptr() as *mut _,
+                MAX_IMA_HASH_SIZE as u32,
+            ) as i8;
         }
         let _ = PROCMON_CRED_SHARED_MAP.insert(&pid_tgid, creds_info, BPF_ANY as u64);
     }

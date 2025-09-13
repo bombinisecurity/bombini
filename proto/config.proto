@@ -18,6 +18,8 @@ message ProcMonConfig {
     ProcHookConfig ptrace_access_check = 6;
     // Process Filter Configuration.
     ProcessFilter process_filter = 7;
+    // Collect IMA hashes for executed binaries.
+    optional bool ima_hash = 8;
 }
 
 // ProcMon hook configuration
