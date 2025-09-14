@@ -3,7 +3,7 @@ use std::{env, fs};
 use libc::{memfd_create, write};
 use std::ffi::CString;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::{thread, time::Duration};
 
@@ -1314,6 +1314,90 @@ create_user_ns:
         events.matches("\"secureexec\":\"FILELESS_EXEC\"").count(),
         2
     );
+
+    let _ = fs::remove_dir_all(bombini_temp_dir);
+}
+
+#[test]
+fn test_procmon_ima_stdout() {
+    let cmdline = fs::read_to_string("/proc/cmdline").unwrap();
+    if !cmdline.contains("ima") {
+        println!("⚠️ IMA is disabled. Test is skipped.");
+        return;
+    }
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
+    let _ = fs::copy(&config, &tmp_config);
+    tmp_config.pop();
+    config.pop();
+    let config_contents = r#"
+expose_events: true
+ima_hash: true
+setuid:
+  enabled: false
+capset:
+  enabled: false
+prctl:
+  enabled: false
+create_user_ns:
+  enabled: false
+"#;
+    let procmon_config = tmp_config.join("procmon.yaml");
+    let _ = fs::write(&procmon_config, config_contents);
+    let bombini_log =
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
+    let event_log =
+        File::create(bombini_temp_dir.join("events.log")).expect("can't create events file");
+
+    let bombini = Command::new(EXE_BOMBINI)
+        .args([
+            "--config-dir",
+            tmp_config.to_str().unwrap(),
+            "--bpf-objs",
+            bpf_objs.to_str().unwrap(),
+            "--detector",
+            "procmon",
+        ])
+        .env("RUST_LOG", "debug")
+        .stderr(bombini_log.try_clone().unwrap())
+        .stdout(event_log.try_clone().unwrap())
+        .spawn();
+
+    if bombini.is_err() {
+        panic!("{:?}", bombini.err().unwrap());
+    }
+    let mut bombini = bombini.expect("failed to start bombini");
+    // Wait for detectors being loaded
+    thread::sleep(Duration::from_millis(2000));
+
+    let calc_hash = format!(
+        "sha256:{}",
+        sha256::try_digest(Path::new("/usr/bin/ls")).unwrap()
+    );
+
+    let ls_status = Command::new("ls")
+        .args(["-lah"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start ls");
+
+    assert!(ls_status.success());
+
+    // Wait Events being processed
+    thread::sleep(Duration::from_millis(500));
+
+    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
+
+    let _ = bombini.wait().unwrap();
+
+    let events =
+        fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
+    assert_eq!(events.matches(&calc_hash).count(), 2);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
