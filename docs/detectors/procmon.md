@@ -41,6 +41,13 @@ send to user space. Conditions: `uid`, `eud`, `auid`, `binary` are combined with
 The values in these fields are represented as arrays, and are combined with
 logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combined with logical "OR".
 
+It is possible to enable IMA hashes of executed binary in process information.
+To enable put this to config (false by default):
+
+```yaml
+ima_hash: true
+```
+
 ### Privilege escalation detection hooks
 
 Procmon helps to monitor privilege escalation during process execution. It uses LSM hooks for this:
@@ -132,6 +139,31 @@ ptrace_access_check:
   }
 ```
 
+Event with IMA hash of executed binary:
+
+```json
+{
+  "type": "ProcessExec",
+  "process": {
+    "pid": 518616,
+    "tid": 518616,
+    "ppid": 3573,
+    "uid": 1000,
+    "euid": 1000,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "cat",
+    "binary_path": "/usr/bin/cat",
+    "args": "/etc/passwd",
+    "cgroup_name": "tmux-spawn-58369304-c80c-4778-9503-4ea4601ad83a.scope",
+    "binary_ima_hash": "sha256:dda0961715677dff3cd560e1933379c0eca73c0b6e19fef2737492ebc1de1700"
+  },
+  "timestamp": "2025-09-18T16:55:41.559Z"
+}
+```
 Fileless execution:
 
 ```json
