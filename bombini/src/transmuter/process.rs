@@ -1,8 +1,8 @@
 //! Transmutes Process to serializable struct
 
 use bombini_common::event::process::{
-    Capabilities, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcCreateUserNs, ProcInfo,
-    ProcPrctl, ProcPtraceAccessCheck, ProcSetUid, PtraceMode, SecureExec,
+    Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcCreateUserNs,
+    ProcInfo, ProcPrctl, ProcPtraceAccessCheck, ProcSetUid, PtraceMode, SecureExec,
 };
 
 use serde::{Serialize, Serializer};
@@ -55,8 +55,8 @@ pub struct Process {
     pub binary_path: String,
     /// current work directory
     pub args: String,
-    /// cgroup name
-    pub cgroup_name: String,
+    /// empty if process is not running in container
+    pub container_id: String,
     /// IMA binary hash
     #[serde(skip_serializing_if = "is_invalid_ima")]
     #[serde(serialize_with = "serialize_ima")]
@@ -208,6 +208,24 @@ fn is_invalid_ima(ima: &ImaHash) -> bool {
     ima.algo <= 0
 }
 
+fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
+    let container = str_from_bytes(&cgroup.cgroup_name)
+        .split(':')
+        .next_back()
+        .unwrap_or("")
+        .split('-')
+        .next_back()
+        .unwrap_or("")
+        .to_string();
+
+    // Minimal container id length. It could be truncated in ebpf.
+    if container.len() >= 31 {
+        container[..31].to_string()
+    } else {
+        String::new()
+    }
+}
+
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -251,7 +269,7 @@ impl Process {
             filename: str_from_bytes(&proc.filename),
             binary_path: str_from_bytes(&proc.binary_path),
             args,
-            cgroup_name: str_from_bytes(&proc.cgroup.cgroup_name),
+            container_id: container_id_from_cgroup(&proc.cgroup),
             binary_ima_hash: proc.ima_hash,
         }
     }
