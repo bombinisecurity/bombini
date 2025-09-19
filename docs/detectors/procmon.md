@@ -111,7 +111,7 @@ ptrace_access_check:
       "filename": "git",
       "binary_path": "/usr/bin/git",
       "args": "rev-parse --quiet --verify HEAD",
-      "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+      "container_id": ""
     },
     "timestamp": "2025-05-31T09:04:45.896Z"
   }
@@ -133,7 +133,7 @@ ptrace_access_check:
       "filename": "git",
       "binary_path": "/usr/bin/git",
       "args": "rev-parse --quiet --verify HEAD",
-      "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+      "container_id": ""
     },
     "timestamp": "2025-05-31T09:04:45.909Z"
   }
@@ -158,7 +158,7 @@ Event with IMA hash of executed binary:
     "filename": "cat",
     "binary_path": "/usr/bin/cat",
     "args": "/etc/passwd",
-    "cgroup_name": "tmux-spawn-58369304-c80c-4778-9503-4ea4601ad83a.scope",
+    "container_id": "",
     "binary_ima_hash": "sha256:dda0961715677dff3cd560e1933379c0eca73c0b6e19fef2737492ebc1de1700"
   },
   "timestamp": "2025-09-18T16:55:41.559Z"
@@ -183,7 +183,7 @@ Fileless execution:
     "filename": "memfd:fileless-exec-test",
     "binary_path": "/memfd:fileless-exec-test (deleted)",
     "args": "fileless-exec-test",
-    "cgroup_name": "app-gnome-code-3919.scope"
+    "container_id": ""
   },
   "timestamp": "2025-08-31T15:26:52.044Z"
 }
@@ -209,7 +209,7 @@ Privilege escalation events:
     "filename": "sudo",
     "binary_path": "/usr/bin/sudo",
     "args": "-u nobody true",
-    "cgroup_name": ""
+    "container_id": ""
   },
   "euid": 65534,
   "uid": 65534,
@@ -236,7 +236,7 @@ Privilege escalation events:
     "filename": "capsh",
     "binary_path": "/usr/sbin/capsh",
     "args": "--caps=cap_sys_admin=ep cap_net_raw=ep -- -c id",
-    "cgroup_name": "tmux-spawn-3662cb8b-5ff9-4f3a-a06c-18bf7fb11928.scope"
+    "container_id": ""
   },
   "inheritable": "",
   "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
@@ -262,7 +262,7 @@ Privilege escalation events:
     "filename": "capsh",
     "binary_path": "/usr/sbin/capsh",
     "args": "--keep=1 -- -c echo KEEPCAPS enabled",
-    "cgroup_name": "tmux-spawn-3e82004d-4296-4bb2-9099-41e00b937ee7.scope"
+    "container_id": ""
   },
   "cmd": {
     "PrSetKeepCaps": 1
@@ -287,7 +287,7 @@ Privilege escalation events:
     "filename": "unshare",
     "binary_path": "/usr/bin/unshare",
     "args": "-U",
-    "cgroup_name": "tmux-spawn-1189a3a7-02ff-4528-bdc9-df8af74ea0f6.scope"
+    "container_id": ""
   },
   "timestamp": "2025-08-06T20:07:26.954Z"
 }
@@ -310,7 +310,7 @@ Privilege escalation events:
     "filename": "gdb",
     "binary_path": "/usr/bin/gdb",
     "args": "attach -p 818867",
-    "cgroup_name": "tmux-spawn-698afc5c-729c-4983-bf08-eccffb31140d.scope"
+    "container_id": ""
   },
   "child": {
     "pid": 818867,
@@ -326,7 +326,7 @@ Privilege escalation events:
     "filename": "vim.basic",
     "binary_path": "/usr/bin/vim.basic",
     "args": "",
-    "cgroup_name": "tmux-spawn-1189a3a7-02ff-4528-bdc9-df8af74ea0f6.scope"
+    "container_id": ""
   },
   "mode": "PTRACE_MODE_ATTACH | PTRACE_MODE_REALCREDS",
   "timestamp": "2025-08-09T15:15:55.916Z"
