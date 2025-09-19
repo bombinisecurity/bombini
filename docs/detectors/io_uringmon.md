@@ -57,7 +57,7 @@ For these IORING_OP's Bombini provides extra information:
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
     "args": "",
-    "cgroup_name": "tmux-spawn-ca2e53b0-c736-4ccc-a691-0faa691448d9.scope"
+    "container_id": ""
   },
   "opcode": "IORING_OP_CONNECT",
   "op_info": {
@@ -85,7 +85,7 @@ For these IORING_OP's Bombini provides extra information:
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
     "args": "",
-    "cgroup_name": "tmux-spawn-ca2e53b0-c736-4ccc-a691-0faa691448d9.scope"
+    "container_id": ""
   },
   "opcode": "IORING_OP_OPENAT",
   "op_info": {
@@ -114,7 +114,7 @@ For these IORING_OP's Bombini provides extra information:
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
     "args": "",
-    "cgroup_name": "tmux-spawn-ca2e53b0-c736-4ccc-a691-0faa691448d9.scope"
+    "container_id": ""
   },
   "opcode": "IORING_OP_STATX",
   "op_info": {
@@ -141,7 +141,7 @@ For these IORING_OP's Bombini provides extra information:
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
     "args": "",
-    "cgroup_name": "tmux-spawn-ca2e53b0-c736-4ccc-a691-0faa691448d9.scope"
+    "container_id": ""
   },
   "opcode": "IORING_OP_UNLINKAT",
   "op_info": {
@@ -170,7 +170,7 @@ For these IORING_OP's Bombini provides extra information:
     "filename": "program",
     "binary_path": "/home/fedotoff/curing/io_uring_example/program",
     "args": "",
-    "cgroup_name": "tmux-spawn-1189a3a7-02ff-4528-bdc9-df8af74ea0f6.scope"
+    "container_id": ""
   },
   "opcode": "IORING_OP_OPENAT",
   "op_info": {

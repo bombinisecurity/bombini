@@ -49,7 +49,7 @@ Executing `curl -6 google.com` produces:
     "filename": "curl",
     "binary_path": "/usr/bin/curl",
     "args": "-6 google.com",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "network_event": {
     "type": "TcpConnectionEstablish",
@@ -80,7 +80,7 @@ Executing `curl -6 google.com` produces:
     "filename": "curl",
     "binary_path": "/usr/bin/curl",
     "args": "-6 google.com",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "network_event": {
     "type": "TcpConnectionClose",
@@ -119,7 +119,7 @@ produce the following events:
     "filename": "inetutils-telnet",
     "binary_path": "/usr/bin/inetutils-telnet",
     "args": "localhost 7878",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "network_event": {
     "type": "TcpConnectionEstablish",
@@ -150,7 +150,7 @@ produce the following events:
     "filename": "nc.openbsd",
     "binary_path": "/usr/bin/nc.openbsd",
     "args": "-l 7878",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "network_event": {
     "type": "TcpConnectionAccept",
@@ -181,7 +181,7 @@ produce the following events:
     "filename": "inetutils-telnet",
     "binary_path": "/usr/bin/inetutils-telnet",
     "args": "localhost 7878",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "network_event": {
     "type": "TcpConnectionClose",

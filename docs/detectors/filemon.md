@@ -88,7 +88,7 @@ Event for `security_path_truncate` (truncating file):
     "filename": "tr",
     "binary_path": "/home/fedotoff/tr",
     "args": "",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "hook": {
     "type": "PathTruncate",
@@ -117,7 +117,7 @@ Event for `security_path_unlink` (deleting file):
     "filename": "rm",
     "binary_path": "/usr/bin/rm",
     "args": "bombini.log",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "hook": {
     "type": "PathUnlink",
@@ -146,7 +146,7 @@ Event for `security_file_open` (opening file):
     "filename": "cat",
     "binary_path": "/usr/bin/cat",
     "args": "/etc/passwd",
-    "cgroup_name": "tmux-spawn-b96bf9ec-bfa7-4021-9b9b-26e4a6e832e9.scope"
+    "container_id": ""
   },
   "hook": {
     "type": "FileOpen",
@@ -180,7 +180,7 @@ Event for `security_path_chmod` (file permissions change):
     "filename": "chmod",
     "binary_path": "/usr/bin/chmod",
     "args": "+s ./gdb",
-    "cgroup_name": "tmux-spawn-dc94c31c-0fb9-42e5-b878-730cf00753d0.scope"
+    "container_id": ""
   },
   "hook": {
     "type": "PathChmod",
@@ -210,7 +210,7 @@ Event for `security_path_chown` (file owner change):
     "filename": "chown",
     "binary_path": "/usr/bin/chown",
     "args": "0:0 ./gdb",
-    "cgroup_name": "tmux-spawn-dc94c31c-0fb9-42e5-b878-730cf00753d0.scope"
+    "container_id": ""
   },
   "hook": {
     "type": "PathChown",
@@ -241,7 +241,7 @@ Event for `security_sb_mount` (mount block device):
     "filename": "busybox",
     "binary_path": "/bin/busybox",
     "args": "/dev/sda1 /mnt/hola",
-    "cgroup_name": "docker-c13111a07506639ef1a9a6fbe20e23848ea538a606ca913e91fbd4b715ea3385.scope"
+    "container_id": "c13111a07506639ef1a9a6fbe20e238"
   },
   "hook": {
     "type": "SbMount",
@@ -272,7 +272,7 @@ Event for `security_mmap_file`:
     "filename": "date",
     "binary_path": "/usr/bin/date",
     "args": "+%s",
-    "cgroup_name": "vte-spawn-7067a0a7-11d2-4d41-9dd5-43fc1ac45d56.scope"
+    "container_id": ""
   },
   "hook": {
     "type": "MmapFile",
@@ -286,7 +286,7 @@ Event for `security_mmap_file`:
 
 Event for `security_file_ioctl`:
 
-```
+```json
 {
   "type": "FileEvent",
   "process": {
@@ -303,7 +303,7 @@ Event for `security_file_ioctl`:
     "filename": "sed",
     "binary_path": "/usr/bin/sed",
     "args": "--follow-symlinks s/// /dev/null",
-    "cgroup_name": "vte-spawn-db86626c-4758-4859-b61c-854f5c17628f.scope"
+    "container_id": ""
   },
   "hook": {
     "type": "FileIoctl",
