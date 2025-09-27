@@ -8,12 +8,12 @@ use aya_ebpf::{
         bpf_ima_inode_hash, bpf_probe_read_kernel, bpf_probe_read_kernel_buf,
         bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
     },
-    macros::{btf_tracepoint, fentry, lsm, map},
+    macros::{btf_tracepoint, lsm, map},
     maps::{
         array::Array, hash_map::HashMap, hash_map::LruHashMap, lpm_trie::LpmTrie,
         per_cpu_array::PerCpuArray,
     },
-    programs::{BtfTracePointContext, FEntryContext, LsmContext},
+    programs::{BtfTracePointContext, LsmContext},
 };
 
 use bombini_detectors_ebpf::vmlinux::{
@@ -273,12 +273,12 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32>
     Err(0)
 }
 
-#[fentry(function = "acct_process")]
-pub fn exit_capture(ctx: FEntryContext) -> u32 {
+#[btf_tracepoint(function = "sched_process_exit")]
+pub fn exit_capture(ctx: BtfTracePointContext) -> u32 {
     event_capture!(ctx, MSG_PROCEXIT, false, try_exit)
 }
 
-fn try_exit(_ctx: FEntryContext, event: &mut Event) -> Result<u32, u32> {
+fn try_exit(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -417,18 +417,26 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
     Ok(0)
 }
 
-#[fentry(function = "wake_up_new_task")]
-pub fn fork_capture(ctx: FEntryContext) -> u32 {
-    match try_wake_up_new_task(ctx) {
+#[btf_tracepoint(function = "sched_process_fork")]
+pub fn fork_capture(ctx: BtfTracePointContext) -> u32 {
+    match try_sched_process_fork(ctx) {
         Ok(ret) => ret,
         Err(ret) => ret,
     }
 }
 
-fn try_wake_up_new_task(ctx: FEntryContext) -> Result<u32, u32> {
-    let task: *const task_struct = unsafe { ctx.arg(0) };
+fn try_sched_process_fork(_ctx: BtfTracePointContext) -> Result<u32, u32> {
+    let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
     let tgid =
         unsafe { bpf_probe_read_kernel(&(*task).tgid as *const pid_t).map_err(|_| 0u32)? as u32 };
+    let pid = unsafe {
+        bpf_probe_read_kernel::<pid_t>(&(*task).pid as *const _).map_err(|_| 0u32)? as u32
+    };
+
+    // Do not track threads
+    if pid != tgid {
+        return Err(0);
+    }
 
     let parent_proc = unsafe { execve_find_parent(task) };
     let Some(parent_proc) = parent_proc else {
@@ -446,8 +454,7 @@ fn try_wake_up_new_task(ctx: FEntryContext) -> Result<u32, u32> {
     proc.pid = tgid;
     unsafe {
         proc.ppid = (*parent_proc).pid;
-        proc.tid =
-            bpf_probe_read_kernel::<pid_t>(&(*task).pid as *const _).map_err(|_| 0u32)? as u32;
+        proc.tid = pid;
         bpf_probe_read_kernel_str_bytes(&(*parent_proc).filename as *const _, &mut proc.filename)
             .map_err(|_| 0u32)?;
         bpf_probe_read_kernel_str_bytes(
@@ -462,6 +469,7 @@ fn try_wake_up_new_task(ctx: FEntryContext) -> Result<u32, u32> {
     proc.clonned = true;
     Ok(0)
 }
+
 #[inline(always)]
 unsafe fn execve_find_parent(task: *const task_struct) -> Option<*const ProcInfo> {
     let mut parent = task;

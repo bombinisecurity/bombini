@@ -5,7 +5,7 @@ use aya::maps::{
     lpm_trie::{Key, LpmTrie},
     Array,
 };
-use aya::programs::{BtfTracePoint, FEntry, Lsm};
+use aya::programs::{BtfTracePoint, Lsm};
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
 use std::path::Path;
@@ -88,12 +88,12 @@ impl Detector for ProcMon {
         exec.load("sched_process_exec", &btf)?;
         exec.attach()?;
 
-        let fork: &mut FEntry = self.ebpf.program_mut("fork_capture").unwrap().try_into()?;
-        fork.load("wake_up_new_task", &btf)?;
+        let fork: &mut BtfTracePoint = self.ebpf.program_mut("fork_capture").unwrap().try_into()?;
+        fork.load("sched_process_fork", &btf)?;
         fork.attach()?;
 
-        let exit: &mut FEntry = self.ebpf.program_mut("exit_capture").unwrap().try_into()?;
-        exit.load("acct_process", &btf)?;
+        let exit: &mut BtfTracePoint = self.ebpf.program_mut("exit_capture").unwrap().try_into()?;
+        exit.load("sched_process_exit", &btf)?;
         exit.attach()?;
 
         let program: &mut Lsm = self.ebpf.program_mut("creds_capture").unwrap().try_into()?;
