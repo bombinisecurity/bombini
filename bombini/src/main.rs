@@ -19,6 +19,11 @@ use transmitter::unix_sock::USockTransmitter;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())
+        .expect("Failed to set up SIGINT handler");
+    let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
+        .expect("Failed to set up SIGTERM handler");
+
     env_logger::init();
 
     {
@@ -27,6 +32,13 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     let config = CONFIG.read().await;
+
+    if std::fs::exists(config.maps_pin_path.as_ref().unwrap()).unwrap() {
+        anyhow::bail!(
+            "Map pin directory {} exists. Remove it to start.",
+            config.maps_pin_path.as_ref().unwrap()
+        );
+    }
 
     let _ = std::fs::create_dir(config.maps_pin_path.as_ref().unwrap());
     defer! {
@@ -40,9 +52,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let monitor = Monitor::new(event_pin_path.as_path(), config.event_channel_size.unwrap());
     start_monitor(&config, &monitor).await?;
 
-    info!("Waiting for Ctrl-C...");
-    signal::ctrl_c().await?;
-    info!("Exiting...");
+    tokio::select! {
+        _ = sigint.recv() => {
+            info!("Received SIGINT (Ctrl+C), exiting...");
+        }
+        _ = sigterm.recv() => {
+            info!("Received SIGTERM, exiting...");
+        }
+    }
 
     Ok(())
 }
