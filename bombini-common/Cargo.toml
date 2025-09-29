@@ -10,7 +10,7 @@ user = ["aya", "serde"]
 [dependencies]
 aya = { version = "0.13.1", optional = true }
 bitflags = { version = "2.9.4"}
-serde = { version = "1.0.226", features = ["derive"], optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
 
 [lib]
 path = "src/lib.rs"
