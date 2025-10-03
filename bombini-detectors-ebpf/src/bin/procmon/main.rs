@@ -152,8 +152,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32>
     let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
     let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
-    let proc_ptr = unsafe { exec_map_get_init(pid) };
-    let Some(proc_ptr) = proc_ptr else {
+    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&pid) else {
         return Err(0);
     };
     let proc = unsafe { proc_ptr.as_mut() };
@@ -204,6 +203,7 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32>
         let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
             .map_err(|_| 0u32)?;
 
+        aya_ebpf::memset(proc.filename.as_mut_ptr(), 0, proc.filename.len());
         bpf_probe_read_kernel_str_bytes(d_name.name, &mut proc.filename).map_err(|_| 0u32)?;
 
         // Get cred
@@ -231,7 +231,8 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32>
             let Some(cred_info) = cred_info.as_ref() else {
                 return Err(0);
             };
-            proc.creds.secureexec = cred_info.secureexec.clone();
+            proc.creds.secureexec = cred_info.secureexec;
+            aya_ebpf::memset(proc.binary_path.as_mut_ptr(), 0, proc.binary_path.len());
             bpf_probe_read_kernel_str_bytes(cred_info.binary_path.as_ptr(), &mut proc.binary_path)
                 .map_err(|_| 0u32)?;
             if cred_info.ima_hash.algo > 0 {
@@ -425,8 +426,8 @@ pub fn fork_capture(ctx: BtfTracePointContext) -> u32 {
     }
 }
 
-fn try_sched_process_fork(_ctx: BtfTracePointContext) -> Result<u32, u32> {
-    let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
+fn try_sched_process_fork(ctx: BtfTracePointContext) -> Result<u32, u32> {
+    let task: *const task_struct = unsafe { ctx.arg(1) };
     let tgid =
         unsafe { bpf_probe_read_kernel(&(*task).tgid as *const pid_t).map_err(|_| 0u32)? as u32 };
     let pid = unsafe {

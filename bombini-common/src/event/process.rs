@@ -3,6 +3,8 @@
 use bitflags::bitflags;
 
 #[cfg(feature = "user")]
+use procfs::process::Process;
+#[cfg(feature = "user")]
 use serde::Serialize;
 
 use crate::constants::{
@@ -10,7 +12,7 @@ use crate::constants::{
 };
 
 /// Process event
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 pub struct ProcInfo {
     /// PID
@@ -37,8 +39,106 @@ pub struct ProcInfo {
     pub ima_hash: ImaHash,
 }
 
+#[cfg(feature = "user")]
+impl ProcInfo {
+    pub fn from_procfs(process: &Process) -> Option<ProcInfo> {
+        let Ok(status) = process.status() else {
+            return None;
+        };
+        if status.pid != status.tgid {
+            // Use only for thread leaders
+            return None;
+        }
+        let creds = Cred {
+            uid: status.ruid,
+            euid: status.euid,
+            cap_effective: Capabilities::from_bits_truncate(status.capeff),
+            cap_permitted: Capabilities::from_bits_truncate(status.capprm),
+            cap_inheritable: Capabilities::from_bits_truncate(status.capinh),
+            secureexec: SecureExec::from_bits_truncate(0),
+        };
+        let mut binary_path = [0u8; MAX_FILE_PATH];
+        let mut filename = [0u8; MAX_FILENAME_SIZE];
+        let mut args = [0u8; MAX_ARGS_SIZE];
+        let mut cgroup_name = [0u8; DOCKER_ID_LENGTH];
+        let Ok(auid) = process.loginuid() else {
+            return None;
+        };
+        if let Ok(exe) = process.exe() {
+            let k_str = exe.to_str().unwrap().as_bytes();
+            let len = k_str.len();
+            if len < MAX_FILE_PATH {
+                binary_path[..len].clone_from_slice(k_str);
+            } else {
+                binary_path.clone_from_slice(&k_str[..MAX_FILE_PATH]);
+            }
+            let k_str = exe.file_name().unwrap().as_encoded_bytes();
+            let len = k_str.len();
+            if len < MAX_FILENAME_SIZE {
+                filename[..len].clone_from_slice(k_str);
+            } else {
+                filename.clone_from_slice(&k_str[..MAX_FILENAME_SIZE]);
+            }
+        }
+
+        if let Ok(cmdline) = process.cmdline() {
+            let mut index = 0;
+            for arg in cmdline.iter().skip(1) {
+                let arg_bytes = arg.as_bytes();
+                if index + arg_bytes.len() + 1 > MAX_ARGS_SIZE {
+                    break;
+                }
+                args[index..index + arg_bytes.len()].copy_from_slice(arg_bytes);
+                index += arg_bytes.len();
+                args[index] = 0;
+                index += 1;
+            }
+        }
+
+        let Ok(cgroups) = process.cgroups() else {
+            return None;
+        };
+        let k_str = cgroups.0[0].pathname.as_bytes();
+        let len = k_str.len();
+        if len < DOCKER_ID_LENGTH {
+            cgroup_name[..len].clone_from_slice(k_str);
+        } else {
+            cgroup_name.clone_from_slice(&k_str[..DOCKER_ID_LENGTH]);
+        }
+
+        let cgroup = Cgroup {
+            cgroup_id: 0,
+            cgroup_name,
+        };
+        let ima_stub = ImaHash {
+            algo: 0,
+            hash: [0u8; MAX_IMA_HASH_SIZE],
+        };
+        Some(Self {
+            tid: status.pid as u32,
+            pid: status.tgid as u32,
+            ppid: status.ppid as u32,
+            creds,
+            auid,
+            clonned: false,
+            filename,
+            binary_path,
+            args,
+            cgroup,
+            ima_hash: ima_stub,
+        })
+    }
+}
+
+#[cfg(feature = "user")]
+pub mod user {
+    use super::*;
+
+    unsafe impl aya::Pod for ProcInfo {}
+}
+
 /// Creds
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 pub struct Cred {
     /// UID
@@ -52,7 +152,7 @@ pub struct Cred {
 }
 
 /// Cgroup info
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 pub struct Cgroup {
     pub cgroup_id: u64,
@@ -60,7 +160,7 @@ pub struct Cgroup {
 }
 
 bitflags! {
-    #[derive(Clone, Debug, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Copy)]
     #[cfg_attr(feature = "user", derive(Serialize))]
     #[repr(C)]
     /// extend AT_SECURE logic from https://man7.org/linux/man-pages/man3/getauxval.3.html
@@ -95,7 +195,7 @@ pub struct ProcCapset {
 }
 
 /// IMA file hash
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 pub struct ImaHash {
     pub algo: i8,
@@ -115,7 +215,7 @@ bitflags! {
 }
 
 bitflags! {
-    #[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
     #[cfg_attr(feature = "user", derive(Serialize))]
     #[repr(C)]
     pub struct Capabilities: u64 {

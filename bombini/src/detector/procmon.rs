@@ -8,11 +8,14 @@ use aya::maps::{
 use aya::programs::{BtfTracePoint, Lsm};
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
+use procfs::process;
+
 use std::path::Path;
 
 use bombini_common::{
     config::procmon::{Config, ProcessFilterMask},
     constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
+    event::process::ProcInfo,
 };
 
 use crate::{
@@ -75,6 +78,18 @@ impl Detector for ProcMon {
         let mut config_map: Array<_, Config> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, config, 0);
+
+        let current_processes = process::all_processes().unwrap();
+        let mut proc_map: HashMap<_, u32, ProcInfo> =
+            HashMap::try_from(self.ebpf.map_mut("PROCMON_PROC_MAP").unwrap())?;
+        current_processes
+            .filter_map(|p| p.ok())
+            .filter(|p| p.is_alive())
+            .filter_map(|p| ProcInfo::from_procfs(&p))
+            .for_each(|p| {
+                let _ = proc_map.insert(p.pid, p, 0);
+            });
+
         Ok(())
     }
 

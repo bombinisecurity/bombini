@@ -10,9 +10,9 @@ pub fn copy_proc(src: &ProcInfo, dst: &mut ProcInfo) {
     dst.pid = src.pid;
     dst.tid = src.tid;
     dst.ppid = src.ppid;
-    dst.creds = src.creds.clone();
+    dst.creds = src.creds;
     dst.auid = src.auid;
-    dst.cgroup = src.cgroup.clone();
+    dst.cgroup = src.cgroup;
     dst.ima_hash.algo = src.ima_hash.algo;
     unsafe {
         let _ = bpf_probe_read_kernel_buf(src.filename.as_ptr(), &mut dst.filename);
