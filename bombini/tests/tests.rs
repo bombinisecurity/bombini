@@ -215,11 +215,8 @@ fn test_gtfobins_detector_file() {
     // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     assert_eq!(events.matches("\"type\":\"GTFOBinsEvent\"").count(), 1);
-    assert_eq!(events.matches("\"filename\":\"sudo\"").count(), 1);
-    assert_eq!(
-        events.matches("\"args\":\"xargs -a /dev/null sh\"").count(),
-        1
-    );
+    assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 1);
+    assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
