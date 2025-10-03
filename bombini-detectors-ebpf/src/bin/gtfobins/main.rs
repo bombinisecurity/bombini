@@ -82,24 +82,6 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
                         }
                         return Ok(0);
                     }
-                    if parent_proc.filename[0] == b's'
-                        && parent_proc.filename[1] == b'u'
-                        && parent_proc.filename[2] == b'd'
-                        && parent_proc.filename[3] == b'o'
-                    {
-                        bpf_probe_read_kernel_str_bytes(
-                            &parent_proc.args as *const _,
-                            &mut event.process.filename,
-                        )
-                        .map_err(|_| 0_i32)?;
-                        if let Some(enforce) = GTFOBINS_NAME_MAP.get_ptr(&event.process.filename) {
-                            util::copy_proc(parent_proc, &mut event.process);
-                            if *enforce != 0 {
-                                return Ok(-1);
-                            }
-                            return Ok(0);
-                        }
-                    }
                     ppid = parent_proc.ppid;
                 }
             }
