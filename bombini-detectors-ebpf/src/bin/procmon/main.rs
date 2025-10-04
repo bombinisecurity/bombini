@@ -280,6 +280,15 @@ pub fn exit_capture(ctx: BtfTracePointContext) -> u32 {
 }
 
 fn try_exit(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32> {
+    let pid_tgid = bpf_get_current_pid_tgid();
+    let pid = (pid_tgid >> 32) as u32;
+    let tid = pid_tgid as u32;
+
+    // Do not track threads
+    if pid != tid {
+        return Err(0);
+    }
+
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -290,7 +299,6 @@ fn try_exit(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32> {
     let Event::ProcExit(event) = event else {
         return Err(0);
     };
-    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
