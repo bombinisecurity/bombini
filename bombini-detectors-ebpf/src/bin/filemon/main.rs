@@ -20,7 +20,7 @@ use bombini_common::event::file::{
 };
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, MSG_FILE};
-use bombini_detectors_ebpf::vmlinux::{dentry, file, fmode_t, kgid_t, kuid_t, path, qstr};
+use bombini_detectors_ebpf::vmlinux::{dentry, file, kgid_t, kuid_t, path, qstr};
 
 use bombini_detectors_ebpf::{
     event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
@@ -56,8 +56,6 @@ static FILEMON_FILTER_BINNAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u8> =
 #[map]
 static FILEMON_FILTER_BINPREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
     LpmTrie::with_max_entries(1, 0);
-
-const FMODE_EXEC: u32 = 1 << 5;
 
 #[inline(always)]
 fn filter_by_process(config: &Config, proc: &ProcInfo) -> Result<(), i32> {
@@ -115,11 +113,6 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     event.hook = HOOK_FILE_OPEN;
     unsafe {
         let fp: *const file = ctx.arg(0);
-        let fmode: fmode_t = (*fp).f_mode;
-        // Do not check opened files for execution. We have procmon for this
-        if fmode & FMODE_EXEC != 0 {
-            return Err(0);
-        }
         let _ = bpf_d_path(
             &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
             event.path.as_mut_ptr() as *mut _,
