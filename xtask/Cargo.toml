@@ -8,5 +8,5 @@ anyhow = "1.0.100"
 clap = { version = "4.5.48", features = ["derive"] }
 which = "8.0.0"
 tar = "0.4.44"
-flate2 = "1.1.2"
+flate2 = "1.1.4"
 prost-build = "0.14.1"
