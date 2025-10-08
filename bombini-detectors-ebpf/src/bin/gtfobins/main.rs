@@ -4,7 +4,7 @@
 use aya_ebpf::{
     helpers::{bpf_get_current_task_btf, bpf_probe_read_kernel, bpf_probe_read_kernel_str_bytes},
     macros::{lsm, map},
-    maps::hash_map::HashMap,
+    maps::hash_map::{HashMap, LruHashMap},
     programs::LsmContext,
 };
 
@@ -20,7 +20,7 @@ use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 static GTFOBINS_NAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u32> = HashMap::with_max_entries(128, 0);
 
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
+static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
 #[lsm]
 pub fn gtfobins_detect(ctx: LsmContext) -> i32 {

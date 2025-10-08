@@ -5,7 +5,11 @@ use aya_ebpf::{
     cty::c_void,
     helpers::{bpf_get_socket_cookie, bpf_probe_read_kernel_buf},
     macros::{fexit, map},
-    maps::{array::Array, hash_map::HashMap, lpm_trie::LpmTrie},
+    maps::{
+        array::Array,
+        hash_map::{HashMap, LruHashMap},
+        lpm_trie::LpmTrie,
+    },
     programs::FExitContext,
     EbpfContext,
 };
@@ -24,7 +28,7 @@ use bombini_detectors_ebpf::{
 
 /// Holds current alive processes
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
+static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
 #[map]
 static NETMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
