@@ -5,7 +5,7 @@ use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_probe_read_user_str_bytes},
     macros::{map, uretprobe},
     maps::{
-        hash_map::HashMap,
+        hash_map::LruHashMap,
         lpm_trie::{Key, LpmTrie},
     },
     programs::retprobe::RetProbeContext,
@@ -21,7 +21,7 @@ static HISTFILE_CHECK_MAP: LpmTrie<[u8; MAX_BASH_COMMAND_SIZE], u32> =
     LpmTrie::with_max_entries(2, 0);
 
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
+static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
 #[uretprobe]
 pub fn histfile_detect(ctx: RetProbeContext) -> i32 {

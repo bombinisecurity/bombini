@@ -7,7 +7,7 @@ use aya_ebpf::{
         bpf_probe_read_kernel_str_bytes,
     },
     macros::{lsm, map},
-    maps::{array::Array, hash_map::HashMap, lpm_trie::LpmTrie},
+    maps::{array::Array, hash_map::HashMap, lpm_trie::LpmTrie, LruHashMap},
     programs::LsmContext,
 };
 
@@ -27,7 +27,7 @@ use bombini_detectors_ebpf::{
 };
 
 #[map]
-static PROCMON_PROC_MAP: HashMap<u32, ProcInfo> = HashMap::pinned(1, 0);
+static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
 #[map]
 static FILEMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
