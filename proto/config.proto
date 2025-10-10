@@ -79,8 +79,10 @@ message FileMonConfig {
 
 // FileMon hook configuration
 message FileHookConfig {
-    // do not load ebpf program
+    // Do not load ebpf program
     bool enabled = 1;
+    // Filter event by Path
+    optional PathFilter path_filter = 2;
 }
 
 // Configuration file for NetMon detector.
