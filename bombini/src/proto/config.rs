@@ -105,11 +105,14 @@ pub struct FileMonConfig {
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// FileMon hook configuration
-#[derive(serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct FileHookConfig {
-    /// do not load ebpf program
+    /// Do not load ebpf program
     #[prost(bool, tag = "1")]
     pub enabled: bool,
+    /// Filter event by Path
+    #[prost(message, optional, tag = "2")]
+    pub path_filter: ::core::option::Option<PathFilter>,
 }
 /// Configuration file for NetMon detector.
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]

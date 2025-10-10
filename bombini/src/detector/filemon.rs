@@ -11,7 +11,7 @@ use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 use std::path::Path;
 
 use bombini_common::{
-    config::{filemon::Config, procmon::ProcessFilterMask},
+    config::{filemon::Config, filemon::PathFilterMask, procmon::ProcessFilterMask},
     constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
 };
 
@@ -52,6 +52,9 @@ impl Detector for FileMon {
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
+
+        resize_all_path_filter_maps(&config, ebpf_loader_ref);
+
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
         Ok(FileMon { ebpf, config })
@@ -60,6 +63,7 @@ impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
             filter_mask: ProcessFilterMask::empty(),
+            path_mask: [PathFilterMask::empty(); 8],
             deny_list: false,
         };
         if let Some(filter) = &self.config.process_filter {
@@ -67,6 +71,7 @@ impl Detector for FileMon {
             config.deny_list = filter.deny_list;
         }
 
+        intit_all_path_filter_maps(&mut config, &self.config, &mut self.ebpf)?;
         let mut config_map: Array<_, Config> =
             Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, config, 0);
@@ -76,7 +81,7 @@ impl Detector for FileMon {
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
         let btf = Btf::from_sys_fs()?;
 
-        if let Some(open_cfg) = self.config.file_open {
+        if let Some(ref open_cfg) = self.config.file_open {
             if open_cfg.enabled {
                 let open: &mut Lsm = self
                     .ebpf
@@ -87,7 +92,7 @@ impl Detector for FileMon {
                 open.attach()?;
             }
         }
-        if let Some(truncate_cfg) = self.config.path_truncate {
+        if let Some(ref truncate_cfg) = self.config.path_truncate {
             if truncate_cfg.enabled {
                 let truncate: &mut Lsm = self
                     .ebpf
@@ -98,7 +103,7 @@ impl Detector for FileMon {
                 truncate.attach()?;
             }
         }
-        if let Some(unlink_cfg) = self.config.path_unlink {
+        if let Some(ref unlink_cfg) = self.config.path_unlink {
             if unlink_cfg.enabled {
                 let unlink: &mut Lsm = self
                     .ebpf
@@ -109,7 +114,7 @@ impl Detector for FileMon {
                 unlink.attach()?;
             }
         }
-        if let Some(chmod_cfg) = self.config.path_chmod {
+        if let Some(ref chmod_cfg) = self.config.path_chmod {
             if chmod_cfg.enabled {
                 let chmod: &mut Lsm = self
                     .ebpf
@@ -120,7 +125,7 @@ impl Detector for FileMon {
                 chmod.attach()?;
             }
         }
-        if let Some(chown_cfg) = self.config.path_chown {
+        if let Some(ref chown_cfg) = self.config.path_chown {
             if chown_cfg.enabled {
                 let chown: &mut Lsm = self
                     .ebpf
@@ -131,7 +136,7 @@ impl Detector for FileMon {
                 chown.attach()?;
             }
         }
-        if let Some(sb_mount_cfg) = self.config.sb_mount {
+        if let Some(ref sb_mount_cfg) = self.config.sb_mount {
             if sb_mount_cfg.enabled {
                 let sb_mount: &mut Lsm = self
                     .ebpf
@@ -142,7 +147,7 @@ impl Detector for FileMon {
                 sb_mount.attach()?;
             }
         }
-        if let Some(mmap_file_cfg) = self.config.mmap_file {
+        if let Some(ref mmap_file_cfg) = self.config.mmap_file {
             if mmap_file_cfg.enabled {
                 let mmap_file: &mut Lsm = self
                     .ebpf
@@ -153,7 +158,7 @@ impl Detector for FileMon {
                 mmap_file.attach()?;
             }
         }
-        if let Some(file_ioctl_cfg) = self.config.file_ioctl {
+        if let Some(ref file_ioctl_cfg) = self.config.file_ioctl {
             if file_ioctl_cfg.enabled {
                 let file_ioctl: &mut Lsm = self
                     .ebpf
@@ -168,6 +173,111 @@ impl Detector for FileMon {
     }
 }
 
+macro_rules! resize_path_filter_maps {
+    ($filter_config:expr, $ebpf_loader_ref:expr, $name_map:expr, $path_map:expr, $prefix_map:expr) => {
+        if $filter_config.name.len() > 1 {
+            $ebpf_loader_ref.set_max_entries($name_map, $filter_config.name.len() as u32);
+        }
+        if $filter_config.path.len() > 1 {
+            $ebpf_loader_ref.set_max_entries($path_map, $filter_config.path.len() as u32);
+        }
+        if $filter_config.prefix.len() > 1 {
+            $ebpf_loader_ref.set_max_entries($prefix_map, $filter_config.prefix.len() as u32);
+        }
+    };
+}
+
+#[inline]
+fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) {
+    if let Some(ref file_open_cfg) = config.file_open {
+        if let Some(ref filter) = file_open_cfg.path_filter {
+            resize_path_filter_maps!(
+                filter,
+                loader,
+                FILTER_OPEN_NAME_MAP,
+                FILTER_OPEN_PATH_MAP,
+                FILTER_OPEN_PREFIX_MAP
+            );
+        }
+    }
+}
+
+macro_rules! init_path_filter_maps {
+    ($filter_config:expr, $ebpf:expr, $name_map:expr, $path_map:expr, $prefix_map:expr) => {{
+        let mut filter_mask = PathFilterMask::empty();
+        if !$filter_config.name.is_empty() {
+            let mut bname_map: HashMap<_, [u8; MAX_FILENAME_SIZE], u8> =
+                HashMap::try_from($ebpf.map_mut($name_map).unwrap())?;
+            for name in $filter_config.name.iter() {
+                let mut v = [0u8; MAX_FILENAME_SIZE];
+                let name_bytes = name.as_bytes();
+                let len = name_bytes.len();
+                if len < MAX_FILENAME_SIZE {
+                    v[..len].clone_from_slice(name_bytes);
+                } else {
+                    v.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
+                }
+                let _ = bname_map.insert(v, 0, 0);
+            }
+            filter_mask |= PathFilterMask::NAME;
+        }
+        if !$filter_config.path.is_empty() {
+            let mut bpath_map: HashMap<_, [u8; MAX_FILE_PATH], u8> =
+                HashMap::try_from($ebpf.map_mut($path_map).unwrap())?;
+            for path in $filter_config.path.iter() {
+                let mut v = [0u8; MAX_FILE_PATH];
+                let path_bytes = path.as_bytes();
+                let len = path_bytes.len();
+                if len < MAX_FILE_PATH {
+                    v[..len].clone_from_slice(path_bytes);
+                } else {
+                    v.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
+                }
+                let _ = bpath_map.insert(v, 0, 0);
+            }
+            filter_mask |= PathFilterMask::PATH;
+        }
+        if !$filter_config.prefix.is_empty() {
+            let mut bprefix_map: LpmTrie<_, [u8; MAX_FILE_PREFIX], u8> =
+                LpmTrie::try_from($ebpf.map_mut($prefix_map).unwrap())?;
+            for prefix in $filter_config.prefix.iter() {
+                let mut v = [0u8; MAX_FILE_PREFIX];
+                let prefix_bytes = prefix.as_bytes();
+                let len = prefix_bytes.len();
+                if len < MAX_FILE_PREFIX {
+                    v[..len].clone_from_slice(prefix_bytes);
+                } else {
+                    v.clone_from_slice(&prefix_bytes[..MAX_FILE_PREFIX]);
+                }
+                let key = Key::new((prefix.len() * 8) as u32, v);
+                let _ = bprefix_map.insert(&key, 0, 0);
+            }
+            filter_mask |= PathFilterMask::PATH_PREFIX;
+        }
+        filter_mask
+    }};
+}
+
+#[inline]
+fn intit_all_path_filter_maps(
+    ebpf_config: &mut Config,
+    config: &FileMonConfig,
+    ebpf: &mut Ebpf,
+) -> Result<(), EbpfError> {
+    if let Some(ref file_open_cfg) = config.file_open {
+        if let Some(ref filter) = file_open_cfg.path_filter {
+            ebpf_config.path_mask[0] = init_path_filter_maps!(
+                filter,
+                ebpf,
+                FILTER_OPEN_NAME_MAP,
+                FILTER_OPEN_PATH_MAP,
+                FILTER_OPEN_PREFIX_MAP
+            );
+        }
+    }
+    Ok(())
+}
+
 /// FileMon Filter map names
 const FILTER_UID_MAP_NAME: &str = "FILEMON_FILTER_UID_MAP";
 
@@ -180,3 +290,10 @@ const FILTER_BINPATH_MAP_NAME: &str = "FILEMON_FILTER_BINPATH_MAP";
 const FILTER_BINNAME_MAP_NAME: &str = "FILEMON_FILTER_BINNAME_MAP";
 
 const FILTER_BINPREFIX_MAP_NAME: &str = "FILEMON_FILTER_BINPREFIX_MAP";
+
+// File Open path filter maps
+const FILTER_OPEN_PATH_MAP: &str = "FILEMON_FILTER_OPEN_PATH_MAP";
+
+const FILTER_OPEN_NAME_MAP: &str = "FILEMON_FILTER_OPEN_NAME_MAP";
+
+const FILTER_OPEN_PREFIX_MAP: &str = "FILEMON_FILTER_OPEN_PREFIX_MAP";
