@@ -200,6 +200,17 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
             );
         }
     }
+    if let Some(ref truncate_cfg) = config.path_truncate {
+        if let Some(ref filter) = truncate_cfg.path_filter {
+            resize_path_filter_maps!(
+                filter,
+                loader,
+                FILTER_TRUNC_NAME_MAP,
+                FILTER_TRUNC_PATH_MAP,
+                FILTER_TRUNC_PREFIX_MAP
+            );
+        }
+    }
     if let Some(ref mmap_cfg) = config.mmap_file {
         if let Some(ref filter) = mmap_cfg.path_filter {
             resize_path_filter_maps!(
@@ -286,6 +297,17 @@ fn intit_all_path_filter_maps(
             );
         }
     }
+    if let Some(ref truncate_cfg) = config.path_truncate {
+        if let Some(ref filter) = truncate_cfg.path_filter {
+            ebpf_config.path_mask[1] = init_path_filter_maps!(
+                filter,
+                ebpf,
+                FILTER_TRUNC_NAME_MAP,
+                FILTER_TRUNC_PATH_MAP,
+                FILTER_TRUNC_PREFIX_MAP
+            );
+        }
+    }
     if let Some(ref mmap_cfg) = config.mmap_file {
         if let Some(ref filter) = mmap_cfg.path_filter {
             ebpf_config.path_mask[6] = init_path_filter_maps!(
@@ -319,6 +341,13 @@ const FILTER_OPEN_PATH_MAP: &str = "FILEMON_FILTER_OPEN_PATH_MAP";
 const FILTER_OPEN_NAME_MAP: &str = "FILEMON_FILTER_OPEN_NAME_MAP";
 
 const FILTER_OPEN_PREFIX_MAP: &str = "FILEMON_FILTER_OPEN_PREFIX_MAP";
+
+// File Open truncate filter maps
+const FILTER_TRUNC_PATH_MAP: &str = "FILEMON_FILTER_TRUNC_PATH_MAP";
+
+const FILTER_TRUNC_NAME_MAP: &str = "FILEMON_FILTER_TRUNC_NAME_MAP";
+
+const FILTER_TRUNC_PREFIX_MAP: &str = "FILEMON_FILTER_TRUNC_PREFIX_MAP";
 
 // Mmap path filter maps
 const FILTER_MMAP_PATH_MAP: &str = "FILEMON_FILTER_MMAP_PATH_MAP";

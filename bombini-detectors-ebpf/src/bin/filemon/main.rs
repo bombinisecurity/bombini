@@ -172,6 +172,18 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     Ok(0)
 }
 
+#[map]
+static FILEMON_FILTER_TRUNC_PATH_MAP: HashMap<[u8; MAX_FILE_PATH], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_TRUNC_NAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_TRUNC_PREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
+    LpmTrie::with_max_entries(1, 0);
+
 #[lsm(hook = "path_truncate")]
 pub fn path_truncate_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_truncate)
@@ -198,12 +210,33 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
 
     event.hook = HOOK_PATH_TRUNCATE;
     unsafe {
+        let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
         let p: *const path = ctx.arg(0);
         let _ = bpf_d_path(
             p as *const _ as *mut aya_ebpf::bindings::path,
-            event.path.as_mut_ptr() as *mut _,
-            event.path.len() as u32,
+            path_ptr as *mut _,
+            MAX_FILE_PATH as u32,
         );
+        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
+        // Filter event by path
+        if !config.path_mask[1].is_empty() {
+            let path_filter: PathFilter = PathFilter::new(
+                &FILEMON_FILTER_TRUNC_NAME_MAP,
+                &FILEMON_FILTER_TRUNC_PATH_MAP,
+                &FILEMON_FILTER_TRUNC_PREFIX_MAP,
+            );
+            let path = bpf_probe_read_kernel::<path>(p).map_err(|_| 0i32)?;
+
+            let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
+                .map_err(|_| 0i32)?;
+
+            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
+            if !path_filter.filter(config.path_mask[1], &event.path, &event.name) {
+                return Err(0);
+            }
+        }
     }
     util::copy_proc(proc, &mut event.process);
     Ok(0)
