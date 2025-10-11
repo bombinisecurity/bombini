@@ -143,7 +143,6 @@ fn test_procmon_file() {
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
     assert_eq!(events.matches("\"args\":\"-lah\"").count(), 2);
@@ -212,7 +211,6 @@ fn test_gtfobins_detector_file() {
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     assert_eq!(events.matches("\"type\":\"GTFOBinsEvent\"").count(), 1);
     assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 1);
@@ -284,7 +282,6 @@ fn test_filemon_unlink_file() {
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathUnlink\"").count(), 1);
@@ -351,11 +348,111 @@ fn test_filemon_chmod_file() {
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathChmod\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"chmod\"").count(), 1);
+    let mut file_path = String::from("\"path\":\"");
+    file_path.push_str(&filemon_config.to_str().unwrap());
+    assert_eq!(events.matches(&file_path).count(), 1);
+
+    let _ = fs::remove_dir_all(bombini_temp_dir);
+}
+
+#[test]
+fn test_filemon_open_filter_stdout() {
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
+    let _ = fs::copy(&config, &tmp_config);
+    tmp_config.pop();
+    config.pop();
+    let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
+    let filemon_config = tmp_config.join("filemon.yaml");
+    let config_contents = r#"
+file_open:
+  enabled: true
+  path_filter:
+    name:
+    - filemon.yaml
+    prefix:
+    - /tm
+    path:
+    - /etc
+"#;
+    let _ = fs::write(&filemon_config, config_contents);
+    let bombini_log =
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
+    let event_log =
+        File::create(bombini_temp_dir.join("events.log")).expect("can't create events file");
+
+    let bombini = Command::new(EXE_BOMBINI)
+        .args([
+            "--config-dir",
+            tmp_config.to_str().unwrap(),
+            "--bpf-objs",
+            bpf_objs.to_str().unwrap(),
+            "--detector",
+            "procmon",
+            "--detector",
+            "filemon",
+        ])
+        .env("RUST_LOG", "debug")
+        .stderr(bombini_log.try_clone().unwrap())
+        .stdout(event_log.try_clone().unwrap())
+        .spawn();
+
+    if bombini.is_err() {
+        panic!("{:?}", bombini.err().unwrap());
+    }
+    let mut bombini = bombini.expect("failed to start bombini");
+    // Wait for detectors being loaded
+    thread::sleep(Duration::from_millis(2000));
+
+    let ls_tail = Command::new("ls")
+        .args(["-lah", "/tmp"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start ls");
+
+    assert!(ls_tail.success());
+
+    let ls_usr = Command::new("ls")
+        .args(["/etc"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start ls");
+
+    assert!(ls_usr.success());
+
+    let tail_conf = Command::new("tail")
+        .args([filemon_config.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start tail");
+
+    assert!(tail_conf.success());
+
+    // Wait Events being processed
+    thread::sleep(Duration::from_millis(500));
+
+    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
+
+    let _ = bombini.wait().unwrap();
+
+    let events =
+        fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 3);
+    ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 3);
+    ma::assert_ge!(events.matches("\"path\":\"/tmp\"").count(), 1);
+    ma::assert_ge!(events.matches("\"path\":\"/etc\"").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(&filemon_config.to_str().unwrap());
     assert_eq!(events.matches(&file_path).count(), 1);
@@ -425,7 +522,6 @@ file_ioctl:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"FileIoctl\"").count(), 1);
@@ -491,7 +587,6 @@ fn test_filemon_chown_file() {
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathChown\"").count(), 1);
@@ -572,7 +667,6 @@ fn test_netmon_tcp_ip4_file() {
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     // inet_csk_accept isn't triggered from tests don't know why
     ma::assert_ge!(events.matches("\"type\":\"NetworkEvent\"").count(), 2);
@@ -670,7 +764,6 @@ process_filter:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     assert_eq!(events.matches("\"filename\":\"uname\"").count(), 2);
     assert_eq!(events.matches("\"args\":\"-a\"").count(), 2);
@@ -745,7 +838,6 @@ process_filter:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     assert_eq!(events.matches("\"filename\":\"tail\"").count(), 0);
     assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
@@ -816,7 +908,6 @@ process_filter:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     ma::assert_ge!(events.matches("\"filename\":\"nslookup\"").count(), 2);
     ma::assert_ge!(events.matches("\"args\":\"google.com\"").count(), 2);
@@ -907,7 +998,6 @@ process_filter:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events = fs::read_to_string(&event_log).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
@@ -981,7 +1071,6 @@ create_user_ns:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"ProcessSetUid\"").count(), 1);
@@ -1063,7 +1152,6 @@ create_user_ns:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"ProcessCapset\"").count(), 1);
@@ -1143,7 +1231,6 @@ create_user_ns:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
     ma::assert_ge!(events.matches("\"type\":\"ProcessPrctl\"").count(), 1);
@@ -1217,7 +1304,6 @@ create_user_ns:
 
     let _ = bombini.wait().unwrap();
 
-    // TODO: more precise check
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
     assert_eq!(
