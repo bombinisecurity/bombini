@@ -935,6 +935,9 @@ file_open:
   enabled: true
 mmap_file:
   enabled: true
+  path_filter:
+    prefix:
+    - /usr/lib/
 path_truncate:
   enabled: false
 path_unlink:
@@ -1003,6 +1006,7 @@ process_filter:
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"tail\"").count(), 1);
+    ma::assert_ge!(events.matches("\"path\":\"/usr/lib/").count(), 1);
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
