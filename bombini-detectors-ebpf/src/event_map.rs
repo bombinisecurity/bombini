@@ -31,7 +31,7 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEve
             aya_ebpf::memset(
                 event_rb.as_mut_ptr() as *mut u8,
                 0,
-                core::mem::size_of_val(&event_rb),
+                core::mem::size_of_val(event_rb.assume_init_ref()),
             );
         }
         let event_ref = &mut *event_rb.as_mut_ptr();
