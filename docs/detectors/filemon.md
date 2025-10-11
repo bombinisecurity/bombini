@@ -44,8 +44,12 @@ For each file hook the following options are supported:
 FileMon detector supports process allow/deny list for event filtering. It is global for all hooks.
 The detailed description of process filter config section can be found in ProcMon [config section](procmon.md#config).
 
-Filemon also supports path filtering for hook information (file_open is supported for now). You can specify an allow list
-of supported paths, using name, prefix, or full path. If path has corresponding name, prefix or equals the provided full path event will be send.
+Filemon also supports path filtering for hooks:
+
+* file_open
+* mmap_file
+
+You can specify an allow list of supported paths, using name, prefix, or full path. If path has corresponding name, prefix or equals the provided full path event will be send.
 
 Config example:
 
