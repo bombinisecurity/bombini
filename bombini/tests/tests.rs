@@ -938,6 +938,8 @@ mmap_file:
   path_filter:
     prefix:
     - /usr/lib/
+    - /lib/
+    - /usr/share/
 path_truncate:
   enabled: false
 path_unlink:
