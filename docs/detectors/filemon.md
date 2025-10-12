@@ -47,10 +47,11 @@ The detailed description of process filter config section can be found in ProcMo
 Filemon also supports path filtering for hooks:
 
 * file_open
-* mmap_file
 * path_truncate
 * path_chmod
 * path_chown
+* mmap_file
+* file_ioctl
 
 You can specify an allow list of supported paths, using name, prefix, or full path. If path has corresponding name, prefix or equals the provided full path event will be send.
 

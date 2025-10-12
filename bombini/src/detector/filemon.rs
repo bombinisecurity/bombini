@@ -244,6 +244,17 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
             );
         }
     }
+    if let Some(ref ioctl_cfg) = config.file_ioctl {
+        if let Some(ref filter) = ioctl_cfg.path_filter {
+            resize_path_filter_maps!(
+                filter,
+                loader,
+                FILTER_IOCTL_NAME_MAP,
+                FILTER_IOCTL_PATH_MAP,
+                FILTER_IOCTL_PREFIX_MAP
+            );
+        }
+    }
 }
 
 macro_rules! init_path_filter_maps {
@@ -363,6 +374,17 @@ fn intit_all_path_filter_maps(
             );
         }
     }
+    if let Some(ref ioctl_cfg) = config.file_ioctl {
+        if let Some(ref filter) = ioctl_cfg.path_filter {
+            ebpf_config.path_mask[7] = init_path_filter_maps!(
+                filter,
+                ebpf,
+                FILTER_IOCTL_NAME_MAP,
+                FILTER_IOCTL_PATH_MAP,
+                FILTER_IOCTL_PREFIX_MAP
+            );
+        }
+    }
     Ok(())
 }
 
@@ -413,3 +435,10 @@ const FILTER_MMAP_PATH_MAP: &str = "FILEMON_FILTER_MMAP_PATH_MAP";
 const FILTER_MMAP_NAME_MAP: &str = "FILEMON_FILTER_MMAP_NAME_MAP";
 
 const FILTER_MMAP_PREFIX_MAP: &str = "FILEMON_FILTER_MMAP_PREFIX_MAP";
+
+// Ioctl path filter maps
+const FILTER_IOCTL_PATH_MAP: &str = "FILEMON_FILTER_IOCTL_PATH_MAP";
+
+const FILTER_IOCTL_NAME_MAP: &str = "FILEMON_FILTER_IOCTL_NAME_MAP";
+
+const FILTER_IOCTL_PREFIX_MAP: &str = "FILEMON_FILTER_IOCTL_PREFIX_MAP";
