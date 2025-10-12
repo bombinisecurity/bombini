@@ -49,6 +49,7 @@ Filemon also supports path filtering for hooks:
 * file_open
 * mmap_file
 * path_truncate
+* path_chown
 
 You can specify an allow list of supported paths, using name, prefix, or full path. If path has corresponding name, prefix or equals the provided full path event will be send.
 

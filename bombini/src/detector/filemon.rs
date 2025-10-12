@@ -211,6 +211,17 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
             );
         }
     }
+    if let Some(ref chown_cfg) = config.path_chown {
+        if let Some(ref filter) = chown_cfg.path_filter {
+            resize_path_filter_maps!(
+                filter,
+                loader,
+                FILTER_CHOWN_NAME_MAP,
+                FILTER_CHOWN_PATH_MAP,
+                FILTER_CHOWN_PREFIX_MAP
+            );
+        }
+    }
     if let Some(ref mmap_cfg) = config.mmap_file {
         if let Some(ref filter) = mmap_cfg.path_filter {
             resize_path_filter_maps!(
@@ -308,6 +319,17 @@ fn intit_all_path_filter_maps(
             );
         }
     }
+    if let Some(ref chown_cfg) = config.path_chown {
+        if let Some(ref filter) = chown_cfg.path_filter {
+            ebpf_config.path_mask[4] = init_path_filter_maps!(
+                filter,
+                ebpf,
+                FILTER_CHOWN_NAME_MAP,
+                FILTER_CHOWN_PATH_MAP,
+                FILTER_CHOWN_PREFIX_MAP
+            );
+        }
+    }
     if let Some(ref mmap_cfg) = config.mmap_file {
         if let Some(ref filter) = mmap_cfg.path_filter {
             ebpf_config.path_mask[6] = init_path_filter_maps!(
@@ -342,12 +364,19 @@ const FILTER_OPEN_NAME_MAP: &str = "FILEMON_FILTER_OPEN_NAME_MAP";
 
 const FILTER_OPEN_PREFIX_MAP: &str = "FILEMON_FILTER_OPEN_PREFIX_MAP";
 
-// File Open truncate filter maps
+// Path truncate filter maps
 const FILTER_TRUNC_PATH_MAP: &str = "FILEMON_FILTER_TRUNC_PATH_MAP";
 
 const FILTER_TRUNC_NAME_MAP: &str = "FILEMON_FILTER_TRUNC_NAME_MAP";
 
 const FILTER_TRUNC_PREFIX_MAP: &str = "FILEMON_FILTER_TRUNC_PREFIX_MAP";
+
+// Path chown filter maps
+const FILTER_CHOWN_PATH_MAP: &str = "FILEMON_FILTER_CHOWN_PATH_MAP";
+
+const FILTER_CHOWN_NAME_MAP: &str = "FILEMON_FILTER_CHOWN_NAME_MAP";
+
+const FILTER_CHOWN_PREFIX_MAP: &str = "FILEMON_FILTER_CHOWN_PREFIX_MAP";
 
 // Mmap path filter maps
 const FILTER_MMAP_PATH_MAP: &str = "FILEMON_FILTER_MMAP_PATH_MAP";
