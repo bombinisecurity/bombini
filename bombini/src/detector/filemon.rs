@@ -211,6 +211,17 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
             );
         }
     }
+    if let Some(ref unlink_cfg) = config.path_unlink {
+        if let Some(ref filter) = unlink_cfg.path_filter {
+            resize_path_filter_maps!(
+                filter,
+                loader,
+                FILTER_UNLINK_NAME_MAP,
+                FILTER_UNLINK_PATH_MAP,
+                FILTER_UNLINK_PREFIX_MAP
+            );
+        }
+    }
     if let Some(ref chmod_cfg) = config.path_chmod {
         if let Some(ref filter) = chmod_cfg.path_filter {
             resize_path_filter_maps!(
@@ -341,6 +352,17 @@ fn intit_all_path_filter_maps(
             );
         }
     }
+    if let Some(ref unlink_cfg) = config.path_unlink {
+        if let Some(ref filter) = unlink_cfg.path_filter {
+            ebpf_config.path_mask[2] = init_path_filter_maps!(
+                filter,
+                ebpf,
+                FILTER_UNLINK_NAME_MAP,
+                FILTER_UNLINK_PATH_MAP,
+                FILTER_UNLINK_PREFIX_MAP
+            );
+        }
+    }
     if let Some(ref chmod_cfg) = config.path_chmod {
         if let Some(ref filter) = chmod_cfg.path_filter {
             ebpf_config.path_mask[3] = init_path_filter_maps!(
@@ -414,6 +436,13 @@ const FILTER_TRUNC_PATH_MAP: &str = "FILEMON_FILTER_TRUNC_PATH_MAP";
 const FILTER_TRUNC_NAME_MAP: &str = "FILEMON_FILTER_TRUNC_NAME_MAP";
 
 const FILTER_TRUNC_PREFIX_MAP: &str = "FILEMON_FILTER_TRUNC_PREFIX_MAP";
+
+// Path unlink filter maps
+const FILTER_UNLINK_PATH_MAP: &str = "FILEMON_FILTER_UNLINK_PATH_MAP";
+
+const FILTER_UNLINK_NAME_MAP: &str = "FILEMON_FILTER_UNLINK_NAME_MAP";
+
+const FILTER_UNLINK_PREFIX_MAP: &str = "FILEMON_FILTER_UNLINK_PREFIX_MAP";
 
 // Path chmod filter maps
 const FILTER_CHMOD_PATH_MAP: &str = "FILEMON_FILTER_CHMOD_PATH_MAP";

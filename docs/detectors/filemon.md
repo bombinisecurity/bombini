@@ -48,6 +48,7 @@ Filemon also supports path filtering for hooks:
 
 * file_open
 * path_truncate
+* path_unlink
 * path_chmod
 * path_chown
 * mmap_file
