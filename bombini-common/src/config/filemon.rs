@@ -13,7 +13,7 @@ pub struct Config {
     /// Path filters for hooks
     /// 0 - file_open
     /// 1 - path_truncate
-    /// 2 - path_unlink"
+    /// 2 - path_unlink
     /// 3 - path_chmod
     /// 4 - path_chown
     /// 5 - sb_mount

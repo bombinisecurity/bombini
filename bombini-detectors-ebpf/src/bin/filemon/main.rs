@@ -242,9 +242,21 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     Ok(0)
 }
 
+#[map]
+static FILEMON_FILTER_UNLINK_PATH_MAP: HashMap<[u8; MAX_FILE_PATH], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_UNLINK_NAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILTER_UNLINK_PREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
+    LpmTrie::with_max_entries(1, 0);
+
 #[lsm(hook = "path_unlink")]
 pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, false, try_unlink)
+    event_capture!(ctx, MSG_FILE, true, try_unlink)
 }
 
 fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
@@ -268,17 +280,42 @@ fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
 
     event.hook = HOOK_PATH_UNLINK;
     unsafe {
+        let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
         let p: *const path = ctx.arg(0);
+        let len = bpf_d_path(
+            p as *const _ as *mut aya_ebpf::bindings::path,
+            path_ptr as *mut _,
+            MAX_FILE_PATH as u32,
+        );
+        let len = len as usize & (MAX_FILE_PATH - 1);
+        if len == 0 || len as usize > MAX_FILE_PATH - MAX_FILENAME_SIZE - 1 {
+            return Err(0);
+        }
+        let path_buf = path_ptr.as_mut();
+        let Some(path_buf) = path_buf else {
+            return Err(0);
+        };
+        path_buf[len as usize - 1] = b'/';
         let entry: *const dentry = ctx.arg(1);
         let d_name =
             bpf_probe_read_kernel::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0i32)?;
-        aya_ebpf::memset(event.name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
         bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-        let _ = bpf_d_path(
-            p as *const _ as *mut aya_ebpf::bindings::path,
-            event.path.as_mut_ptr() as *mut _,
-            event.path.len() as u32,
-        );
+        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes(event.name.as_ptr(), &mut event.path[len as usize..])
+            .map_err(|_| 0i32)?;
+        // Filter event by path
+        if !config.path_mask[2].is_empty() {
+            let path_filter: PathFilter = PathFilter::new(
+                &FILEMON_FILTER_UNLINK_NAME_MAP,
+                &FILEMON_FILTER_UNLINK_PATH_MAP,
+                &FILEMON_FILTER_UNLINK_PREFIX_MAP,
+            );
+            if !path_filter.filter(config.path_mask[2], &event.path, &event.name) {
+                return Err(0);
+            }
+        }
     }
     util::copy_proc(proc, &mut event.process);
     Ok(0)
@@ -298,7 +335,7 @@ static FILEMON_FILTER_CHMOD_PREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
 
 #[lsm(hook = "path_chmod")]
 pub fn path_chmod_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, false, try_chmod)
+    event_capture!(ctx, MSG_FILE, true, try_chmod)
 }
 
 fn try_chmod(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
@@ -369,7 +406,7 @@ static FILEMON_FILTER_CHOWN_PREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
 
 #[lsm(hook = "path_chown")]
 pub fn path_chown_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, false, try_chown)
+    event_capture!(ctx, MSG_FILE, true, try_chown)
 }
 
 fn try_chown(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
@@ -429,7 +466,7 @@ fn try_chown(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
 
 #[lsm(hook = "sb_mount")]
 pub fn sb_mount_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, false, try_sb_mount)
+    event_capture!(ctx, MSG_FILE, true, try_sb_mount)
 }
 
 fn try_sb_mount(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
@@ -455,7 +492,6 @@ fn try_sb_mount(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     unsafe {
         let dev: *const u8 = ctx.arg(0);
         let mnt: *const path = ctx.arg(1);
-        aya_ebpf::memset(event.name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
         bpf_probe_read_kernel_str_bytes(dev, &mut event.name).map_err(|_| 0i32)?;
         let _ = bpf_d_path(
             mnt as *const _ as *mut aya_ebpf::bindings::path,
@@ -555,7 +591,7 @@ static FILEMON_FILTER_IOCTL_PREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
 
 #[lsm(hook = "file_ioctl")]
 pub fn file_ioctl_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, false, try_file_ioctl)
+    event_capture!(ctx, MSG_FILE, true, try_file_ioctl)
 }
 
 fn try_file_ioctl(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {

@@ -295,7 +295,7 @@ impl FileEvent {
                 }
             }
             HOOK_PATH_UNLINK => {
-                let path = str_from_bytes(&event.path) + "/" + &str_from_bytes(&event.name);
+                let path = str_from_bytes(&event.path);
                 let info = PathInfo { path };
                 Self {
                     process: Process::new(event.process),
