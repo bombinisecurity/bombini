@@ -467,6 +467,9 @@ fn test_filemon_ioctl_file() {
     let config_contents = r#"
 file_ioctl:
   enabled: true
+  path_filter:
+    prefix:
+    - /dev
 "#;
     let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
