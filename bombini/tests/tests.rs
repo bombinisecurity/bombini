@@ -526,9 +526,16 @@ fn test_filemon_chown_file() {
     let _ = fs::copy(&config, &tmp_config);
     tmp_config.pop();
     config.pop();
-    let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let _ = fs::copy(config.join("filemon.yaml"), &filemon_config);
+    let filemon_config = tmp_config.join("filemon.yaml");
+    let config_contents = r#"
+path_chown:
+  enabled: true
+  path_filter:
+    name:
+    - filemon.yaml
+"#;
+    let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let event_log = temp_dir.path().join("events.log");
