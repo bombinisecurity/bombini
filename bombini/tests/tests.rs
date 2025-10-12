@@ -229,7 +229,15 @@ fn test_filemon_unlink_file() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let _ = fs::copy(config.join("filemon.yaml"), tmp_config.join("filemon.yaml"));
+    let filemon_config = tmp_config.join("filemon.yaml");
+    let config_contents = r#"
+path_unlink:
+  enabled: true
+  path_filter:
+    prefix:
+    - /tmp/bombini-test-
+"#;
+    let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let event_log = temp_dir.path().join("events.log");
