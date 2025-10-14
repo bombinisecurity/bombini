@@ -218,6 +218,10 @@ fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
         .unwrap_or("")
         .to_string();
 
+    if container.ends_with(".service") {
+        return String::new();
+    }
+
     // Minimal container id length. It could be truncated in ebpf.
     if container.len() >= 31 {
         container[..31].to_string()
