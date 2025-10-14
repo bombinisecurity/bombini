@@ -690,6 +690,7 @@ fn test_netmon_tcp_ip4_file() {
     );
     ma::assert_ge!(events.matches("\"type\":\"TcpConnectionClose\"").count(), 1);
     assert_eq!(events.matches("\"args\":\"localhost 7878\"").count(), 2);
+    assert_eq!(events.matches("\"fqdn\":\"localhost\"").count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
