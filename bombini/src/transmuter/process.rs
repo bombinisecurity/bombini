@@ -55,7 +55,8 @@ pub struct Process {
     pub binary_path: String,
     /// current work directory
     pub args: String,
-    /// empty if process is not running in container
+    #[serde(skip_serializing_if = "String::is_empty")]
+    /// skip for host
     pub container_id: String,
     /// IMA binary hash
     #[serde(skip_serializing_if = "is_invalid_ima")]
