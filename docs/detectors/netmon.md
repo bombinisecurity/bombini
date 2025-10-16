@@ -1,7 +1,7 @@
 ## Netmon
 
 Netmon detector provides information about ingress/egress TCP connections
-based on IPv4/IPv6.
+based on IPv4/IPv6
 
 Hooks:
 
@@ -9,10 +9,6 @@ Hooks:
 - `tcp_v6_connect`: collect egnress TCP IPv6 connection requests
 - `tcp_close`: collect connection close events
 - `inet_csk_accept`: collect TCP v4/v6 ingress connections
-
-`TcpConnectionEstablish` event can be enriched with FQDN information.
-libc `getnameinfo`  function is used.
-NOTE: FQDN is not always possible to resove. In this case fqdn field is missing.
 
 ### Required Linux Kernel Version
 
