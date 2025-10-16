@@ -35,8 +35,7 @@ macro_rules! transmute {
     ($event:expr, $ktime:expr, $(($key:path, $type:ty)),+) => {
         match $event {
             $($key(s) => Ok(<$type>::new(s, $ktime)
-            .to_json()?
-            .into_bytes()),)+
+            .to_json()?),)+
         }
     };
 }
@@ -65,11 +64,11 @@ impl Transmuter {
 
 trait Transmute {
     /// Get JSON reprsentation
-    fn to_json(&self) -> Result<String, serde_json::Error>
+    fn to_json(&self) -> Result<Vec<u8>, serde_json::Error>
     where
         Self: Serialize,
     {
-        serde_json::to_string(&self)
+        serde_json::to_vec(&self)
     }
 }
 
