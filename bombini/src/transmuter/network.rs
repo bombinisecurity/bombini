@@ -3,11 +3,7 @@
 use bombini_common::event::network::{NetworkMsg, TcpConnectionV4, TcpConnectionV6};
 use serde::Serialize;
 
-use dns_lookup::getnameinfo;
-
-use libc::NI_NAMEREQD;
-
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use super::process::Process;
 use super::{transmute_ktime, Transmute};
@@ -49,9 +45,6 @@ pub struct TcpConnection {
     dport: u16,
     /// socket cookie
     cookie: u64,
-    /// FQDN dest for egress, source for ingress
-    #[serde(skip_serializing_if = "String::is_empty")]
-    fqdn: String,
 }
 
 impl NetworkEvent {
@@ -59,11 +52,7 @@ impl NetworkEvent {
     pub fn new(event: NetworkMsg, ktime: u64) -> Self {
         match event {
             NetworkMsg::TcpConV4Establish(con) => {
-                let mut con_event = transmute_connection_v4(&con);
-                let sock: SocketAddr = (con_event.daddr, con_event.dport).into();
-                if let Ok((fqdn, _)) = getnameinfo(&sock, NI_NAMEREQD) {
-                    con_event.fqdn = fqdn;
-                }
+                let con_event = transmute_connection_v4(&con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
@@ -71,11 +60,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV6Establish(con) => {
-                let mut con_event = transmute_connection_v6(&con);
-                let sock: SocketAddr = (con_event.daddr, con_event.dport).into();
-                if let Ok((fqdn, _)) = getnameinfo(&sock, NI_NAMEREQD) {
-                    con_event.fqdn = fqdn;
-                }
+                let con_event = transmute_connection_v6(&con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
@@ -99,11 +84,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV4Accept(con) => {
-                let mut con_event = transmute_connection_v4(&con);
-                let sock: SocketAddr = (con_event.saddr, con_event.sport).into();
-                if let Ok((fqdn, _)) = getnameinfo(&sock, NI_NAMEREQD) {
-                    con_event.fqdn = fqdn;
-                }
+                let con_event = transmute_connection_v4(&con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
@@ -111,11 +92,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV6Accept(con) => {
-                let mut con_event = transmute_connection_v6(&con);
-                let sock: SocketAddr = (con_event.saddr, con_event.sport).into();
-                if let Ok((fqdn, _)) = getnameinfo(&sock, NI_NAMEREQD) {
-                    con_event.fqdn = fqdn;
-                }
+                let con_event = transmute_connection_v6(&con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
@@ -135,7 +112,6 @@ fn transmute_connection_v4(con: &TcpConnectionV4) -> TcpConnection {
         sport: con.sport,
         dport: con.dport,
         cookie: con.cookie,
-        fqdn: String::new(),
     }
 }
 
@@ -146,7 +122,6 @@ fn transmute_connection_v6(con: &TcpConnectionV6) -> TcpConnection {
         sport: con.sport,
         dport: con.dport,
         cookie: con.cookie,
-        fqdn: String::new(),
     }
 }
 
