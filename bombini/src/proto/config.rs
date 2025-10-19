@@ -114,12 +114,46 @@ pub struct FileHookConfig {
     #[prost(message, optional, tag = "2")]
     pub path_filter: ::core::option::Option<PathFilter>,
 }
+/// IP filter configuration
+#[derive(serde::Deserialize)]
+#[serde(default)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct IpFilter {
+    /// Source IP list
+    #[prost(string, repeated, tag = "1")]
+    pub src_ip: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Destination IP list
+    #[prost(string, repeated, tag = "2")]
+    pub dst_ip: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// deny_list
+    #[prost(bool, tag = "3")]
+    pub deny_list: bool,
+}
+/// Connections control
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ConnectionsControl {
+    /// Do not load ebpf program
+    #[prost(bool, tag = "1")]
+    pub enabled: bool,
+    /// Ipv4 filter connections
+    #[prost(message, optional, tag = "2")]
+    pub ipv4_filter: ::core::option::Option<IpFilter>,
+    /// Ipv6 filter connections
+    #[prost(message, optional, tag = "3")]
+    pub ipv6_filter: ::core::option::Option<IpFilter>,
+}
 /// Configuration file for NetMon detector.
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NetMonConfig {
     /// Filter Network events by Process information.
     #[prost(message, optional, tag = "1")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
+    /// Ingress traffic connections
+    #[prost(message, optional, tag = "2")]
+    pub ingress: ::core::option::Option<ConnectionsControl>,
+    /// Egress traffic connections
+    #[prost(message, optional, tag = "3")]
+    pub egress: ::core::option::Option<ConnectionsControl>,
 }
 /// Configuration file for IOUringMon detector.
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]

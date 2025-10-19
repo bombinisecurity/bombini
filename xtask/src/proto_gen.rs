@@ -13,6 +13,7 @@ pub fn proto_gen(_opts: Options) -> Result<(), anyhow::Error> {
         .out_dir(&out_dir)
         .type_attribute(".", "#[derive(serde::Deserialize)]")
         .type_attribute("config.ProcessFilter", "#[serde(default)]")
+        .type_attribute("config.IpFilter", "#[serde(default)]")
         .type_attribute("config.PathFilter", "#[serde(default)]")
         .compile_protos(&[proto_config], &[proto_inculdes])?;
     Ok(())
