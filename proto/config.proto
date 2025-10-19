@@ -85,10 +85,32 @@ message FileHookConfig {
     optional PathFilter path_filter = 2;
 }
 
+// IP filter configuration
+message  IpFilter {
+    // Source IP list
+    repeated string src_ip = 1;
+    // Destination IP list
+    repeated string dst_ip = 2;
+    // deny_list
+    bool deny_list = 3;
+}
+// Connections control
+message ConnectionsControl {
+    // Do not load ebpf program
+    bool enabled = 1;
+    // Ipv4 filter connections
+    IpFilter ipv4_filter = 2;
+    // Ipv6 filter connections
+    IpFilter ipv6_filter = 3;
+}
 // Configuration file for NetMon detector.
 message NetMonConfig {
     // Filter Network events by Process information.
     ProcessFilter process_filter = 1;
+    // Ingress traffic connections
+    ConnectionsControl ingress = 2;
+    // Egress traffic connections
+    ConnectionsControl egress = 3;
 }
 
 // Configuration file for IOUringMon detector.

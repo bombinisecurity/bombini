@@ -14,13 +14,19 @@ use aya_ebpf::{
     EbpfContext,
 };
 
-use bombini_detectors_ebpf::vmlinux::sock;
+use bombini_detectors_ebpf::{
+    filter::ip::{Ipv4Filter, Ipv6Filter},
+    vmlinux::sock,
+};
 
 use bombini_common::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
 use bombini_common::event::{
     network::TcpConnectionV4, network::TcpConnectionV6, process::ProcInfo, Event, MSG_NETWORK,
 };
-use bombini_common::{config::network::Config, event::network::NetworkMsg};
+use bombini_common::{
+    config::network::{Config, IpFilterMask},
+    event::network::NetworkMsg,
+};
 
 use bombini_detectors_ebpf::{
     event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
@@ -32,6 +38,9 @@ static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
 #[map]
 static NETMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCK_COOKIE_MAP: LruHashMap<u64, u8> = LruHashMap::with_max_entries(512, 0);
 
 // Filter maps
 
@@ -99,6 +108,12 @@ unsafe fn parse_v6_sock(event: &mut TcpConnectionV6, s: *const sock) -> Result<(
     Ok(())
 }
 
+#[map]
+static NETMON_FILTER_SRC_IP4_EGRESS_MAP: LpmTrie<[u8; 4], u8> = LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_DST_IP4_EGRESS_MAP: LpmTrie<[u8; 4], u8> = LpmTrie::with_max_entries(1, 0);
+
 #[fexit(function = "tcp_v4_connect")]
 pub fn tcp_v4_connect_capture(ctx: FExitContext) -> u32 {
     event_capture!(ctx, MSG_NETWORK, false, try_tcp_v4_connect)
@@ -144,7 +159,6 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
     if !allow {
         return Err(0);
     }
-
     unsafe {
         let p = event as *mut NetworkMsg as *mut u8;
         // TcpConV4Established
@@ -162,10 +176,34 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
     if event.saddr == 0 || event.daddr == 0 || event.sport == 0 || event.dport == 0 {
         return Err(0);
     }
+    // Filter Ipv4 egress connections
+    if config.ip_filter_mask.intersects(
+        IpFilterMask::DEST_IP4_EGRESS_ALLOW
+            | IpFilterMask::DEST_IP4_EGRESS_DENY
+            | IpFilterMask::SOURCE_IP4_EGRESS_ALLOW
+            | IpFilterMask::SOURCE_IP4_EGRESS_DENY,
+    ) {
+        let ip_filter = Ipv4Filter::new(
+            &NETMON_FILTER_SRC_IP4_EGRESS_MAP,
+            &NETMON_FILTER_DST_IP4_EGRESS_MAP,
+        );
+        let saddr = event.saddr.to_le_bytes();
+        let daddr = event.daddr.to_le_bytes();
+        if !ip_filter.filter(config.ip_filter_mask, &saddr, &daddr) {
+            return Err(0);
+        }
+    }
 
     util::copy_proc(proc, &mut event.process);
+    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
     Ok(0)
 }
+
+#[map]
+static NETMON_FILTER_SRC_IP6_EGRESS_MAP: LpmTrie<[u8; 16], u8> = LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_DST_IP6_EGRESS_MAP: LpmTrie<[u8; 16], u8> = LpmTrie::with_max_entries(1, 0);
 
 #[fexit(function = "tcp_v6_connect")]
 pub fn tcp_v6_connect_capture(ctx: FExitContext) -> u32 {
@@ -231,7 +269,24 @@ fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
         return Err(0);
     }
 
+    // Filter Ipv6 egress connections
+    if config.ip_filter_mask.intersects(
+        IpFilterMask::DEST_IP6_EGRESS_ALLOW
+            | IpFilterMask::DEST_IP6_EGRESS_DENY
+            | IpFilterMask::SOURCE_IP6_EGRESS_ALLOW
+            | IpFilterMask::SOURCE_IP6_EGRESS_DENY,
+    ) {
+        let ip_filter = Ipv6Filter::new(
+            &NETMON_FILTER_SRC_IP6_EGRESS_MAP,
+            &NETMON_FILTER_DST_IP6_EGRESS_MAP,
+        );
+        if !ip_filter.filter(config.ip_filter_mask, &event.saddr, &event.daddr) {
+            return Err(0);
+        }
+    }
+
     util::copy_proc(proc, &mut event.process);
+    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
     Ok(0)
 }
 
@@ -293,7 +348,33 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
                     return Err(0);
                 };
                 parse_v4_sock(event, s);
+                if NETMON_SOCK_COOKIE_MAP.get_ptr(&event.cookie).is_none() {
+                    return Err(0);
+                }
+                // Filter Ipv4 connections
+                if config.ip_filter_mask.intersects(
+                    IpFilterMask::DEST_IP4_EGRESS_ALLOW
+                        | IpFilterMask::DEST_IP4_EGRESS_DENY
+                        | IpFilterMask::SOURCE_IP4_EGRESS_ALLOW
+                        | IpFilterMask::SOURCE_IP4_EGRESS_DENY
+                        | IpFilterMask::DEST_IP4_INGRESS_ALLOW
+                        | IpFilterMask::DEST_IP4_INGRESS_DENY
+                        | IpFilterMask::SOURCE_IP4_INGRESS_ALLOW
+                        | IpFilterMask::SOURCE_IP4_INGRESS_DENY,
+                ) {
+                    let ip_filter = Ipv4Filter::new(
+                        &NETMON_FILTER_SRC_IP4_EGRESS_MAP,
+                        &NETMON_FILTER_DST_IP4_EGRESS_MAP,
+                    );
+                    let saddr = event.saddr.to_le_bytes();
+                    let daddr = event.daddr.to_le_bytes();
+                    if !ip_filter.filter(config.ip_filter_mask, &saddr, &daddr) {
+                        return Err(0);
+                    }
+                }
+
                 util::copy_proc(proc, &mut event.process);
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 Ok(0)
             }
             AF_INET6 => {
@@ -304,13 +385,50 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
+                if NETMON_SOCK_COOKIE_MAP.get_ptr(&event.cookie).is_none() {
+                    return Err(0);
+                }
+
+                // Filter Ipv6 connections
+                if config.ip_filter_mask.intersects(
+                    IpFilterMask::DEST_IP6_EGRESS_ALLOW
+                        | IpFilterMask::DEST_IP6_EGRESS_DENY
+                        | IpFilterMask::SOURCE_IP6_EGRESS_ALLOW
+                        | IpFilterMask::SOURCE_IP6_EGRESS_DENY
+                        | IpFilterMask::DEST_IP6_INGRESS_ALLOW
+                        | IpFilterMask::DEST_IP6_INGRESS_DENY
+                        | IpFilterMask::SOURCE_IP6_INGRESS_ALLOW
+                        | IpFilterMask::SOURCE_IP6_INGRESS_DENY,
+                ) {
+                    let ip_filter = Ipv6Filter::new(
+                        &NETMON_FILTER_SRC_IP6_EGRESS_MAP,
+                        &NETMON_FILTER_DST_IP6_EGRESS_MAP,
+                    );
+                    if !ip_filter.filter(config.ip_filter_mask, &event.saddr, &event.daddr) {
+                        return Err(0);
+                    }
+                }
+
                 util::copy_proc(proc, &mut event.process);
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 Ok(0)
             }
             _ => Err(0),
         }
     }
 }
+
+#[map]
+static NETMON_FILTER_SRC_IP4_INGRESS_MAP: LpmTrie<[u8; 4], u8> = LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_DST_IP4_INGRESS_MAP: LpmTrie<[u8; 4], u8> = LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_SRC_IP6_INGRESS_MAP: LpmTrie<[u8; 16], u8> = LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_FILTER_DST_IP6_INGRESS_MAP: LpmTrie<[u8; 16], u8> = LpmTrie::with_max_entries(1, 0);
 
 #[fexit(function = "inet_csk_accept")]
 pub fn inet_csk_accept_capture(ctx: FExitContext) -> u32 {
@@ -370,8 +488,30 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32>
                     return Err(0);
                 };
                 parse_v4_sock(event, s);
+                if event.sport == 0 && event.dport == 0 {
+                    return Err(0);
+                }
+
+                // Filter Ipv4 ingress connections
+                if config.ip_filter_mask.intersects(
+                    IpFilterMask::DEST_IP4_INGRESS_ALLOW
+                        | IpFilterMask::DEST_IP4_INGRESS_DENY
+                        | IpFilterMask::SOURCE_IP4_INGRESS_ALLOW
+                        | IpFilterMask::SOURCE_IP4_INGRESS_DENY,
+                ) {
+                    let ip_filter = Ipv4Filter::new(
+                        &NETMON_FILTER_SRC_IP4_INGRESS_MAP,
+                        &NETMON_FILTER_DST_IP4_INGRESS_MAP,
+                    );
+                    let saddr = event.saddr.to_le_bytes();
+                    let daddr = event.daddr.to_le_bytes();
+                    if !ip_filter.filter(config.ip_filter_mask, &saddr, &daddr) {
+                        return Err(0);
+                    }
+                }
 
                 util::copy_proc(proc, &mut event.process);
+                let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
                 Ok(0)
             }
             AF_INET6 => {
@@ -382,7 +522,28 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32>
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
+                if event.sport == 0 && event.dport == 0 {
+                    return Err(0);
+                }
+
+                // Filter Ipv6 ingress connections
+                if config.ip_filter_mask.intersects(
+                    IpFilterMask::DEST_IP6_INGRESS_ALLOW
+                        | IpFilterMask::DEST_IP6_INGRESS_DENY
+                        | IpFilterMask::SOURCE_IP6_INGRESS_ALLOW
+                        | IpFilterMask::SOURCE_IP6_INGRESS_DENY,
+                ) {
+                    let ip_filter = Ipv6Filter::new(
+                        &NETMON_FILTER_SRC_IP6_INGRESS_MAP,
+                        &NETMON_FILTER_DST_IP6_INGRESS_MAP,
+                    );
+                    if !ip_filter.filter(config.ip_filter_mask, &event.saddr, &event.daddr) {
+                        return Err(0);
+                    }
+                }
+
                 util::copy_proc(proc, &mut event.process);
+                let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
                 Ok(0)
             }
             _ => Err(0),
