@@ -620,7 +620,17 @@ fn test_netmon_tcp_ip4_file() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let _ = fs::copy(config.join("netmon.yaml"), tmp_config.join("netmon.yaml"));
+    let netmon_config = tmp_config.join("netmon.yaml");
+    let config_contents = r#"
+egress:
+  enabled: true
+  ipv4_filter:
+    dst_ip:
+    - 127.0.0.1
+    src_ip:
+    - 127.0.0.1
+"#;
+    let _ = fs::write(&netmon_config, config_contents);
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
     let event_log = temp_dir.path().join("events.log");
