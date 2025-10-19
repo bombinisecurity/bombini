@@ -71,7 +71,7 @@ impl Detector for FileMon {
             config.deny_list = filter.deny_list;
         }
 
-        intit_all_path_filter_maps(&mut config, &self.config, &mut self.ebpf)?;
+        init_all_path_filter_maps(&mut config, &self.config, &mut self.ebpf)?;
         let mut config_map: Array<_, Config> =
             Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, config, 0);
@@ -325,7 +325,7 @@ macro_rules! init_path_filter_maps {
 }
 
 #[inline]
-fn intit_all_path_filter_maps(
+fn init_all_path_filter_maps(
     ebpf_config: &mut Config,
     config: &FileMonConfig,
     ebpf: &mut Ebpf,
