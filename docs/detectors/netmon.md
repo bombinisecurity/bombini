@@ -16,6 +16,37 @@ Hooks:
 
 ### Config
 
+First you need to enable monitoring for ingress/egress tcp connections or both:
+
+```yaml
+ingress:
+  enabled: true
+egress:
+  enabled: true
+```
+
+Netmon supports filtering by IP. You can have separate filters for ingress/egress traffic.
+For each filter there are ipv4 and ipv6 lists. This ip filters can act as allow list or deny list
+and they are united with OR operator. In this filters there are source ip lists, and destination ip lists.
+
+```yaml
+egress:
+  enabled: true
+  ipv4_filter:
+    deny_list: true
+    dst_ip:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 127.0.0.1
+      - 0.0.0.0
+  ipv6_filter:
+    dst_ip:
+      - 2000::/3
+```
+
+The example above shows Netmon config that can detect outgoing connections from cluster network.
+
 NetMon detector supports process allow/deny list for event filtering:
 
 ```yaml
