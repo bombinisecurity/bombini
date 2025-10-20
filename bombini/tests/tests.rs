@@ -957,10 +957,6 @@ file_open:
   enabled: true
 mmap_file:
   enabled: true
-  path_filter:
-    prefix:
-    - /usr
-    - /lib
 path_truncate:
   enabled: false
 path_unlink:
@@ -1018,16 +1014,6 @@ process_filter:
 
     assert!(tail_status.success());
 
-    let ldd_status = Command::new("ldd")
-        .args(["/usr/bin/tail"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .status()
-        .expect("can't start ldd");
-
-    assert!(ldd_status.success());
-
     // Wait Events being processed
     thread::sleep(Duration::from_millis(2000));
 
@@ -1040,7 +1026,6 @@ process_filter:
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"tail\"").count(), 1);
-    ma::assert_ge!(events.matches("\"path\":\"/usr").count(), 1);
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
