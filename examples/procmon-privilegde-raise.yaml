@@ -1,0 +1,20 @@
+expose_events: true
+setuid:
+  enabled: true
+  cred_filter:
+    uid_filter:
+      euid:
+      - 0
+capset:
+  enabled: true
+  cred_filter:
+    cap_filter:
+      effective:
+      - "ANY"
+create_user_ns:
+  enabled: true
+  cred_filter:
+    cap_filter:
+      effective:
+      - "CAP_SYS_ADMIN"
+      deny_list: true

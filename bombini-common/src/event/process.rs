@@ -305,6 +305,15 @@ bitflags! {
     }
 }
 
+#[cfg(feature = "user")]
+impl core::str::FromStr for Capabilities {
+    type Err = bitflags::parser::ParseError;
+
+    fn from_str(flags_str: &str) -> Result<Self, Self::Err> {
+        bitflags::parser::from_str(flags_str)
+    }
+}
+
 /// Enumeration of prctl supported commands
 #[derive(Clone, Debug)]
 #[repr(u8)]
