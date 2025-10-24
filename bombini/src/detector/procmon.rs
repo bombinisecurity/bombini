@@ -13,9 +13,9 @@ use procfs::process;
 use std::path::Path;
 
 use bombini_common::{
-    config::procmon::{Config, ProcessFilterMask},
+    config::procmon::{Config, CredFilterMask, ProcessFilterMask},
     constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
-    event::process::ProcInfo,
+    event::process::{Capabilities, ProcInfo},
 };
 
 use crate::{
@@ -56,6 +56,7 @@ impl Detector for ProcMon {
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
+        resize_cred_filter_maps(&config, ebpf_loader_ref);
 
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
@@ -66,6 +67,7 @@ impl Detector for ProcMon {
         let mut config = Config {
             expose_events: false,
             filter_mask: ProcessFilterMask::empty(),
+            cred_mask: [CredFilterMask::empty(); 3],
             deny_list: false,
             ima_hash: false,
         };
@@ -75,6 +77,7 @@ impl Detector for ProcMon {
             config.filter_mask = init_process_filter_maps!(filter, &mut self.ebpf);
             config.deny_list = filter.deny_list;
         }
+        init_cred_filter_maps(&mut config, &self.config, &mut self.ebpf)?;
         let mut config_map: Array<_, Config> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, config, 0);
@@ -115,7 +118,7 @@ impl Detector for ProcMon {
         program.load("bprm_committing_creds", &btf)?;
         program.attach()?;
 
-        if let Some(setuid_cfg) = self.config.setuid {
+        if let Some(ref setuid_cfg) = self.config.setuid {
             if setuid_cfg.enabled {
                 let setuid: &mut Lsm = self
                     .ebpf
@@ -126,7 +129,7 @@ impl Detector for ProcMon {
                 setuid.attach()?;
             }
         }
-        if let Some(capset_cfg) = self.config.capset {
+        if let Some(ref capset_cfg) = self.config.capset {
             if capset_cfg.enabled {
                 let capset: &mut Lsm = self
                     .ebpf
@@ -137,7 +140,7 @@ impl Detector for ProcMon {
                 capset.attach()?;
             }
         }
-        if let Some(prctl_cfg) = self.config.prctl {
+        if let Some(ref prctl_cfg) = self.config.prctl {
             if prctl_cfg.enabled {
                 let prctl: &mut Lsm = self
                     .ebpf
@@ -148,7 +151,7 @@ impl Detector for ProcMon {
                 prctl.attach()?;
             }
         }
-        if let Some(create_user_ns_cfg) = self.config.create_user_ns {
+        if let Some(ref create_user_ns_cfg) = self.config.create_user_ns {
             if create_user_ns_cfg.enabled {
                 let create_user_ns: &mut Lsm = self
                     .ebpf
@@ -159,7 +162,7 @@ impl Detector for ProcMon {
                 create_user_ns.attach()?;
             }
         }
-        if let Some(ptrace_cfg) = self.config.ptrace_access_check {
+        if let Some(ref ptrace_cfg) = self.config.ptrace_access_check {
             if ptrace_cfg.enabled {
                 let ptrace: &mut Lsm = self
                     .ebpf
@@ -289,7 +292,133 @@ macro_rules! init_process_filter_maps {
     }};
 }
 
-/// ProcMon Filter map names
+#[inline]
+fn resize_cred_filter_maps(config: &ProcMonConfig, loader: &mut EbpfLoader) {
+    if let Some(ref capset_cfg) = config.capset {
+        if let Some(ref cred_filter) = capset_cfg.cred_filter {
+            if let Some(ref cap_filter) = cred_filter.cap_filter {
+                if cap_filter.effective.len() > 1 {
+                    loader.set_max_entries(
+                        FILTER_CAPSET_ECAP_MAP_NAME,
+                        cap_filter.effective.len() as u32,
+                    );
+                }
+            }
+        }
+    }
+    if let Some(ref setuid_cfg) = config.setuid {
+        if let Some(ref cred_filter) = setuid_cfg.cred_filter {
+            if let Some(ref uid_filter) = cred_filter.uid_filter {
+                if uid_filter.euid.len() > 1 {
+                    loader
+                        .set_max_entries(FILTER_SETUID_EUID_MAP_NAME, uid_filter.euid.len() as u32);
+                }
+            }
+        }
+    }
+    if let Some(ref userns_cfg) = config.create_user_ns {
+        if let Some(ref cred_filter) = userns_cfg.cred_filter {
+            if let Some(ref uid_filter) = cred_filter.uid_filter {
+                if uid_filter.euid.len() > 1 {
+                    loader
+                        .set_max_entries(FILTER_USERNS_ECAP_MAP_NAME, uid_filter.euid.len() as u32);
+                }
+            }
+            if let Some(ref cap_filter) = cred_filter.cap_filter {
+                if cap_filter.effective.len() > 1 {
+                    loader.set_max_entries(
+                        FILTER_USERNS_ECAP_MAP_NAME,
+                        cap_filter.effective.len() as u32,
+                    );
+                }
+            }
+        }
+    }
+}
+
+macro_rules! init_uid_filter_map {
+    ($uid_list:expr, $ebpf:expr, $map_name:expr) => {{
+        let mut uid_map: HashMap<_, u32, u8> =
+            HashMap::try_from($ebpf.map_mut($map_name).unwrap())?;
+        for v in $uid_list.iter() {
+            let _ = uid_map.insert(v, 0, 0);
+        }
+    }};
+}
+
+use std::str::FromStr;
+
+macro_rules! init_cap_filter_map {
+    ($cap_list:expr, $ebpf:expr, $map_name:expr) => {{
+        let mut cap_map: Array<_, u64> = Array::try_from($ebpf.map_mut($map_name).unwrap())?;
+        for (i, v) in $cap_list.iter().enumerate() {
+            if *v == "ANY" {
+                let _ = cap_map.set(i as u32, 1 << 63, 0);
+                continue;
+            }
+            if let Ok(cap) = Capabilities::from_str(v) {
+                let _ = cap_map.set(i as u32, cap.bits(), 0);
+            }
+        }
+    }};
+}
+
+#[inline]
+fn init_cred_filter_maps(
+    ebpf_config: &mut Config,
+    config: &ProcMonConfig,
+    ebpf: &mut Ebpf,
+) -> Result<(), EbpfError> {
+    if let Some(ref setuid_cfg) = config.setuid {
+        if let Some(ref cred_filter) = setuid_cfg.cred_filter {
+            if let Some(ref uid_filter) = cred_filter.uid_filter {
+                if !uid_filter.euid.is_empty() {
+                    init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_SETUID_EUID_MAP_NAME);
+                    ebpf_config.cred_mask[0] |= CredFilterMask::EUID;
+                }
+            }
+        }
+    }
+    if let Some(ref capset_cfg) = config.capset {
+        if let Some(ref cred_filter) = capset_cfg.cred_filter {
+            if let Some(ref cap_filter) = cred_filter.cap_filter {
+                if !cap_filter.effective.is_empty() {
+                    init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_CAPSET_ECAP_MAP_NAME);
+                    let deny = cap_filter.deny_list.unwrap_or(false);
+                    if deny {
+                        ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS_DENY_LIST;
+                    } else {
+                        ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS;
+                    }
+                }
+            }
+        }
+    }
+    if let Some(ref userns_cfg) = config.create_user_ns {
+        if let Some(ref cred_filter) = userns_cfg.cred_filter {
+            if let Some(ref uid_filter) = cred_filter.uid_filter {
+                if !uid_filter.euid.is_empty() {
+                    init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_USERNS_EUID_MAP_NAME);
+                    ebpf_config.cred_mask[2] |= CredFilterMask::EUID;
+                }
+            }
+            if let Some(ref cap_filter) = cred_filter.cap_filter {
+                if !cap_filter.effective.is_empty() {
+                    init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_USERNS_ECAP_MAP_NAME);
+                    let deny = cap_filter.deny_list.unwrap_or(false);
+                    if deny {
+                        ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS_DENY_LIST;
+                    } else {
+                        ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// ProcMon Filter map names
 const FILTER_UID_MAP_NAME: &str = "PROCMON_FILTER_UID_MAP";
 
 const FILTER_EUID_MAP_NAME: &str = "PROCMON_FILTER_EUID_MAP";
@@ -301,3 +430,12 @@ const FILTER_BINPATH_MAP_NAME: &str = "PROCMON_FILTER_BINPATH_MAP";
 const FILTER_BINNAME_MAP_NAME: &str = "PROCMON_FILTER_BINNAME_MAP";
 
 const FILTER_BINPREFIX_MAP_NAME: &str = "PROCMON_FILTER_BINPREFIX_MAP";
+
+// Cred filter map names
+const FILTER_SETUID_EUID_MAP_NAME: &str = "PROCMON_FILTER_SETUID_EUID_MAP";
+
+const FILTER_CAPSET_ECAP_MAP_NAME: &str = "PROCMON_FILTER_CAPSET_ECAP_MAP";
+
+const FILTER_USERNS_ECAP_MAP_NAME: &str = "PROCMON_FILTER_USERNS_ECAP_MAP";
+
+const FILTER_USERNS_EUID_MAP_NAME: &str = "PROCMON_FILTER_USERNS_EUID_MAP";

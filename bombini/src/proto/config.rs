@@ -28,11 +28,14 @@ pub struct ProcMonConfig {
     pub ima_hash: ::core::option::Option<bool>,
 }
 /// ProcMon hook configuration
-#[derive(serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ProcHookConfig {
     /// do not load ebpf program
     #[prost(bool, tag = "1")]
     pub enabled: bool,
+    /// filter by Cred
+    #[prost(message, optional, tag = "2")]
+    pub cred_filter: ::core::option::Option<CredFilter>,
 }
 /// Filter Events using process information.
 /// Filtering is based on pattern: uid AND euid AND auid AND (binary.name OR binary.prefix OR binary.path).
@@ -57,6 +60,35 @@ pub struct ProcessFilter {
     /// if true acts like deny list
     #[prost(bool, tag = "5")]
     pub deny_list: bool,
+}
+/// Filter Events using Cred information. Pattern uid_filter || cap_filter.
+#[derive(serde::Deserialize)]
+#[serde(default)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CredFilter {
+    /// Filter by uids (euid, TODO: uid, fsuid).
+    #[prost(message, optional, tag = "1")]
+    pub uid_filter: ::core::option::Option<UidFilter>,
+    /// Filter by  caps (effective, TODO: permited, inheritable).
+    #[prost(message, optional, tag = "2")]
+    pub cap_filter: ::core::option::Option<CapFilter>,
+}
+/// Capabilities filter
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CapFilter {
+    /// List of effective Capabilities. Special name ANY means if any cap is in effective cap set.
+    #[prost(string, repeated, tag = "1")]
+    pub effective: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// if true acts like deny list
+    #[prost(bool, optional, tag = "2")]
+    pub deny_list: ::core::option::Option<bool>,
+}
+/// UID filter
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct UidFilter {
+    /// effective UID
+    #[prost(uint32, repeated, tag = "1")]
+    pub euid: ::prost::alloc::vec::Vec<u32>,
 }
 /// Path filtering args
 #[derive(serde::Deserialize)]

@@ -1042,12 +1042,10 @@ fn test_procmon_setuid_stdout() {
 expose_events: false
 setuid:
   enabled: true
-capset:
-  enabled: false
-prctl:
-  enabled: false
-create_user_ns:
-  enabled: false
+  cred_filter:
+    uid_filter:
+      euid:
+      - 0
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1115,14 +1113,12 @@ fn test_procmon_setcaps_stdout() {
     config.pop();
     let config_contents = r#"
 expose_events: false
-setuid:
-  enabled: false
 capset:
   enabled: true
-prctl:
-  enabled: false
-create_user_ns:
-  enabled: false
+  cred_filter:
+    cap_filter:
+      effective:
+      - "CAP_NET_RAW"
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1273,14 +1269,12 @@ fn test_procmon_create_user_ns_stdout() {
     config.pop();
     let config_contents = r#"
 expose_events: false
-setuid:
-  enabled: false
-capset:
-  enabled: false
-prctl:
-  enabled: false
 create_user_ns:
   enabled: true
+  cred_filter:
+    cap_filter:
+      effective:
+      - "CAP_SYS_ADMIN"
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);

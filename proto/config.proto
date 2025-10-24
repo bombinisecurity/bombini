@@ -26,6 +26,8 @@ message ProcMonConfig {
 message ProcHookConfig {
     // do not load ebpf program
     bool enabled = 1;
+    // filter by Cred
+    CredFilter cred_filter = 2;
 }
 
 // Filter Events using process information.
@@ -43,6 +45,28 @@ message ProcessFilter {
     PathFilter binary = 4;
     // if true acts like deny list
     bool deny_list = 5;
+}
+
+// Filter Events using Cred information. Pattern uid_filter || cap_filter.
+message CredFilter {
+    // Filter by uids (euid, TODO: uid, fsuid).
+    UidFilter uid_filter = 1;
+    // Filter by  caps (effective, TODO: permited, inheritable).
+    CapFilter cap_filter = 2;
+}
+
+// Capabilities filter
+message CapFilter {
+    // List of effective Capabilities. Special name ANY means if any cap is in effective cap set.
+    repeated string effective = 1;
+    // if true acts like deny list
+    optional bool deny_list = 2;
+}
+
+// UID filter
+message UidFilter {
+    // effective UID
+    repeated uint32 euid = 1;
 }
 
 // Path filtering args

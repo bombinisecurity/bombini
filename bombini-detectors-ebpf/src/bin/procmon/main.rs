@@ -21,7 +21,7 @@ use bombini_detectors_ebpf::vmlinux::{
     qstr, task_struct,
 };
 
-use bombini_common::config::procmon::Config;
+use bombini_common::config::procmon::{Config, CredFilterMask};
 use bombini_common::constants::{
     MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_IMA_HASH_SIZE,
 };
@@ -35,7 +35,13 @@ use bombini_common::event::{
 };
 
 use bombini_detectors_ebpf::{
-    event_capture, event_map::rb_event_init, filter::process::ProcessFilter, util,
+    event_capture,
+    event_map::rb_event_init,
+    filter::{
+        cred::{CapFilter, UidFilter},
+        process::ProcessFilter,
+    },
+    util,
 };
 
 /// Extra info from bprm_committing_creds hook
@@ -539,6 +545,9 @@ fn filter_by_process(config: &Config, proc: &ProcInfo) -> Result<(), i32> {
     Ok(())
 }
 
+#[map]
+static PROCMON_FILTER_SETUID_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
 #[lsm(hook = "task_fix_setuid")]
 pub fn setuid_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_SETUID, false, try_setuid_capture)
@@ -570,9 +579,15 @@ fn try_setuid_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         event.euid = (*creds).euid.val;
         event.fsuid = (*creds).fsuid.val;
     }
+    let filter = UidFilter::new(&PROCMON_FILTER_SETUID_EUID_MAP);
+    if !config.cred_mask[0].is_empty() && !filter.filter(config.cred_mask[0], event.euid) {
+        return Err(0);
+    }
     util::copy_proc(proc, &mut event.process);
     Ok(0)
 }
+#[map]
+static PROCMON_FILTER_CAPSET_ECAP_MAP: Array<u64> = Array::with_max_entries(1, 0);
 
 #[lsm(hook = "capset")]
 pub fn capset_capture(ctx: LsmContext) -> i32 {
@@ -603,6 +618,10 @@ fn try_capset_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
         event.effective = Capabilities::from_bits_retain((*creds).cap_effective.val);
         event.inheritable = Capabilities::from_bits_retain((*creds).cap_inheritable.val);
         event.permitted = Capabilities::from_bits_retain((*creds).cap_permitted.val)
+    }
+    let filter = CapFilter::new(&PROCMON_FILTER_CAPSET_ECAP_MAP);
+    if !config.cred_mask[1].is_empty() && !filter.filter(config.cred_mask[1], &event.effective) {
+        return Err(0);
     }
     util::copy_proc(proc, &mut event.process);
     Ok(0)
@@ -651,12 +670,18 @@ fn try_task_prctl_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32
     Ok(0)
 }
 
+#[map]
+static PROCMON_FILTER_USERNS_ECAP_MAP: Array<u64> = Array::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_FILTER_USERNS_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
 #[lsm(hook = "create_user_ns")]
 pub fn create_user_ns_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_CREATE_USER_NS, false, try_create_user_ns_capture)
 }
 
-fn try_create_user_ns_capture(_ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_create_user_ns_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Event::ProcCreateUserNs(event) = event else {
         return Err(0);
     };
@@ -674,6 +699,23 @@ fn try_create_user_ns_capture(_ctx: LsmContext, event: &mut Event) -> Result<i32
     };
 
     filter_by_process(config, proc)?;
+    unsafe {
+        let creds: *const cred = ctx.arg(0);
+        let cap_filter = CapFilter::new(&PROCMON_FILTER_USERNS_ECAP_MAP);
+        let effective = Capabilities::from_bits_retain((*creds).cap_effective.val);
+        if config.cred_mask[2].intersects(CredFilterMask::E_CAPS | CredFilterMask::E_CAPS_DENY_LIST)
+            && !cap_filter.filter(config.cred_mask[2], &effective)
+        {
+            return Err(0);
+        }
+        let euid = (*creds).euid.val;
+        let uid_filter = UidFilter::new(&PROCMON_FILTER_SETUID_EUID_MAP);
+        if config.cred_mask[2].contains(CredFilterMask::EUID)
+            && !uid_filter.filter(config.cred_mask[2], euid)
+        {
+            return Err(0);
+        }
+    }
     util::copy_proc(proc, &mut event.process);
     Ok(0)
 }

@@ -15,6 +15,7 @@ pub fn proto_gen(_opts: Options) -> Result<(), anyhow::Error> {
         .type_attribute("config.ProcessFilter", "#[serde(default)]")
         .type_attribute("config.IpFilter", "#[serde(default)]")
         .type_attribute("config.PathFilter", "#[serde(default)]")
+        .type_attribute("config.CredFilter", "#[serde(default)]")
         .compile_protos(&[proto_config], &[proto_inculdes])?;
     Ok(())
 }
