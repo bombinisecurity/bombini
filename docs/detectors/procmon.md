@@ -92,6 +92,16 @@ ptrace_access_check:
   enabled: true
 ```
 
+Cred filter can be applied to these hooks:
+
+* security_task_fix_setuid
+* security_capset
+* security_create_user_ns
+
+`cred_filter` supports filtering by EUID and effective capabilies. They are combined with OR logic operator.
+`cap_filter` supports `deny_list` that acts like NOT operator. `cap_filter` supports `ANY` key word  that equal
+the check if any capability is set (not equal 0).
+
 ### Event
 
 ```json
