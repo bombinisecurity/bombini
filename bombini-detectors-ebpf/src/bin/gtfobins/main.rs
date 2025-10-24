@@ -74,6 +74,11 @@ fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
                     let Some(parent_proc) = parent_proc else {
                         return Err(0);
                     };
+                    if parent_proc.ppid == 1 {
+                        // System process uses gtfobin and spawing shell. It's valid
+                        // Example networkd-dispatcher can start some shell scripts
+                        return Err(0);
+                    }
                     // Check if GTFO binary
                     if let Some(enforce) = GTFOBINS_NAME_MAP.get_ptr(&parent_proc.filename) {
                         util::copy_proc(parent_proc, &mut event.process);
