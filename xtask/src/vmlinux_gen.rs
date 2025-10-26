@@ -1,4 +1,9 @@
-use std::{env, fs::File, path::PathBuf, process::Command};
+use std::{
+    env,
+    fs::{self, File},
+    path::PathBuf,
+    process::Command,
+};
 
 use clap::Parser;
 
@@ -12,12 +17,15 @@ pub fn vmlinux_gen(_opts: Options) -> Result<(), anyhow::Error> {
     let mut vmlinux_path = PathBuf::from(&manifest_dir);
     vmlinux_path.pop();
     vmlinux_path.push("bombini-detectors-ebpf/src/vmlinux.rs");
-    let vmlinux_file = File::create(vmlinux_path).unwrap();
+    let vmlinux_file = File::create(&vmlinux_path).unwrap();
 
     let _ = Command::new("aya-tool")
         .args(["generate", "task_struct"])
         .stdout(vmlinux_file.try_clone().unwrap())
         .status()
         .expect("can't start aya-tool");
+    let vmlinux = fs::read_to_string(&vmlinux_path).unwrap();
+    let vmlinux = vmlinux.replace(" gen:", " r#gen:");
+    let _ = fs::write(&vmlinux_path, vmlinux);
     Ok(())
 }

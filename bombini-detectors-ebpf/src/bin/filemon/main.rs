@@ -8,14 +8,14 @@ use aya_ebpf::{
     },
     macros::{lsm, map},
     maps::{
-        array::Array, hash_map::HashMap, lpm_trie::LpmTrie, per_cpu_array::PerCpuArray, LruHashMap,
+        LruHashMap, array::Array, hash_map::HashMap, lpm_trie::LpmTrie, per_cpu_array::PerCpuArray,
     },
     programs::LsmContext,
 };
 
 use bombini_common::config::filemon::Config;
 
-use bombini_common::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
+use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
 use bombini_common::event::file::{
     HOOK_FILE_IOCTL, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN,
     HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK, HOOK_SB_MOUNT,

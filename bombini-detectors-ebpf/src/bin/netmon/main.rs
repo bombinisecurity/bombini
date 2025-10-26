@@ -2,6 +2,7 @@
 #![no_main]
 
 use aya_ebpf::{
+    EbpfContext,
     cty::c_void,
     helpers::{bpf_get_socket_cookie, bpf_probe_read_kernel_buf},
     macros::{fexit, map},
@@ -11,7 +12,6 @@ use aya_ebpf::{
         lpm_trie::LpmTrie,
     },
     programs::FExitContext,
-    EbpfContext,
 };
 
 use bombini_detectors_ebpf::{
@@ -19,9 +19,9 @@ use bombini_detectors_ebpf::{
     vmlinux::sock,
 };
 
-use bombini_common::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
+use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
 use bombini_common::event::{
-    network::TcpConnectionV4, network::TcpConnectionV6, process::ProcInfo, Event, MSG_NETWORK,
+    Event, MSG_NETWORK, network::TcpConnectionV4, network::TcpConnectionV6, process::ProcInfo,
 };
 use bombini_common::{
     config::network::{Config, IpFilterMask},
@@ -78,33 +78,37 @@ const AF_INET6: u16 = 10;
 
 const AF_INET: u16 = 2;
 
-unsafe fn parse_v4_sock(event: &mut TcpConnectionV4, s: *const sock) {
-    let skaddr_pair = (*s).__sk_common.__bindgen_anon_1.skc_addrpair;
-    let skport_pair = (*s).__sk_common.__bindgen_anon_3.skc_portpair;
-    event.saddr = (skaddr_pair >> 32) as u32;
-    event.daddr = skaddr_pair as u32;
-    event.sport = (skport_pair >> 16) as u16;
-    event.dport = skport_pair as u16;
-    event.dport = event.dport.rotate_left(8);
-    event.cookie = bpf_get_socket_cookie(s as *mut sock as *mut c_void);
+fn parse_v4_sock(event: &mut TcpConnectionV4, s: *const sock) {
+    unsafe {
+        let skaddr_pair = (*s).__sk_common.__bindgen_anon_1.skc_addrpair;
+        let skport_pair = (*s).__sk_common.__bindgen_anon_3.skc_portpair;
+        event.saddr = (skaddr_pair >> 32) as u32;
+        event.daddr = skaddr_pair as u32;
+        event.sport = (skport_pair >> 16) as u16;
+        event.dport = skport_pair as u16;
+        event.dport = event.dport.rotate_left(8);
+        event.cookie = bpf_get_socket_cookie(s as *mut sock as *mut c_void);
+    }
 }
 
-unsafe fn parse_v6_sock(event: &mut TcpConnectionV6, s: *const sock) -> Result<(), u32> {
-    let skport_pair = (*s).__sk_common.__bindgen_anon_3.skc_portpair;
-    bpf_probe_read_kernel_buf(
-        &(*s).__sk_common.skc_v6_daddr.in6_u.u6_addr8 as *const _,
-        &mut event.daddr,
-    )
-    .map_err(|_| 0u32)?;
-    bpf_probe_read_kernel_buf(
-        &(*s).__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr8 as *const _,
-        &mut event.saddr,
-    )
-    .map_err(|_| 0u32)?;
-    event.sport = (skport_pair >> 16) as u16;
-    event.dport = skport_pair as u16;
-    event.dport = event.dport.rotate_left(8);
-    event.cookie = bpf_get_socket_cookie(s as *mut sock as *mut c_void);
+fn parse_v6_sock(event: &mut TcpConnectionV6, s: *const sock) -> Result<(), u32> {
+    unsafe {
+        let skport_pair = (*s).__sk_common.__bindgen_anon_3.skc_portpair;
+        bpf_probe_read_kernel_buf(
+            &(*s).__sk_common.skc_v6_daddr.in6_u.u6_addr8 as *const _,
+            &mut event.daddr,
+        )
+        .map_err(|_| 0u32)?;
+        bpf_probe_read_kernel_buf(
+            &(*s).__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr8 as *const _,
+            &mut event.saddr,
+        )
+        .map_err(|_| 0u32)?;
+        event.sport = (skport_pair >> 16) as u16;
+        event.dport = skport_pair as u16;
+        event.dport = event.dport.rotate_left(8);
+        event.cookie = bpf_get_socket_cookie(s as *mut sock as *mut c_void);
+    }
     Ok(())
 }
 

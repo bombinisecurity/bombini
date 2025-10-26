@@ -8,7 +8,7 @@ use aya::{Ebpf, EbpfError};
 
 use std::path::Path;
 
-use super::{load_ebpf_obj, Detector};
+use super::{Detector, load_ebpf_obj};
 
 pub struct HistFileDetector {
     ebpf: Ebpf,

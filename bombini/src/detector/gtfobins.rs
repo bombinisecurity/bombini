@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::proto::config::GtfoBinsConfig;
 
-use super::{load_ebpf_obj, Detector};
+use super::{Detector, load_ebpf_obj};
 
 pub struct GTFOBinsDetector {
     ebpf: Ebpf,

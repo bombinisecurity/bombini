@@ -2,7 +2,7 @@
 use aya_ebpf::{
     helpers::bpf_ktime_get_ns,
     macros::map,
-    maps::{ring_buf::RingBufEntry, RingBuf},
+    maps::{RingBuf, ring_buf::RingBufEntry},
 };
 
 use bombini_common::event::{Event, GenericEvent};

@@ -1,6 +1,6 @@
 //! File event module
 
-use crate::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH};
+use crate::constants::{MAX_FILE_PATH, MAX_FILENAME_SIZE};
 use crate::event::process::ProcInfo;
 
 /// File open/mmap, etc. event

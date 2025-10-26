@@ -1,9 +1,9 @@
 //! IOUring detector
 
 use aya::maps::{
+    Array,
     hash_map::HashMap,
     lpm_trie::{Key, LpmTrie},
-    Array,
 };
 use aya::programs::BtfTracePoint;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
@@ -15,7 +15,7 @@ use std::path::Path;
 use bombini_common::{
     config::io_uringmon::Config,
     config::procmon::ProcessFilterMask,
-    constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
+    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
 };
 
 use crate::{

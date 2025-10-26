@@ -8,7 +8,7 @@ use procfs::process::Process;
 use serde::Serialize;
 
 use crate::constants::{
-    DOCKER_ID_LENGTH, MAX_ARGS_SIZE, MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_IMA_HASH_SIZE,
+    DOCKER_ID_LENGTH, MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
 };
 
 /// Process event

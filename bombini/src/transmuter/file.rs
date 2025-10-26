@@ -9,7 +9,7 @@ use bitflags::bitflags;
 use serde::{Serialize, Serializer};
 
 use super::process::Process;
-use super::{str_from_bytes, transmute_ktime, Transmute};
+use super::{Transmute, str_from_bytes, transmute_ktime};
 
 bitflags! {
     #[derive(Clone, Debug, Serialize)]
