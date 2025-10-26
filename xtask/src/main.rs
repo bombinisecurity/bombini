@@ -4,6 +4,7 @@ mod proto_gen;
 mod run;
 mod tarball;
 mod test;
+mod vmlinux_gen;
 
 use std::process::exit;
 
@@ -23,6 +24,7 @@ enum Command {
     Run(run::Options),
     Test(test::Options),
     Tarball(tarball::Options),
+    VmlinuxGen(vmlinux_gen::Options),
 }
 
 fn main() {
@@ -36,6 +38,7 @@ fn main() {
         Build(opts) => build::build(opts),
         Test(opts) => test::test(opts),
         Tarball(opts) => tarball::tarball(opts),
+        VmlinuxGen(opts) => vmlinux_gen::vmlinux_gen(opts),
     };
 
     if let Err(e) = ret {

@@ -64,7 +64,7 @@ If you building Bombini on Linux kernel with version **6.8.0-62-generic**, you c
 Otherwise, please, regenerate `vmlinux.rs` before building:
 
 ```bash
-./bombini-detectors-ebpf/generate_vmlinux.sh
+cargo xtask vmlinux-gen
 ```
 Release build:
 
