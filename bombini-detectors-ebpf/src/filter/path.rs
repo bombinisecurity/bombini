@@ -9,7 +9,7 @@ use aya_ebpf::{
         per_cpu_array::PerCpuArray,
     },
 };
-use bombini_common::constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX};
+use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
 
 use bombini_common::config::filemon::PathFilterMask;
 

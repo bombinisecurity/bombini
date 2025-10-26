@@ -10,7 +10,7 @@ use io_uring::IOUringEvent;
 use network::NetworkEvent;
 
 use chrono::{DateTime, SecondsFormat};
-use nix::time::{clock_gettime, ClockId};
+use nix::time::{ClockId, clock_gettime};
 use serde::Serialize;
 
 use std::time::Duration;

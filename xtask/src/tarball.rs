@@ -3,15 +3,15 @@ use std::fs;
 use std::fs::File;
 use std::path::PathBuf;
 
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use tar::Builder;
 
 use anyhow::Context as _;
 use clap::Parser;
 
 use crate::{
-    build::{build, Options as BuildOptions},
+    build::{Options as BuildOptions, build},
     build_ebpf::Architecture,
 };
 

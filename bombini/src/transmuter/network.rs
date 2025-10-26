@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use super::process::Process;
-use super::{transmute_ktime, Transmute};
+use super::{Transmute, transmute_ktime};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]

@@ -1,9 +1,9 @@
 //! File monitor detector
 
 use aya::maps::{
+    Array,
     hash_map::HashMap,
     lpm_trie::{Key, LpmTrie},
-    Array,
 };
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
@@ -12,7 +12,7 @@ use std::path::Path;
 
 use bombini_common::{
     config::{filemon::Config, filemon::PathFilterMask, procmon::ProcessFilterMask},
-    constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
+    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
 };
 
 use crate::{
@@ -81,93 +81,93 @@ impl Detector for FileMon {
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
         let btf = Btf::from_sys_fs()?;
 
-        if let Some(ref open_cfg) = self.config.file_open {
-            if open_cfg.enabled {
-                let open: &mut Lsm = self
-                    .ebpf
-                    .program_mut("file_open_capture")
-                    .unwrap()
-                    .try_into()?;
-                open.load("file_open", &btf)?;
-                open.attach()?;
-            }
+        if let Some(ref open_cfg) = self.config.file_open
+            && open_cfg.enabled
+        {
+            let open: &mut Lsm = self
+                .ebpf
+                .program_mut("file_open_capture")
+                .unwrap()
+                .try_into()?;
+            open.load("file_open", &btf)?;
+            open.attach()?;
         }
-        if let Some(ref truncate_cfg) = self.config.path_truncate {
-            if truncate_cfg.enabled {
-                let truncate: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_truncate_capture")
-                    .unwrap()
-                    .try_into()?;
-                truncate.load("path_truncate", &btf)?;
-                truncate.attach()?;
-            }
+        if let Some(ref truncate_cfg) = self.config.path_truncate
+            && truncate_cfg.enabled
+        {
+            let truncate: &mut Lsm = self
+                .ebpf
+                .program_mut("path_truncate_capture")
+                .unwrap()
+                .try_into()?;
+            truncate.load("path_truncate", &btf)?;
+            truncate.attach()?;
         }
-        if let Some(ref unlink_cfg) = self.config.path_unlink {
-            if unlink_cfg.enabled {
-                let unlink: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_unlink_capture")
-                    .unwrap()
-                    .try_into()?;
-                unlink.load("path_unlink", &btf)?;
-                unlink.attach()?;
-            }
+        if let Some(ref unlink_cfg) = self.config.path_unlink
+            && unlink_cfg.enabled
+        {
+            let unlink: &mut Lsm = self
+                .ebpf
+                .program_mut("path_unlink_capture")
+                .unwrap()
+                .try_into()?;
+            unlink.load("path_unlink", &btf)?;
+            unlink.attach()?;
         }
-        if let Some(ref chmod_cfg) = self.config.path_chmod {
-            if chmod_cfg.enabled {
-                let chmod: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_chmod_capture")
-                    .unwrap()
-                    .try_into()?;
-                chmod.load("path_chmod", &btf)?;
-                chmod.attach()?;
-            }
+        if let Some(ref chmod_cfg) = self.config.path_chmod
+            && chmod_cfg.enabled
+        {
+            let chmod: &mut Lsm = self
+                .ebpf
+                .program_mut("path_chmod_capture")
+                .unwrap()
+                .try_into()?;
+            chmod.load("path_chmod", &btf)?;
+            chmod.attach()?;
         }
-        if let Some(ref chown_cfg) = self.config.path_chown {
-            if chown_cfg.enabled {
-                let chown: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_chown_capture")
-                    .unwrap()
-                    .try_into()?;
-                chown.load("path_chown", &btf)?;
-                chown.attach()?;
-            }
+        if let Some(ref chown_cfg) = self.config.path_chown
+            && chown_cfg.enabled
+        {
+            let chown: &mut Lsm = self
+                .ebpf
+                .program_mut("path_chown_capture")
+                .unwrap()
+                .try_into()?;
+            chown.load("path_chown", &btf)?;
+            chown.attach()?;
         }
-        if let Some(ref sb_mount_cfg) = self.config.sb_mount {
-            if sb_mount_cfg.enabled {
-                let sb_mount: &mut Lsm = self
-                    .ebpf
-                    .program_mut("sb_mount_capture")
-                    .unwrap()
-                    .try_into()?;
-                sb_mount.load("sb_mount", &btf)?;
-                sb_mount.attach()?;
-            }
+        if let Some(ref sb_mount_cfg) = self.config.sb_mount
+            && sb_mount_cfg.enabled
+        {
+            let sb_mount: &mut Lsm = self
+                .ebpf
+                .program_mut("sb_mount_capture")
+                .unwrap()
+                .try_into()?;
+            sb_mount.load("sb_mount", &btf)?;
+            sb_mount.attach()?;
         }
-        if let Some(ref mmap_file_cfg) = self.config.mmap_file {
-            if mmap_file_cfg.enabled {
-                let mmap_file: &mut Lsm = self
-                    .ebpf
-                    .program_mut("mmap_file_capture")
-                    .unwrap()
-                    .try_into()?;
-                mmap_file.load("mmap_file", &btf)?;
-                mmap_file.attach()?;
-            }
+        if let Some(ref mmap_file_cfg) = self.config.mmap_file
+            && mmap_file_cfg.enabled
+        {
+            let mmap_file: &mut Lsm = self
+                .ebpf
+                .program_mut("mmap_file_capture")
+                .unwrap()
+                .try_into()?;
+            mmap_file.load("mmap_file", &btf)?;
+            mmap_file.attach()?;
         }
-        if let Some(ref file_ioctl_cfg) = self.config.file_ioctl {
-            if file_ioctl_cfg.enabled {
-                let file_ioctl: &mut Lsm = self
-                    .ebpf
-                    .program_mut("file_ioctl_capture")
-                    .unwrap()
-                    .try_into()?;
-                file_ioctl.load("file_ioctl", &btf)?;
-                file_ioctl.attach()?;
-            }
+        if let Some(ref file_ioctl_cfg) = self.config.file_ioctl
+            && file_ioctl_cfg.enabled
+        {
+            let file_ioctl: &mut Lsm = self
+                .ebpf
+                .program_mut("file_ioctl_capture")
+                .unwrap()
+                .try_into()?;
+            file_ioctl.load("file_ioctl", &btf)?;
+            file_ioctl.attach()?;
         }
         Ok(())
     }
@@ -189,82 +189,82 @@ macro_rules! resize_path_filter_maps {
 
 #[inline]
 fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) {
-    if let Some(ref file_open_cfg) = config.file_open {
-        if let Some(ref filter) = file_open_cfg.path_filter {
-            resize_path_filter_maps!(
-                filter,
-                loader,
-                FILTER_OPEN_NAME_MAP,
-                FILTER_OPEN_PATH_MAP,
-                FILTER_OPEN_PREFIX_MAP
-            );
-        }
+    if let Some(ref file_open_cfg) = config.file_open
+        && let Some(ref filter) = file_open_cfg.path_filter
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_OPEN_NAME_MAP,
+            FILTER_OPEN_PATH_MAP,
+            FILTER_OPEN_PREFIX_MAP
+        );
     }
-    if let Some(ref truncate_cfg) = config.path_truncate {
-        if let Some(ref filter) = truncate_cfg.path_filter {
-            resize_path_filter_maps!(
-                filter,
-                loader,
-                FILTER_TRUNC_NAME_MAP,
-                FILTER_TRUNC_PATH_MAP,
-                FILTER_TRUNC_PREFIX_MAP
-            );
-        }
+    if let Some(ref truncate_cfg) = config.path_truncate
+        && let Some(ref filter) = truncate_cfg.path_filter
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_TRUNC_NAME_MAP,
+            FILTER_TRUNC_PATH_MAP,
+            FILTER_TRUNC_PREFIX_MAP
+        );
     }
-    if let Some(ref unlink_cfg) = config.path_unlink {
-        if let Some(ref filter) = unlink_cfg.path_filter {
-            resize_path_filter_maps!(
-                filter,
-                loader,
-                FILTER_UNLINK_NAME_MAP,
-                FILTER_UNLINK_PATH_MAP,
-                FILTER_UNLINK_PREFIX_MAP
-            );
-        }
+    if let Some(ref unlink_cfg) = config.path_unlink
+        && let Some(ref filter) = unlink_cfg.path_filter
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_UNLINK_NAME_MAP,
+            FILTER_UNLINK_PATH_MAP,
+            FILTER_UNLINK_PREFIX_MAP
+        );
     }
-    if let Some(ref chmod_cfg) = config.path_chmod {
-        if let Some(ref filter) = chmod_cfg.path_filter {
-            resize_path_filter_maps!(
-                filter,
-                loader,
-                FILTER_CHMOD_NAME_MAP,
-                FILTER_CHMOD_PATH_MAP,
-                FILTER_CHMOD_PREFIX_MAP
-            );
-        }
+    if let Some(ref chmod_cfg) = config.path_chmod
+        && let Some(ref filter) = chmod_cfg.path_filter
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_CHMOD_NAME_MAP,
+            FILTER_CHMOD_PATH_MAP,
+            FILTER_CHMOD_PREFIX_MAP
+        );
     }
-    if let Some(ref chown_cfg) = config.path_chown {
-        if let Some(ref filter) = chown_cfg.path_filter {
-            resize_path_filter_maps!(
-                filter,
-                loader,
-                FILTER_CHOWN_NAME_MAP,
-                FILTER_CHOWN_PATH_MAP,
-                FILTER_CHOWN_PREFIX_MAP
-            );
-        }
+    if let Some(ref chown_cfg) = config.path_chown
+        && let Some(ref filter) = chown_cfg.path_filter
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_CHOWN_NAME_MAP,
+            FILTER_CHOWN_PATH_MAP,
+            FILTER_CHOWN_PREFIX_MAP
+        );
     }
-    if let Some(ref mmap_cfg) = config.mmap_file {
-        if let Some(ref filter) = mmap_cfg.path_filter {
-            resize_path_filter_maps!(
-                filter,
-                loader,
-                FILTER_MMAP_NAME_MAP,
-                FILTER_MMAP_PATH_MAP,
-                FILTER_MMAP_PREFIX_MAP
-            );
-        }
+    if let Some(ref mmap_cfg) = config.mmap_file
+        && let Some(ref filter) = mmap_cfg.path_filter
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_MMAP_NAME_MAP,
+            FILTER_MMAP_PATH_MAP,
+            FILTER_MMAP_PREFIX_MAP
+        );
     }
-    if let Some(ref ioctl_cfg) = config.file_ioctl {
-        if let Some(ref filter) = ioctl_cfg.path_filter {
-            resize_path_filter_maps!(
-                filter,
-                loader,
-                FILTER_IOCTL_NAME_MAP,
-                FILTER_IOCTL_PATH_MAP,
-                FILTER_IOCTL_PREFIX_MAP
-            );
-        }
+    if let Some(ref ioctl_cfg) = config.file_ioctl
+        && let Some(ref filter) = ioctl_cfg.path_filter
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_IOCTL_NAME_MAP,
+            FILTER_IOCTL_PATH_MAP,
+            FILTER_IOCTL_PREFIX_MAP
+        );
     }
 }
 
@@ -330,82 +330,82 @@ fn init_all_path_filter_maps(
     config: &FileMonConfig,
     ebpf: &mut Ebpf,
 ) -> Result<(), EbpfError> {
-    if let Some(ref file_open_cfg) = config.file_open {
-        if let Some(ref filter) = file_open_cfg.path_filter {
-            ebpf_config.path_mask[0] = init_path_filter_maps!(
-                filter,
-                ebpf,
-                FILTER_OPEN_NAME_MAP,
-                FILTER_OPEN_PATH_MAP,
-                FILTER_OPEN_PREFIX_MAP
-            );
-        }
+    if let Some(ref file_open_cfg) = config.file_open
+        && let Some(ref filter) = file_open_cfg.path_filter
+    {
+        ebpf_config.path_mask[0] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_OPEN_NAME_MAP,
+            FILTER_OPEN_PATH_MAP,
+            FILTER_OPEN_PREFIX_MAP
+        );
     }
-    if let Some(ref truncate_cfg) = config.path_truncate {
-        if let Some(ref filter) = truncate_cfg.path_filter {
-            ebpf_config.path_mask[1] = init_path_filter_maps!(
-                filter,
-                ebpf,
-                FILTER_TRUNC_NAME_MAP,
-                FILTER_TRUNC_PATH_MAP,
-                FILTER_TRUNC_PREFIX_MAP
-            );
-        }
+    if let Some(ref truncate_cfg) = config.path_truncate
+        && let Some(ref filter) = truncate_cfg.path_filter
+    {
+        ebpf_config.path_mask[1] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_TRUNC_NAME_MAP,
+            FILTER_TRUNC_PATH_MAP,
+            FILTER_TRUNC_PREFIX_MAP
+        );
     }
-    if let Some(ref unlink_cfg) = config.path_unlink {
-        if let Some(ref filter) = unlink_cfg.path_filter {
-            ebpf_config.path_mask[2] = init_path_filter_maps!(
-                filter,
-                ebpf,
-                FILTER_UNLINK_NAME_MAP,
-                FILTER_UNLINK_PATH_MAP,
-                FILTER_UNLINK_PREFIX_MAP
-            );
-        }
+    if let Some(ref unlink_cfg) = config.path_unlink
+        && let Some(ref filter) = unlink_cfg.path_filter
+    {
+        ebpf_config.path_mask[2] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_UNLINK_NAME_MAP,
+            FILTER_UNLINK_PATH_MAP,
+            FILTER_UNLINK_PREFIX_MAP
+        );
     }
-    if let Some(ref chmod_cfg) = config.path_chmod {
-        if let Some(ref filter) = chmod_cfg.path_filter {
-            ebpf_config.path_mask[3] = init_path_filter_maps!(
-                filter,
-                ebpf,
-                FILTER_CHMOD_NAME_MAP,
-                FILTER_CHMOD_PATH_MAP,
-                FILTER_CHMOD_PREFIX_MAP
-            );
-        }
+    if let Some(ref chmod_cfg) = config.path_chmod
+        && let Some(ref filter) = chmod_cfg.path_filter
+    {
+        ebpf_config.path_mask[3] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_CHMOD_NAME_MAP,
+            FILTER_CHMOD_PATH_MAP,
+            FILTER_CHMOD_PREFIX_MAP
+        );
     }
-    if let Some(ref chown_cfg) = config.path_chown {
-        if let Some(ref filter) = chown_cfg.path_filter {
-            ebpf_config.path_mask[4] = init_path_filter_maps!(
-                filter,
-                ebpf,
-                FILTER_CHOWN_NAME_MAP,
-                FILTER_CHOWN_PATH_MAP,
-                FILTER_CHOWN_PREFIX_MAP
-            );
-        }
+    if let Some(ref chown_cfg) = config.path_chown
+        && let Some(ref filter) = chown_cfg.path_filter
+    {
+        ebpf_config.path_mask[4] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_CHOWN_NAME_MAP,
+            FILTER_CHOWN_PATH_MAP,
+            FILTER_CHOWN_PREFIX_MAP
+        );
     }
-    if let Some(ref mmap_cfg) = config.mmap_file {
-        if let Some(ref filter) = mmap_cfg.path_filter {
-            ebpf_config.path_mask[6] = init_path_filter_maps!(
-                filter,
-                ebpf,
-                FILTER_MMAP_NAME_MAP,
-                FILTER_MMAP_PATH_MAP,
-                FILTER_MMAP_PREFIX_MAP
-            );
-        }
+    if let Some(ref mmap_cfg) = config.mmap_file
+        && let Some(ref filter) = mmap_cfg.path_filter
+    {
+        ebpf_config.path_mask[6] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_MMAP_NAME_MAP,
+            FILTER_MMAP_PATH_MAP,
+            FILTER_MMAP_PREFIX_MAP
+        );
     }
-    if let Some(ref ioctl_cfg) = config.file_ioctl {
-        if let Some(ref filter) = ioctl_cfg.path_filter {
-            ebpf_config.path_mask[7] = init_path_filter_maps!(
-                filter,
-                ebpf,
-                FILTER_IOCTL_NAME_MAP,
-                FILTER_IOCTL_PATH_MAP,
-                FILTER_IOCTL_PREFIX_MAP
-            );
-        }
+    if let Some(ref ioctl_cfg) = config.file_ioctl
+        && let Some(ref filter) = ioctl_cfg.path_filter
+    {
+        ebpf_config.path_mask[7] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_IOCTL_NAME_MAP,
+            FILTER_IOCTL_PATH_MAP,
+            FILTER_IOCTL_PREFIX_MAP
+        );
     }
     Ok(())
 }

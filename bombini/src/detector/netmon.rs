@@ -1,9 +1,9 @@
 //! Network monitor detector
 
 use aya::maps::{
+    Array,
     hash_map::HashMap,
     lpm_trie::{Key, LpmTrie},
-    Array,
 };
 use aya::programs::FExit;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
@@ -16,7 +16,7 @@ use std::{
 use bombini_common::{
     config::network::{Config, IpFilterMask},
     config::procmon::ProcessFilterMask,
-    constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
+    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
 };
 
 use crate::{
@@ -82,34 +82,34 @@ impl Detector for NetMon {
 
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
         let btf = Btf::from_sys_fs()?;
-        if let Some(ref egress_cfg) = self.config.egress {
-            if egress_cfg.enabled {
-                let tcp_v4_connect: &mut FExit = self
-                    .ebpf
-                    .program_mut("tcp_v4_connect_capture")
-                    .unwrap()
-                    .try_into()?;
-                tcp_v4_connect.load("tcp_v4_connect", &btf)?;
-                tcp_v4_connect.attach()?;
-                let tcp_v6_connect: &mut FExit = self
-                    .ebpf
-                    .program_mut("tcp_v6_connect_capture")
-                    .unwrap()
-                    .try_into()?;
-                tcp_v6_connect.load("tcp_v6_connect", &btf)?;
-                tcp_v6_connect.attach()?;
-            }
+        if let Some(ref egress_cfg) = self.config.egress
+            && egress_cfg.enabled
+        {
+            let tcp_v4_connect: &mut FExit = self
+                .ebpf
+                .program_mut("tcp_v4_connect_capture")
+                .unwrap()
+                .try_into()?;
+            tcp_v4_connect.load("tcp_v4_connect", &btf)?;
+            tcp_v4_connect.attach()?;
+            let tcp_v6_connect: &mut FExit = self
+                .ebpf
+                .program_mut("tcp_v6_connect_capture")
+                .unwrap()
+                .try_into()?;
+            tcp_v6_connect.load("tcp_v6_connect", &btf)?;
+            tcp_v6_connect.attach()?;
         }
-        if let Some(ref ingress_cfg) = self.config.ingress {
-            if ingress_cfg.enabled {
-                let tcp_accept: &mut FExit = self
-                    .ebpf
-                    .program_mut("inet_csk_accept_capture")
-                    .unwrap()
-                    .try_into()?;
-                tcp_accept.load("inet_csk_accept", &btf)?;
-                tcp_accept.attach()?;
-            }
+        if let Some(ref ingress_cfg) = self.config.ingress
+            && ingress_cfg.enabled
+        {
+            let tcp_accept: &mut FExit = self
+                .ebpf
+                .program_mut("inet_csk_accept_capture")
+                .unwrap()
+                .try_into()?;
+            tcp_accept.load("inet_csk_accept", &btf)?;
+            tcp_accept.attach()?;
         }
         let tcp_close: &mut FExit = self
             .ebpf

@@ -1,9 +1,9 @@
 // Detect process execution life cycle
 
 use aya::maps::{
+    Array,
     hash_map::HashMap,
     lpm_trie::{Key, LpmTrie},
-    Array,
 };
 use aya::programs::{BtfTracePoint, Lsm};
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
@@ -14,7 +14,7 @@ use std::path::Path;
 
 use bombini_common::{
     config::procmon::{Config, CredFilterMask, ProcessFilterMask},
-    constants::{MAX_FILENAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX},
+    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::process::{Capabilities, ProcInfo},
 };
 
@@ -118,60 +118,60 @@ impl Detector for ProcMon {
         program.load("bprm_committing_creds", &btf)?;
         program.attach()?;
 
-        if let Some(ref setuid_cfg) = self.config.setuid {
-            if setuid_cfg.enabled {
-                let setuid: &mut Lsm = self
-                    .ebpf
-                    .program_mut("setuid_capture")
-                    .unwrap()
-                    .try_into()?;
-                setuid.load("task_fix_setuid", &btf)?;
-                setuid.attach()?;
-            }
+        if let Some(ref setuid_cfg) = self.config.setuid
+            && setuid_cfg.enabled
+        {
+            let setuid: &mut Lsm = self
+                .ebpf
+                .program_mut("setuid_capture")
+                .unwrap()
+                .try_into()?;
+            setuid.load("task_fix_setuid", &btf)?;
+            setuid.attach()?;
         }
-        if let Some(ref capset_cfg) = self.config.capset {
-            if capset_cfg.enabled {
-                let capset: &mut Lsm = self
-                    .ebpf
-                    .program_mut("capset_capture")
-                    .unwrap()
-                    .try_into()?;
-                capset.load("capset", &btf)?;
-                capset.attach()?;
-            }
+        if let Some(ref capset_cfg) = self.config.capset
+            && capset_cfg.enabled
+        {
+            let capset: &mut Lsm = self
+                .ebpf
+                .program_mut("capset_capture")
+                .unwrap()
+                .try_into()?;
+            capset.load("capset", &btf)?;
+            capset.attach()?;
         }
-        if let Some(ref prctl_cfg) = self.config.prctl {
-            if prctl_cfg.enabled {
-                let prctl: &mut Lsm = self
-                    .ebpf
-                    .program_mut("task_prctl_capture")
-                    .unwrap()
-                    .try_into()?;
-                prctl.load("task_prctl", &btf)?;
-                prctl.attach()?;
-            }
+        if let Some(ref prctl_cfg) = self.config.prctl
+            && prctl_cfg.enabled
+        {
+            let prctl: &mut Lsm = self
+                .ebpf
+                .program_mut("task_prctl_capture")
+                .unwrap()
+                .try_into()?;
+            prctl.load("task_prctl", &btf)?;
+            prctl.attach()?;
         }
-        if let Some(ref create_user_ns_cfg) = self.config.create_user_ns {
-            if create_user_ns_cfg.enabled {
-                let create_user_ns: &mut Lsm = self
-                    .ebpf
-                    .program_mut("create_user_ns_capture")
-                    .unwrap()
-                    .try_into()?;
-                create_user_ns.load("userns_create", &btf)?;
-                create_user_ns.attach()?;
-            }
+        if let Some(ref create_user_ns_cfg) = self.config.create_user_ns
+            && create_user_ns_cfg.enabled
+        {
+            let create_user_ns: &mut Lsm = self
+                .ebpf
+                .program_mut("create_user_ns_capture")
+                .unwrap()
+                .try_into()?;
+            create_user_ns.load("userns_create", &btf)?;
+            create_user_ns.attach()?;
         }
-        if let Some(ref ptrace_cfg) = self.config.ptrace_access_check {
-            if ptrace_cfg.enabled {
-                let ptrace: &mut Lsm = self
-                    .ebpf
-                    .program_mut("ptrace_access_check_capture")
-                    .unwrap()
-                    .try_into()?;
-                ptrace.load("ptrace_access_check", &btf)?;
-                ptrace.attach()?;
-            }
+        if let Some(ref ptrace_cfg) = self.config.ptrace_access_check
+            && ptrace_cfg.enabled
+        {
+            let ptrace: &mut Lsm = self
+                .ebpf
+                .program_mut("ptrace_access_check_capture")
+                .unwrap()
+                .try_into()?;
+            ptrace.load("ptrace_access_check", &btf)?;
+            ptrace.attach()?;
         }
         Ok(())
     }
@@ -294,44 +294,38 @@ macro_rules! init_process_filter_maps {
 
 #[inline]
 fn resize_cred_filter_maps(config: &ProcMonConfig, loader: &mut EbpfLoader) {
-    if let Some(ref capset_cfg) = config.capset {
-        if let Some(ref cred_filter) = capset_cfg.cred_filter {
-            if let Some(ref cap_filter) = cred_filter.cap_filter {
-                if cap_filter.effective.len() > 1 {
-                    loader.set_max_entries(
-                        FILTER_CAPSET_ECAP_MAP_NAME,
-                        cap_filter.effective.len() as u32,
-                    );
-                }
-            }
-        }
+    if let Some(ref capset_cfg) = config.capset
+        && let Some(ref cred_filter) = capset_cfg.cred_filter
+        && let Some(ref cap_filter) = cred_filter.cap_filter
+        && cap_filter.effective.len() > 1
+    {
+        loader.set_max_entries(
+            FILTER_CAPSET_ECAP_MAP_NAME,
+            cap_filter.effective.len() as u32,
+        );
     }
-    if let Some(ref setuid_cfg) = config.setuid {
-        if let Some(ref cred_filter) = setuid_cfg.cred_filter {
-            if let Some(ref uid_filter) = cred_filter.uid_filter {
-                if uid_filter.euid.len() > 1 {
-                    loader
-                        .set_max_entries(FILTER_SETUID_EUID_MAP_NAME, uid_filter.euid.len() as u32);
-                }
-            }
-        }
+    if let Some(ref setuid_cfg) = config.setuid
+        && let Some(ref cred_filter) = setuid_cfg.cred_filter
+        && let Some(ref uid_filter) = cred_filter.uid_filter
+        && uid_filter.euid.len() > 1
+    {
+        loader.set_max_entries(FILTER_SETUID_EUID_MAP_NAME, uid_filter.euid.len() as u32);
     }
-    if let Some(ref userns_cfg) = config.create_user_ns {
-        if let Some(ref cred_filter) = userns_cfg.cred_filter {
-            if let Some(ref uid_filter) = cred_filter.uid_filter {
-                if uid_filter.euid.len() > 1 {
-                    loader
-                        .set_max_entries(FILTER_USERNS_ECAP_MAP_NAME, uid_filter.euid.len() as u32);
-                }
-            }
-            if let Some(ref cap_filter) = cred_filter.cap_filter {
-                if cap_filter.effective.len() > 1 {
-                    loader.set_max_entries(
-                        FILTER_USERNS_ECAP_MAP_NAME,
-                        cap_filter.effective.len() as u32,
-                    );
-                }
-            }
+    if let Some(ref userns_cfg) = config.create_user_ns
+        && let Some(ref cred_filter) = userns_cfg.cred_filter
+    {
+        if let Some(ref uid_filter) = cred_filter.uid_filter
+            && uid_filter.euid.len() > 1
+        {
+            loader.set_max_entries(FILTER_USERNS_ECAP_MAP_NAME, uid_filter.euid.len() as u32);
+        }
+        if let Some(ref cap_filter) = cred_filter.cap_filter
+            && cap_filter.effective.len() > 1
+        {
+            loader.set_max_entries(
+                FILTER_USERNS_ECAP_MAP_NAME,
+                cap_filter.effective.len() as u32,
+            );
         }
     }
 }
@@ -369,49 +363,45 @@ fn init_cred_filter_maps(
     config: &ProcMonConfig,
     ebpf: &mut Ebpf,
 ) -> Result<(), EbpfError> {
-    if let Some(ref setuid_cfg) = config.setuid {
-        if let Some(ref cred_filter) = setuid_cfg.cred_filter {
-            if let Some(ref uid_filter) = cred_filter.uid_filter {
-                if !uid_filter.euid.is_empty() {
-                    init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_SETUID_EUID_MAP_NAME);
-                    ebpf_config.cred_mask[0] |= CredFilterMask::EUID;
-                }
-            }
+    if let Some(ref setuid_cfg) = config.setuid
+        && let Some(ref cred_filter) = setuid_cfg.cred_filter
+        && let Some(ref uid_filter) = cred_filter.uid_filter
+        && !uid_filter.euid.is_empty()
+    {
+        init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_SETUID_EUID_MAP_NAME);
+        ebpf_config.cred_mask[0] |= CredFilterMask::EUID;
+    }
+    if let Some(ref capset_cfg) = config.capset
+        && let Some(ref cred_filter) = capset_cfg.cred_filter
+        && let Some(ref cap_filter) = cred_filter.cap_filter
+        && !cap_filter.effective.is_empty()
+    {
+        init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_CAPSET_ECAP_MAP_NAME);
+        let deny = cap_filter.deny_list.unwrap_or(false);
+        if deny {
+            ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS_DENY_LIST;
+        } else {
+            ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS;
         }
     }
-    if let Some(ref capset_cfg) = config.capset {
-        if let Some(ref cred_filter) = capset_cfg.cred_filter {
-            if let Some(ref cap_filter) = cred_filter.cap_filter {
-                if !cap_filter.effective.is_empty() {
-                    init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_CAPSET_ECAP_MAP_NAME);
-                    let deny = cap_filter.deny_list.unwrap_or(false);
-                    if deny {
-                        ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS_DENY_LIST;
-                    } else {
-                        ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS;
-                    }
-                }
-            }
+    if let Some(ref userns_cfg) = config.create_user_ns
+        && let Some(ref cred_filter) = userns_cfg.cred_filter
+    {
+        if let Some(ref uid_filter) = cred_filter.uid_filter
+            && !uid_filter.euid.is_empty()
+        {
+            init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_USERNS_EUID_MAP_NAME);
+            ebpf_config.cred_mask[2] |= CredFilterMask::EUID;
         }
-    }
-    if let Some(ref userns_cfg) = config.create_user_ns {
-        if let Some(ref cred_filter) = userns_cfg.cred_filter {
-            if let Some(ref uid_filter) = cred_filter.uid_filter {
-                if !uid_filter.euid.is_empty() {
-                    init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_USERNS_EUID_MAP_NAME);
-                    ebpf_config.cred_mask[2] |= CredFilterMask::EUID;
-                }
-            }
-            if let Some(ref cap_filter) = cred_filter.cap_filter {
-                if !cap_filter.effective.is_empty() {
-                    init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_USERNS_ECAP_MAP_NAME);
-                    let deny = cap_filter.deny_list.unwrap_or(false);
-                    if deny {
-                        ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS_DENY_LIST;
-                    } else {
-                        ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS;
-                    }
-                }
+        if let Some(ref cap_filter) = cred_filter.cap_filter
+            && !cap_filter.effective.is_empty()
+        {
+            init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_USERNS_ECAP_MAP_NAME);
+            let deny = cap_filter.deny_list.unwrap_or(false);
+            if deny {
+                ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS_DENY_LIST;
+            } else {
+                ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS;
             }
         }
     }

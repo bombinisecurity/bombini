@@ -10,7 +10,7 @@ mod registry;
 mod transmitter;
 mod transmuter;
 
-use config::{Config, CONFIG};
+use config::{CONFIG, Config};
 use monitor::Monitor;
 use registry::Registry;
 use transmitter::file::FileTransmitter;

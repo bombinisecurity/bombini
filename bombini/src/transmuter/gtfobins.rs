@@ -5,7 +5,7 @@ use bombini_common::event::gtfobins::GTFOBinsMsg;
 use serde::Serialize;
 
 use super::process::Process;
-use super::{transmute_ktime, Transmute};
+use super::{Transmute, transmute_ktime};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]

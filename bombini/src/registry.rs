@@ -11,10 +11,10 @@ use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::histfile::HistFileDetector;
 use crate::detector::io_uringmon::IOUringMon;
 
+use crate::detector::Detector;
 use crate::detector::filemon::FileMon;
 use crate::detector::netmon::NetMon;
 use crate::detector::procmon::ProcMon;
-use crate::detector::Detector;
 
 macro_rules! load_detector {
     ($detectors:expr, $name:expr, $obj:expr, $config:expr, $(($key:expr, $type:ty)),+) => {

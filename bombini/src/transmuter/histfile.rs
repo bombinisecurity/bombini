@@ -5,7 +5,7 @@ use bombini_common::event::histfile::HistFileMsg;
 use serde::Serialize;
 
 use super::process::Process;
-use super::{str_from_bytes, transmute_ktime, Transmute};
+use super::{Transmute, str_from_bytes, transmute_ktime};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]

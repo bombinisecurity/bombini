@@ -10,7 +10,7 @@ use crate::transmuter::str_from_bytes;
 
 use super::file::{AccessMode, CreationFlags};
 use super::process::Process;
-use super::{transmute_ktime, Transmute};
+use super::{Transmute, transmute_ktime};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]

@@ -7,7 +7,7 @@ use bombini_common::event::process::{
 
 use serde::{Serialize, Serializer};
 
-use super::{str_from_bytes, transmute_ktime, Transmute};
+use super::{Transmute, str_from_bytes, transmute_ktime};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
