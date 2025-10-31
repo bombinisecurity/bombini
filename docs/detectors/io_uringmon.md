@@ -32,7 +32,7 @@ The detailed description of process filter config section can be found in ProcMo
 
 For these IORING_OP's Bombini provides extra information:
 
-* IORING_OP_OPENAT / IORING_OP_OPENAT
+* IORING_OP_OPENAT / IORING_OP_OPENAT2
 * IORING_OP_STATX
 * IORING_OP_UNNLINKAT
 * IORING_OP_CONNECT
@@ -44,6 +44,7 @@ For these IORING_OP's Bombini provides extra information:
 {
   "type": "IOUringEvent",
   "process": {
+    "start_time": "2025-08-04T12:09:05.571Z",
     "pid": 398565,
     "tid": 398565,
     "ppid": 247132,
@@ -72,6 +73,7 @@ For these IORING_OP's Bombini provides extra information:
 {
   "type": "IOUringEvent",
   "process": {
+    "start_time": "2025-08-04T12:09:25.131Z",
     "pid": 398565,
     "tid": 398565,
     "ppid": 247132,
@@ -101,6 +103,7 @@ For these IORING_OP's Bombini provides extra information:
 {
   "type": "IOUringEvent",
   "process": {
+    "start_time": "2025-08-04T12:09:29.439Z",
     "pid": 398565,
     "tid": 398565,
     "ppid": 247132,
@@ -128,6 +131,7 @@ For these IORING_OP's Bombini provides extra information:
 {
   "type": "IOUringEvent",
   "process": {
+    "start_time": "2025-08-04T12:09:50.803Z",
     "pid": 398565,
     "tid": 398565,
     "ppid": 247132,
@@ -157,6 +161,7 @@ For these IORING_OP's Bombini provides extra information:
 {
   "type": "IOUringEvent",
   "process": {
+    "start_time": "2025-08-04T12:21:01.543Z",
     "pid": 408864,
     "tid": 408864,
     "ppid": 9790,

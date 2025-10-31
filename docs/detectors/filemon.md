@@ -97,6 +97,7 @@ Event for `security_path_truncate` (truncating file):
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-05-31T10:01:41.691Z",
     "pid": 742873,
     "tid": 742873,
     "ppid": 462192,
@@ -126,6 +127,7 @@ Event for `security_path_unlink` (deleting file):
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-05-31T10:02:15.722Z",
     "pid": 743301,
     "tid": 743301,
     "ppid": 462192,
@@ -155,6 +157,7 @@ Event for `security_file_open` (opening file):
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-05-31T10:02:45.347Z",
     "pid": 744458,
     "tid": 744458,
     "ppid": 462192,
@@ -189,6 +192,7 @@ Event for `security_path_chmod` (file permissions change):
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-07-12T19:55:50.421Z",
     "pid": 1235041,
     "tid": 1235041,
     "ppid": 437558,
@@ -219,6 +223,7 @@ Event for `security_path_chown` (file owner change):
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-07-13T08:41:14.543Z",
     "pid": 1321712,
     "tid": 1321712,
     "ppid": 1321711,
@@ -250,6 +255,7 @@ Event for `security_sb_mount` (mount block device):
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-07-13T09:32:51.056Z",
     "pid": 1405679,
     "tid": 1405679,
     "ppid": 1405372,
@@ -281,6 +287,7 @@ Event for `security_mmap_file`:
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-07-16T18:09:50.345Z",
     "pid": 1766332,
     "tid": 1766332,
     "ppid": 1766324,
@@ -312,6 +319,7 @@ Event for `security_file_ioctl`:
 {
   "type": "FileEvent",
   "process": {
+    "start_time": "2025-07-19T16:27:59.668Z",
     "pid": 42233,
     "tid": 42233,
     "ppid": 42231,
