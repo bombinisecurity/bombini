@@ -61,7 +61,7 @@ macro_rules! event_capture {
             return 0;
         };
         let event_ref = unsafe { &mut *event_rb.as_mut_ptr() };
-        match $handler($ctx, &mut event_ref.event) {
+        match $handler($ctx, event_ref) {
             Ok(ret) => {
                 event_rb.submit(0);
                 ret

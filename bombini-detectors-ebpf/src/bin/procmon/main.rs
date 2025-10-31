@@ -30,7 +30,7 @@ use bombini_common::event::process::{
     PR_SET_SECUREBITS, PrctlCmd, ProcInfo, PtraceMode, SecureExec,
 };
 use bombini_common::event::{
-    Event, MSG_CAPSET, MSG_CREATE_USER_NS, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT,
+    Event, GenericEvent, MSG_CAPSET, MSG_CREATE_USER_NS, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT,
     MSG_PTRACE_ACCESS_CHECK, MSG_SETUID,
 };
 
@@ -148,7 +148,7 @@ pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
     event_capture!(ctx, MSG_PROCEXEC, false, try_execve)
 }
 
-fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32> {
+fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -156,9 +156,11 @@ fn try_execve(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32>
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::ProcExec(event) = event else {
+    let ktime = generic_event.ktime;
+    let Event::ProcExec(ref mut event) = generic_event.event else {
         return Err(0);
     };
+    event.start = ktime;
     let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
     let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
@@ -289,7 +291,7 @@ pub fn exit_capture(ctx: BtfTracePointContext) -> u32 {
     event_capture!(ctx, MSG_PROCEXIT, false, try_exit)
 }
 
-fn try_exit(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32> {
+fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -297,7 +299,7 @@ fn try_exit(_ctx: BtfTracePointContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::ProcExit(event) = event else {
+    let Event::ProcExit(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -561,8 +563,8 @@ pub fn setuid_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_SETUID, false, try_setuid_capture)
 }
 
-fn try_setuid_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::ProcSetUid(event) = event else {
+fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::ProcSetUid(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -602,8 +604,8 @@ pub fn capset_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_CAPSET, false, try_capset_capture)
 }
 
-fn try_capset_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::ProcCapset(event) = event else {
+fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::ProcCapset(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -640,8 +642,8 @@ pub fn task_prctl_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_PRCTL, false, try_task_prctl_capture)
 }
 
-fn try_task_prctl_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::ProcPrctl(event) = event else {
+fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::ProcPrctl(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -689,8 +691,11 @@ pub fn create_user_ns_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_CREATE_USER_NS, false, try_create_user_ns_capture)
 }
 
-fn try_create_user_ns_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::ProcCreateUserNs(event) = event else {
+fn try_create_user_ns_capture(
+    ctx: LsmContext,
+    generic_event: &mut GenericEvent,
+) -> Result<i32, i32> {
+    let Event::ProcCreateUserNs(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -738,8 +743,11 @@ pub fn ptrace_access_check_capture(ctx: LsmContext) -> i32 {
     )
 }
 
-fn try_ptrace_access_check_capture(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::ProcPtraceAccessCheck(event) = event else {
+fn try_ptrace_access_check_capture(
+    ctx: LsmContext,
+    generic_event: &mut GenericEvent,
+) -> Result<i32, i32> {
+    let Event::ProcPtraceAccessCheck(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {

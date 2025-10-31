@@ -19,7 +19,7 @@ use bombini_common::config::io_uringmon::Config;
 use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
 use bombini_common::event::io_uring::IOUringOp;
 use bombini_common::event::process::ProcInfo;
-use bombini_common::event::{Event, MSG_IOURING};
+use bombini_common::event::{Event, GenericEvent, MSG_IOURING};
 
 use bombini_detectors_ebpf::vmlinux::{file, filename, io_kiocb, open_how, sockaddr};
 
@@ -61,7 +61,7 @@ pub fn io_uring_submit_req_capture(ctx: BtfTracePointContext) -> u32 {
     event_capture!(ctx, MSG_IOURING, false, try_submit_req) as u32
 }
 
-fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event) -> Result<i32, i32> {
+fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = IOURINGMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -69,7 +69,7 @@ fn try_submit_req(ctx: BtfTracePointContext, event: &mut Event) -> Result<i32, i
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::IOUring(event) = event else {
+    let Event::IOUring(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;

@@ -11,10 +11,12 @@ use crate::constants::{
     DOCKER_ID_LENGTH, MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
 };
 
-/// Process event
+/// Process information
 #[derive(Clone, Debug, Copy)]
 #[repr(C)]
 pub struct ProcInfo {
+    /// exec time
+    pub start: u64,
     /// PID
     pub pid: u32,
     /// TID
@@ -114,7 +116,16 @@ impl ProcInfo {
             algo: 0,
             hash: [0u8; MAX_IMA_HASH_SIZE],
         };
+        let Ok(stats) = process.stat() else {
+            return None;
+        };
+
         Some(Self {
+            // The time the process started after system boot.
+            // In kernels before Linux 2.6, this value was expressed in jiffies.
+            // Since Linux 2.6, the value is expressed in clock ticks (divide by sysconf(_SC_CLK_TCK)).
+            // CLK_TCK is 100. Convert to nanoseconds.
+            start: stats.starttime * 1_000_000_000 / 100,
             tid: status.pid as u32,
             pid: status.tgid as u32,
             ppid: status.ppid as u32,
