@@ -21,7 +21,7 @@ use bombini_common::event::file::{
     HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
 };
 use bombini_common::event::process::ProcInfo;
-use bombini_common::event::{Event, MSG_FILE};
+use bombini_common::event::{Event, GenericEvent, MSG_FILE};
 use bombini_detectors_ebpf::vmlinux::{dentry, file, kgid_t, kuid_t, path, qstr};
 
 use bombini_detectors_ebpf::{
@@ -109,7 +109,7 @@ pub fn file_open_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_open)
 }
 
-fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -117,7 +117,7 @@ fn try_open(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -189,7 +189,7 @@ pub fn path_truncate_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_truncate)
 }
 
-fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -197,7 +197,7 @@ fn try_truncate(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -259,7 +259,7 @@ pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_unlink)
 }
 
-fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -267,7 +267,7 @@ fn try_unlink(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -338,7 +338,7 @@ pub fn path_chmod_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_chmod)
 }
 
-fn try_chmod(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -346,7 +346,7 @@ fn try_chmod(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -409,7 +409,7 @@ pub fn path_chown_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_chown)
 }
 
-fn try_chown(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -417,7 +417,7 @@ fn try_chown(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -469,7 +469,7 @@ pub fn sb_mount_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_sb_mount)
 }
 
-fn try_sb_mount(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -477,7 +477,7 @@ fn try_sb_mount(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -521,7 +521,7 @@ pub fn mmap_file_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_mmap_file)
 }
 
-fn try_mmap_file(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -529,7 +529,7 @@ fn try_mmap_file(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -594,7 +594,7 @@ pub fn file_ioctl_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_file_ioctl)
 }
 
-fn try_file_ioctl(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
+fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -602,7 +602,7 @@ fn try_file_ioctl(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(event) = event else {
+    let Event::File(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;

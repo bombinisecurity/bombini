@@ -30,6 +30,8 @@ pub struct ProcessExit {
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
 pub struct Process {
+    /// Exec start
+    pub start_time: String,
     /// PID
     pub pid: u32,
     /// TID
@@ -261,6 +263,7 @@ impl Process {
         });
         let args = String::from_utf8_lossy(&proc.args).trim_end().to_string();
         Self {
+            start_time: transmute_ktime(proc.start),
             pid: proc.pid,
             tid: proc.tid,
             ppid: proc.ppid,

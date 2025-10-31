@@ -21,7 +21,8 @@ use bombini_detectors_ebpf::{
 
 use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
 use bombini_common::event::{
-    Event, MSG_NETWORK, network::TcpConnectionV4, network::TcpConnectionV6, process::ProcInfo,
+    Event, GenericEvent, MSG_NETWORK, network::TcpConnectionV4, network::TcpConnectionV6,
+    process::ProcInfo,
 };
 use bombini_common::{
     config::network::{Config, IpFilterMask},
@@ -123,7 +124,7 @@ pub fn tcp_v4_connect_capture(ctx: FExitContext) -> u32 {
     event_capture!(ctx, MSG_NETWORK, false, try_tcp_v4_connect)
 }
 
-fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
+fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -131,7 +132,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(event) = event else {
+    let Event::Network(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();
@@ -214,7 +215,7 @@ pub fn tcp_v6_connect_capture(ctx: FExitContext) -> u32 {
     event_capture!(ctx, MSG_NETWORK, false, try_tcp_v6_connect)
 }
 
-fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
+fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -222,7 +223,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> 
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(event) = event else {
+    let Event::Network(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();
@@ -299,7 +300,7 @@ pub fn tcp_close_capture(ctx: FExitContext) -> u32 {
     event_capture!(ctx, MSG_NETWORK, false, try_tcp_close)
 }
 
-fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
+fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -307,7 +308,7 @@ fn try_tcp_close(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(event) = event else {
+    let Event::Network(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();
@@ -439,7 +440,7 @@ pub fn inet_csk_accept_capture(ctx: FExitContext) -> u32 {
     event_capture!(ctx, MSG_NETWORK, false, try_inet_csk_accept)
 }
 
-fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32> {
+fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
         return Err(0);
     };
@@ -447,7 +448,7 @@ fn try_inet_csk_accept(ctx: FExitContext, event: &mut Event) -> Result<u32, u32>
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(event) = event else {
+    let Event::Network(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();

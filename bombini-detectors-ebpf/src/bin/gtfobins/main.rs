@@ -12,7 +12,7 @@ use bombini_detectors_ebpf::vmlinux::{file, kuid_t, linux_binprm, path, pid_t, q
 
 use bombini_common::constants::MAX_FILENAME_SIZE;
 use bombini_common::event::process::ProcInfo;
-use bombini_common::event::{Event, MSG_GTFOBINS};
+use bombini_common::event::{Event, GenericEvent, MSG_GTFOBINS};
 
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
@@ -29,8 +29,8 @@ pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
 
 static MAX_PROC_DEPTH: u32 = 4;
 
-fn try_detect(ctx: LsmContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::GTFOBins(event) = event else {
+fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::GTFOBins(ref mut event) = generic_event.event else {
         return Err(0);
     };
     unsafe {

@@ -13,7 +13,7 @@ use aya_ebpf::{
 
 use bombini_common::event::histfile::MAX_BASH_COMMAND_SIZE;
 use bombini_common::event::process::ProcInfo;
-use bombini_common::event::{Event, MSG_HISTFILE};
+use bombini_common::event::{Event, GenericEvent, MSG_HISTFILE};
 use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
 
 #[map]
@@ -28,8 +28,8 @@ pub fn histfile_detect(ctx: RetProbeContext) -> i32 {
     event_capture!(ctx, MSG_HISTFILE, true, try_detect)
 }
 
-fn try_detect(ctx: RetProbeContext, event: &mut Event) -> Result<i32, i32> {
-    let Event::HistFile(event) = event else {
+fn try_detect(ctx: RetProbeContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::HistFile(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
