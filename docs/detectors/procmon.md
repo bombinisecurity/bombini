@@ -108,6 +108,7 @@ the check if any capability is set (not equal 0).
 {
     "type": "ProcessExec",
     "process": {
+      "start_time": "2025-05-31T09:04:45.896Z",
       "pid": 746925,
       "tid": 746925,
       "ppid": 462192,
@@ -130,6 +131,7 @@ the check if any capability is set (not equal 0).
   {
     "type": "ProcessExit",
     "process": {
+      "start_time": "2025-05-31T09:04:45.896Z",
       "pid": 746925,
       "tid": 746925,
       "ppid": 462192,
@@ -155,6 +157,7 @@ Event with IMA hash of executed binary:
 {
   "type": "ProcessExec",
   "process": {
+    "start_time": "2025-09-18T16:55:41.559Z",
     "pid": 518616,
     "tid": 518616,
     "ppid": 3573,
@@ -180,6 +183,7 @@ Fileless execution:
 {
   "type": "ProcessExec",
   "process": {
+    "start_time": "2025-08-31T15:26:52.044Z",
     "pid": 133303,
     "tid": 133303,
     "ppid": 131958,
@@ -203,9 +207,10 @@ Fileless execution:
 Privilege escalation events:
 
 ```json
-
+{
   "type": "ProcessSetUid",
   "process": {
+    "start_time": "2025-07-31T07:40:10.820Z",
     "pid": 1630276,
     "tid": 1630276,
     "ppid": 1630275,
@@ -233,6 +238,7 @@ Privilege escalation events:
 {
   "type": "ProcessCapset",
   "process": {
+    "start_time": "2025-07-31T20:19:24.543Z"
     "pid": 2223566,
     "tid": 2223566,
     "ppid": 2223565,
@@ -259,6 +265,7 @@ Privilege escalation events:
 {
   "type": "ProcessPrctl",
   "process": {
+    "start_time": "2025-08-02T13:38:03.443Z"
     "pid": 32905,
     "tid": 32905,
     "ppid": 11551,
@@ -284,6 +291,7 @@ Privilege escalation events:
 {
   "type": "ProcessCreateUserNs",
   "process": {
+    "start_time": "2025-08-06T20:07:26.802Z"
     "pid": 619892,
     "tid": 619892,
     "ppid": 9790,
@@ -307,6 +315,7 @@ Privilege escalation events:
 {
   "type": "ProcessPtraceAccessCheck",
   "process": {
+    "start_time": "2025-08-09T15:15:55.814Z"
     "pid": 819092,
     "tid": 819092,
     "ppid": 716378,
@@ -323,6 +332,7 @@ Privilege escalation events:
     "container_id": ""
   },
   "child": {
+    "start_time": "2025-08-09T15:15:30.214Z"
     "pid": 818867,
     "tid": 818867,
     "ppid": 9790,

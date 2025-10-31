@@ -34,6 +34,7 @@ This detector has no config
 {
   "type": "HistFileEvent",
   "process": {
+    "start_time": "2025-05-31T10:05:01.032Z",
     "pid": 729714,
     "tid": 729714,
     "ppid": 462192,

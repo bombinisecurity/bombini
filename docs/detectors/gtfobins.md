@@ -29,6 +29,7 @@ The GTFOBins event is looks like:
 {
   "type": "GTFOBinsEvent",
   "process": {
+    "start_time": "2025-05-31T10:04:07.027Z",
     "pid": 712851,
     "tid": 712851,
     "ppid": 462192,

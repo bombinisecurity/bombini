@@ -67,6 +67,7 @@ Executing `curl -6 google.com` produces:
 {
   "type": "NetworkEvent",
   "process": {
+    "start_time": "2025-05-31T10:05:51.192Z",
     "pid": 2538344,
     "tid": 2538344,
     "ppid": 9425,
@@ -98,6 +99,7 @@ Executing `curl -6 google.com` produces:
 {
   "type": "NetworkEvent",
   "process": {
+    "start_time": "2025-05-31T10:06:41.249Z",
     "pid": 2538344,
     "tid": 2538344,
     "ppid": 9425,
@@ -137,6 +139,7 @@ produce the following events:
 {
   "type": "NetworkEvent",
   "process": {
+    "start_time": "2025-05-31T10:06:46.348Z",
     "pid": 2549606,
     "tid": 2549606,
     "ppid": 1434309,
@@ -168,6 +171,7 @@ produce the following events:
 {
   "type": "NetworkEvent",
   "process": {
+    "start_time": "2025-05-31T10:06:46.348Z",
     "pid": 2549020,
     "tid": 2549020,
     "ppid": 9425,
@@ -191,7 +195,7 @@ produce the following events:
     "dport": 0,
     "cookie": 24591
   },
-  "timestamp": "2025-05-31T10:06:46.4182"
+  "timestamp": "2025-05-31T10:06:46.418Z"
 }
 ```
 
@@ -199,6 +203,7 @@ produce the following events:
 {
   "type": "NetworkEvent",
   "process": {
+    "start_time": "2025-05-31T10:07:06.321Z",
     "pid": 2549606,
     "tid": 2549606,
     "ppid": 1434309,
