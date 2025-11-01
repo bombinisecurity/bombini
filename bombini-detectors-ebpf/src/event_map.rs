@@ -37,6 +37,7 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEve
         let event_ref = &mut *event_rb.as_mut_ptr();
         let p = &mut event_ref.event as *mut Event as *mut u8;
         *p = msg_code;
+        event_ref.msg_code = msg_code;
         event_ref.ktime = bpf_ktime_get_ns();
     }
     Ok(event_rb)
