@@ -12,6 +12,8 @@ pub mod io_uring;
 /// Generic event for ring buffer
 pub struct GenericEvent {
     pub ktime: u64,
+    /// event enum discriminant for fast access
+    pub msg_code: u8,
     pub event: Event,
 }
 
