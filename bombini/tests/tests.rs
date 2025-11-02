@@ -1094,7 +1094,8 @@ setuid:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
-    ma::assert_ge!(events.matches("\"type\":\"ProcessSetUid\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"Setuid\"").count(), 1);
     ma::assert_ge!(events.matches("\"flags\":\"LSM_SETID_RES\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"sudo\"").count(), 1);
     ma::assert_ge!(events.matches("\"euid\":0").count(), 1);
@@ -1173,7 +1174,8 @@ capset:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
-    ma::assert_ge!(events.matches("\"type\":\"ProcessCapset\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"Setcaps\"").count(), 1);
     ma::assert_ge!(events.matches("\"effective\":\"ALL_CAPS\"").count(), 1);
     assert_eq!(
         events
@@ -1252,7 +1254,8 @@ create_user_ns:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
-    ma::assert_ge!(events.matches("\"type\":\"ProcessPrctl\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"Prctl\"").count(), 1);
     assert_eq!(events.matches("\"PrSetKeepCaps\":1").count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
@@ -1323,10 +1326,8 @@ create_user_ns:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
-    assert_eq!(
-        events.matches("\"type\":\"ProcessCreateUserNs\"").count(),
-        1
-    );
+    assert_eq!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
+    assert_eq!(events.matches("\"type\":\"CreateUserNs\"").count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }

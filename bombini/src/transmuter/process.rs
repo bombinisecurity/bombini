@@ -1,8 +1,8 @@
 //! Transmutes Process to serializable struct
 
 use bombini_common::event::process::{
-    Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcCreateUserNs,
-    ProcInfo, ProcPrctl, ProcPtraceAccessCheck, ProcSetUid, PtraceMode, SecureExec,
+    Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl,
+    ProcPtraceAccessCheck, ProcSetUid, ProcessMsg, PtraceMode, SecureExec,
 };
 
 use serde::{Serialize, Serializer};
@@ -68,43 +68,29 @@ pub struct Process {
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type")]
 pub struct ProcessSetUid {
-    /// Process Infro
-    process: Process,
     euid: u32,
     uid: u32,
     fsuid: u32,
     /// LSM_SETID_* flag values
     flags: LsmSetUidFlags,
-    /// Event's date and time
-    timestamp: String,
 }
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type")]
 pub struct ProcessCapset {
-    /// Process Infro
-    process: Process,
     #[serde(serialize_with = "serialize_capabilities")]
     pub inheritable: Capabilities,
     #[serde(serialize_with = "serialize_capabilities")]
     pub permitted: Capabilities,
     #[serde(serialize_with = "serialize_capabilities")]
     pub effective: Capabilities,
-    /// Event's date and time
-    timestamp: String,
 }
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type")]
 pub struct ProcessPrctl {
-    /// Process Infro
-    process: Process,
     cmd: PrctlCmdUser,
-    timestamp: String,
 }
 
 /// Enumeration of prctl supported commands
@@ -235,22 +221,13 @@ fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type")]
-pub struct ProcessCreateUserNs {
-    /// Process Infro
-    process: Process,
-    timestamp: String,
-}
+pub struct ProcessCreateUserNs {}
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type")]
 pub struct ProcessPtraceAccessCheck {
-    /// Process Infro
-    process: Process,
     child: Process,
     mode: PtraceMode,
-    timestamp: String,
 }
 
 impl Process {
@@ -309,38 +286,30 @@ impl Transmute for ProcessExit {}
 
 impl ProcessSetUid {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcSetUid, ktime: u64) -> Self {
+    pub fn new(event: &ProcSetUid) -> Self {
         Self {
-            timestamp: transmute_ktime(ktime),
             uid: event.uid,
             euid: event.euid,
             fsuid: event.fsuid,
-            flags: event.flags,
-            process: Process::new(event.process),
+            flags: event.flags.clone(),
         }
     }
 }
-
-impl Transmute for ProcessSetUid {}
 
 impl ProcessCapset {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcCapset, ktime: u64) -> Self {
+    pub fn new(event: &ProcCapset) -> Self {
         Self {
-            timestamp: transmute_ktime(ktime),
             effective: event.effective,
             inheritable: event.inheritable,
             permitted: event.permitted,
-            process: Process::new(event.process),
         }
     }
 }
 
-impl Transmute for ProcessCapset {}
-
 impl ProcessPrctl {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcPrctl, ktime: u64) -> Self {
+    pub fn new(event: &ProcPrctl) -> Self {
         let cmd = match event.cmd {
             PrctlCmd::Opcode(op) => PrctlCmdUser::Opcode(op),
             PrctlCmd::PrSetDumpable(v) => PrctlCmdUser::PrSetDumpable(v),
@@ -350,38 +319,78 @@ impl ProcessPrctl {
                 name: str_from_bytes(&name),
             },
         };
-        Self {
-            timestamp: transmute_ktime(ktime),
-            cmd,
-            process: Process::new(event.process),
-        }
+        Self { cmd }
     }
 }
-
-impl Transmute for ProcessPrctl {}
-
-impl ProcessCreateUserNs {
-    /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcCreateUserNs, ktime: u64) -> Self {
-        Self {
-            timestamp: transmute_ktime(ktime),
-            process: Process::new(event.process),
-        }
-    }
-}
-
-impl Transmute for ProcessCreateUserNs {}
 
 impl ProcessPtraceAccessCheck {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcPtraceAccessCheck, ktime: u64) -> Self {
+    pub fn new(event: &ProcPtraceAccessCheck) -> Self {
         Self {
-            timestamp: transmute_ktime(ktime),
-            process: Process::new(event.process),
             child: Process::new(event.child),
-            mode: event.mode,
+            mode: event.mode.clone(),
         }
     }
 }
 
-impl Transmute for ProcessPtraceAccessCheck {}
+/// High-level event representation
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub struct ProcessEvent {
+    /// Process Infro
+    process: Process,
+    /// Process event
+    process_event: ProcessEventType,
+    /// Event's date and time
+    timestamp: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+#[repr(u8)]
+#[allow(dead_code)]
+#[allow(clippy::enum_variant_names)]
+#[allow(clippy::large_enum_variant)]
+pub enum ProcessEventType {
+    Setuid(ProcessSetUid),
+    Setcaps(ProcessCapset),
+    Prctl(ProcessPrctl),
+    CreateUserNs(ProcessCreateUserNs),
+    PtraceAccessCheck(ProcessPtraceAccessCheck),
+}
+
+impl ProcessEvent {
+    pub fn new(event: ProcessMsg, ktime: u64) -> Self {
+        match event {
+            ProcessMsg::Setuid(proc) => Self {
+                process_event: ProcessEventType::Setuid(ProcessSetUid::new(&proc)),
+                process: Process::new(proc.process),
+                timestamp: transmute_ktime(ktime),
+            },
+            ProcessMsg::Setcaps(proc) => Self {
+                process_event: ProcessEventType::Setcaps(ProcessCapset::new(&proc)),
+                process: Process::new(proc.process),
+                timestamp: transmute_ktime(ktime),
+            },
+            ProcessMsg::Prctl(proc) => Self {
+                process_event: ProcessEventType::Prctl(ProcessPrctl::new(&proc)),
+                process: Process::new(proc.process),
+                timestamp: transmute_ktime(ktime),
+            },
+            ProcessMsg::CreateUserNs(proc) => Self {
+                process_event: ProcessEventType::CreateUserNs(ProcessCreateUserNs {}),
+                process: Process::new(proc.process),
+                timestamp: transmute_ktime(ktime),
+            },
+            ProcessMsg::PtraceAccessCheck(proc) => Self {
+                process_event: ProcessEventType::PtraceAccessCheck(ProcessPtraceAccessCheck::new(
+                    &proc,
+                )),
+                process: Process::new(proc.process),
+                timestamp: transmute_ktime(ktime),
+            },
+        }
+    }
+}
+
+impl Transmute for ProcessEvent {}

@@ -15,11 +15,7 @@ use serde::Serialize;
 
 use std::time::Duration;
 
-use crate::transmuter::process::ProcessPrctl;
-use process::{
-    ProcessCapset, ProcessCreateUserNs, ProcessExec, ProcessExit, ProcessPtraceAccessCheck,
-    ProcessSetUid,
-};
+use process::{ProcessEvent, ProcessExec, ProcessExit};
 
 mod file;
 mod gtfobins;
@@ -48,16 +44,12 @@ impl Transmuter {
             /*Low-level event -> High-level event representation */
             (Event::ProcExec, ProcessExec),
             (Event::ProcExit, ProcessExit),
-            (Event::ProcSetUid, ProcessSetUid),
-            (Event::ProcCapset, ProcessCapset),
-            (Event::ProcPrctl, ProcessPrctl),
-            (Event::ProcCreateUserNs, ProcessCreateUserNs),
-            (Event::ProcPtraceAccessCheck, ProcessPtraceAccessCheck),
+            (Event::Process, ProcessEvent),
             (Event::File, FileEvent),
-            (Event::GTFOBins, GTFOBinsEvent),
-            (Event::HistFile, HistFileEvent),
+            (Event::Network, NetworkEvent),
             (Event::IOUring, IOUringEvent),
-            (Event::Network, NetworkEvent)
+            (Event::GTFOBins, GTFOBinsEvent),
+            (Event::HistFile, HistFileEvent)
         )
     }
 }
