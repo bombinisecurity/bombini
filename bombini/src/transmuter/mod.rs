@@ -3,19 +3,12 @@
 
 use bombini_common::event::{Event, GenericEvent};
 
-use file::FileEvent;
-use gtfobins::GTFOBinsEvent;
-use histfile::HistFileEvent;
-use io_uring::IOUringEvent;
-use network::NetworkEvent;
-
 use chrono::{DateTime, SecondsFormat};
 use nix::time::{ClockId, clock_gettime};
-use serde::Serialize;
 
-use std::time::Duration;
-
-use process::{ProcessEvent, ProcessExec, ProcessExit};
+use anyhow::anyhow;
+use async_trait::async_trait;
+use std::{sync::Arc, time::Duration};
 
 mod file;
 mod gtfobins;
@@ -24,44 +17,54 @@ mod io_uring;
 mod network;
 mod process;
 
-/// Transmutes eBPF events from low representation into serialized formats
-pub struct Transmuter;
+use file::FileEventTransmuter;
+use gtfobins::GTFOBinsEventTransmuter;
+use histfile::HistFileEventTransmuter;
+use io_uring::IOUringEventTransmuter;
+use network::NetworkEventTransmuter;
+use process::{ProcessEventTransmuter, ProcessExecTransmuter, ProcessExitTransmuter};
 
-macro_rules! transmute {
-    ($event:expr, $ktime:expr, $(($key:path, $type:ty)),+) => {
-        match $event {
-            $($key(s) => Ok(<$type>::new(s, $ktime)
-            .to_json()?),)+
-        }
-    };
+pub struct TransmuterRegistry {
+    handlers: [Option<Arc<dyn Transmuter>>; 256],
 }
-impl Transmuter {
-    /// Transmutes bombini_common::Event into serialized formats
+impl TransmuterRegistry {
+    pub fn new() -> Self {
+        let mut registry = Self {
+            handlers: std::array::from_fn(|_| None),
+        };
+
+        registry.handlers[0] = Some(Arc::new(ProcessExecTransmuter));
+        registry.handlers[1] = Some(Arc::new(ProcessExitTransmuter));
+        registry.handlers[2] = Some(Arc::new(ProcessEventTransmuter));
+        registry.handlers[3] = Some(Arc::new(FileEventTransmuter));
+        registry.handlers[4] = Some(Arc::new(NetworkEventTransmuter));
+        registry.handlers[5] = Some(Arc::new(IOUringEventTransmuter));
+
+        registry.handlers[32] = Some(Arc::new(GTFOBinsEventTransmuter));
+        registry.handlers[33] = Some(Arc::new(HistFileEventTransmuter));
+
+        registry
+    }
+
     pub async fn transmute(&self, generic_event: GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
-        transmute!(
-            generic_event.event,
-            generic_event.ktime,
-            /*Low-level event -> High-level event representation */
-            (Event::ProcExec, ProcessExec),
-            (Event::ProcExit, ProcessExit),
-            (Event::Process, ProcessEvent),
-            (Event::File, FileEvent),
-            (Event::Network, NetworkEvent),
-            (Event::IOUring, IOUringEvent),
-            (Event::GTFOBins, GTFOBinsEvent),
-            (Event::HistFile, HistFileEvent)
-        )
+        let event_type = generic_event.msg_code as usize;
+        if let Some(handler) = self.handlers[event_type].as_ref() {
+            handler
+                .transmute(&generic_event.event, generic_event.ktime)
+                .await
+        } else {
+            Err(anyhow!(
+                "No transmuter for event type {}",
+                generic_event.msg_code
+            ))
+        }
     }
 }
 
-trait Transmute {
-    /// Get JSON reprsentation
-    fn to_json(&self) -> Result<Vec<u8>, serde_json::Error>
-    where
-        Self: Serialize,
-    {
-        serde_json::to_vec(&self)
-    }
+#[async_trait]
+pub trait Transmuter: Send + Sync {
+    /// Transmutes low-level event to high level and serialized representation
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error>;
 }
 
 pub fn str_from_bytes(bytes: &[u8]) -> String {

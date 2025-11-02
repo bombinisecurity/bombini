@@ -1,15 +1,21 @@
 //! Transmutes FileEvent to serialized format
 
-use bombini_common::event::file::{
-    FileMsg, HOOK_FILE_IOCTL, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN,
-    HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
+use anyhow::anyhow;
+use async_trait::async_trait;
+
+use bombini_common::event::{
+    Event,
+    file::{
+        FileMsg, HOOK_FILE_IOCTL, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN,
+        HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
+    },
 };
 
 use bitflags::bitflags;
 use serde::{Serialize, Serializer};
 
 use super::process::Process;
-use super::{Transmute, str_from_bytes, transmute_ktime};
+use super::{Transmuter, str_from_bytes, transmute_ktime};
 
 bitflags! {
     #[derive(Clone, Debug, Serialize)]
@@ -267,7 +273,7 @@ pub enum LsmFileHook {
 
 impl FileEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: FileMsg, ktime: u64) -> Self {
+    pub fn new(event: &FileMsg, ktime: u64) -> Self {
         match event.hook {
             HOOK_FILE_OPEN => {
                 let info = FileOpenInfo {
@@ -369,4 +375,16 @@ impl FileEvent {
     }
 }
 
-impl Transmute for FileEvent {}
+pub struct FileEventTransmuter;
+
+#[async_trait]
+impl Transmuter for FileEventTransmuter {
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::File(event) = event {
+            let high_level_event = FileEvent::new(event, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}
