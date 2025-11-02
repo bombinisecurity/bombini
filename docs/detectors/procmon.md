@@ -208,40 +208,42 @@ Privilege escalation events:
 
 ```json
 {
-  "type": "ProcessSetUid",
+  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-07-31T07:40:10.820Z",
-    "pid": 1630276,
-    "tid": 1630276,
-    "ppid": 1630275,
+    "start_time": "2025-10-27T06:37:34.713Z",
+    "pid": 4098255,
+    "tid": 4098255,
+    "ppid": 4098254,
     "uid": 1000,
     "euid": 0,
     "auid": 0,
-    "cap_inheritable": 0,
-    "cap_permitted": 2199023255551,
-    "cap_effective": 2199023255551,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
     "secureexec": "",
     "filename": "sudo",
     "binary_path": "/usr/bin/sudo",
-    "args": "-u nobody true",
-    "container_id": ""
+    "args": "-u nobody true"
   },
-  "euid": 65534,
-  "uid": 65534,
-  "fsuid": 65534,
-  "flags": "LSM_SETID_RES",
-  "timestamp": "2025-07-31T07:40:10.920Z"
+  "process_event": {
+    "type": "Setuid",
+    "euid": 65534,
+    "uid": 65534,
+    "fsuid": 65534,
+    "flags": "LSM_SETID_RES"
+  },
+  "timestamp": "2025-11-02T14:25:01.334Z"
 }
 ```
 
 ```json
 {
-  "type": "ProcessCapset",
+  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-07-31T20:19:24.543Z"
-    "pid": 2223566,
-    "tid": 2223566,
-    "ppid": 2223565,
+    "start_time": "2025-10-27T06:37:34.713Z",
+    "pid": 4120114,
+    "tid": 4120114,
+    "ppid": 4120113,
     "uid": 0,
     "euid": 0,
     "auid": 1000,
@@ -251,24 +253,27 @@ Privilege escalation events:
     "secureexec": "",
     "filename": "capsh",
     "binary_path": "/usr/sbin/capsh",
-    "args": "--caps=cap_sys_admin=ep cap_net_raw=ep -- -c id",
-    "container_id": ""
+    "args": "--caps=cap_sys_admin,cap_net_raw+ep -- -c id"
   },
-  "inheritable": "",
-  "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
-  "effective": "CAP_NET_RAW | CAP_SYS_ADMIN",
-  "timestamp": "2025-07-31T20:19:24.606Z"
+  "process_event": {
+    "type": "Setcaps",
+    "inheritable": "",
+    "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
+    "effective": "CAP_NET_RAW | CAP_SYS_ADMIN"
+  },
+  "timestamp": "2025-11-02T14:48:09.804Z"
 }
+
 ```
 
 ```json
 {
-  "type": "ProcessPrctl",
+  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-08-02T13:38:03.443Z"
-    "pid": 32905,
-    "tid": 32905,
-    "ppid": 11551,
+    "start_time": "2025-10-27T06:37:34.713Z",
+    "pid": 4127523,
+    "tid": 4127523,
+    "ppid": 3715631,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,
@@ -278,23 +283,25 @@ Privilege escalation events:
     "secureexec": "",
     "filename": "capsh",
     "binary_path": "/usr/sbin/capsh",
-    "args": "--keep=1 -- -c echo KEEPCAPS enabled",
-    "container_id": ""
+    "args": "--keep=1 -- -c echo KEEPCAPS enabled"
   },
-  "cmd": {
-    "PrSetKeepCaps": 1
+  "process_event": {
+    "type": "Prctl",
+    "cmd": {
+      "PrSetKeepCaps": 1
+    }
   },
-  "timestamp": "2025-08-02T13:38:03.693Z"
+  "timestamp": "2025-11-02T14:56:28.412Z"
 }
 ```
 ```json
 {
-  "type": "ProcessCreateUserNs",
+  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-08-06T20:07:26.802Z"
-    "pid": 619892,
-    "tid": 619892,
-    "ppid": 9790,
+    "start_time": "2025-10-27T06:37:34.713Z",
+    "pid": 4128633,
+    "tid": 4128633,
+    "ppid": 3715631,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,
@@ -304,21 +311,23 @@ Privilege escalation events:
     "secureexec": "",
     "filename": "unshare",
     "binary_path": "/usr/bin/unshare",
-    "args": "-U",
-    "container_id": ""
+    "args": "-U"
   },
-  "timestamp": "2025-08-06T20:07:26.954Z"
+  "process_event": {
+    "type": "CreateUserNs"
+  },
+  "timestamp": "2025-11-02T14:57:37.194Z"
 }
 ```
 
 ```json
 {
-  "type": "ProcessPtraceAccessCheck",
+  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-08-09T15:15:55.814Z"
-    "pid": 819092,
-    "tid": 819092,
-    "ppid": 716378,
+    "start_time": "2025-10-27T06:37:34.713Z",
+    "pid": 4130822,
+    "tid": 4130822,
+    "ppid": 3715631,
     "uid": 1000,
     "euid": 1000,
     "auid": 1000,
@@ -328,27 +337,28 @@ Privilege escalation events:
     "secureexec": "",
     "filename": "gdb",
     "binary_path": "/usr/bin/gdb",
-    "args": "attach -p 818867",
-    "container_id": ""
+    "args": "attach -p 4130361"
   },
-  "child": {
-    "start_time": "2025-08-09T15:15:30.214Z"
-    "pid": 818867,
-    "tid": 818867,
-    "ppid": 9790,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "vim.basic",
-    "binary_path": "/usr/bin/vim.basic",
-    "args": "",
-    "container_id": ""
+  "process_event": {
+    "type": "PtraceAccessCheck",
+    "child": {
+      "start_time": "2025-10-27T06:37:34.713Z",
+      "pid": 4130361,
+      "tid": 4130361,
+      "ppid": 4130287,
+      "uid": 1000,
+      "euid": 1000,
+      "auid": 1000,
+      "cap_inheritable": "",
+      "cap_permitted": "",
+      "cap_effective": "",
+      "secureexec": "",
+      "filename": "vim.basic",
+      "binary_path": "/usr/bin/vim.basic",
+      "args": ""
+    },
+    "mode": "PTRACE_MODE_ATTACH | PTRACE_MODE_FSCRED"
   },
-  "mode": "PTRACE_MODE_ATTACH | PTRACE_MODE_REALCREDS",
-  "timestamp": "2025-08-09T15:15:55.916Z"
+  "timestamp": "2025-11-02T15:00:01.211Z"
 }
 ```

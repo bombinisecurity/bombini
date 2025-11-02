@@ -27,12 +27,9 @@ use bombini_common::constants::{
 };
 use bombini_common::event::process::{
     Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PR_SET_DUMPABLE, PR_SET_KEEPCAPS, PR_SET_NAME,
-    PR_SET_SECUREBITS, PrctlCmd, ProcInfo, PtraceMode, SecureExec,
+    PR_SET_SECUREBITS, PrctlCmd, ProcInfo, ProcessMsg, PtraceMode, SecureExec,
 };
-use bombini_common::event::{
-    Event, GenericEvent, MSG_CAPSET, MSG_CREATE_USER_NS, MSG_PRCTL, MSG_PROCEXEC, MSG_PROCEXIT,
-    MSG_PTRACE_ACCESS_CHECK, MSG_SETUID,
-};
+use bombini_common::event::{Event, GenericEvent, MSG_PROCESS, MSG_PROCEXEC, MSG_PROCEXIT};
 
 use bombini_detectors_ebpf::{
     event_capture,
@@ -560,11 +557,11 @@ static PROCMON_FILTER_SETUID_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entr
 
 #[lsm(hook = "task_fix_setuid")]
 pub fn setuid_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_SETUID, false, try_setuid_capture)
+    event_capture!(ctx, MSG_PROCESS, false, try_setuid_capture)
 }
 
 fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
-    let Event::ProcSetUid(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -581,6 +578,15 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     };
 
     filter_by_process(config, proc)?;
+
+    unsafe {
+        let p = event as *mut ProcessMsg as *mut u8;
+        // Setuid
+        *p = 0;
+    }
+    let ProcessMsg::Setuid(event) = event else {
+        return Err(0);
+    };
 
     unsafe {
         let creds: *const cred = ctx.arg(0);
@@ -601,11 +607,11 @@ static PROCMON_FILTER_CAPSET_ECAP_MAP: Array<u64> = Array::with_max_entries(1, 0
 
 #[lsm(hook = "capset")]
 pub fn capset_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_CAPSET, false, try_capset_capture)
+    event_capture!(ctx, MSG_PROCESS, false, try_capset_capture)
 }
 
 fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
-    let Event::ProcCapset(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -624,6 +630,15 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     filter_by_process(config, proc)?;
 
     unsafe {
+        let p = event as *mut ProcessMsg as *mut u8;
+        // Setcaps
+        *p = 1;
+    }
+    let ProcessMsg::Setcaps(event) = event else {
+        return Err(0);
+    };
+
+    unsafe {
         let creds: *const cred = ctx.arg(0);
         event.effective = Capabilities::from_bits_retain((*creds).cap_effective.val);
         event.inheritable = Capabilities::from_bits_retain((*creds).cap_inheritable.val);
@@ -639,11 +654,11 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
 #[lsm(hook = "task_prctl")]
 pub fn task_prctl_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PRCTL, false, try_task_prctl_capture)
+    event_capture!(ctx, MSG_PROCESS, false, try_task_prctl_capture)
 }
 
 fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
-    let Event::ProcPrctl(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -660,6 +675,15 @@ fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
     };
 
     filter_by_process(config, proc)?;
+
+    unsafe {
+        let p = event as *mut ProcessMsg as *mut u8;
+        // Prctl
+        *p = 2;
+    }
+    let ProcessMsg::Prctl(event) = event else {
+        return Err(0);
+    };
 
     unsafe {
         let cmd: u8 = ctx.arg(0);
@@ -688,14 +712,14 @@ static PROCMON_FILTER_USERNS_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entr
 
 #[lsm(hook = "create_user_ns")]
 pub fn create_user_ns_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_CREATE_USER_NS, false, try_create_user_ns_capture)
+    event_capture!(ctx, MSG_PROCESS, false, try_create_user_ns_capture)
 }
 
 fn try_create_user_ns_capture(
     ctx: LsmContext,
     generic_event: &mut GenericEvent,
 ) -> Result<i32, i32> {
-    let Event::ProcCreateUserNs(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -712,6 +736,16 @@ fn try_create_user_ns_capture(
     };
 
     filter_by_process(config, proc)?;
+
+    unsafe {
+        let p = event as *mut ProcessMsg as *mut u8;
+        // CreateUserNs
+        *p = 3;
+    }
+    let ProcessMsg::CreateUserNs(event) = event else {
+        return Err(0);
+    };
+
     unsafe {
         let creds: *const cred = ctx.arg(0);
         let cap_filter = CapFilter::new(&PROCMON_FILTER_USERNS_ECAP_MAP);
@@ -735,19 +769,14 @@ fn try_create_user_ns_capture(
 
 #[lsm(hook = "ptrace_access_check")]
 pub fn ptrace_access_check_capture(ctx: LsmContext) -> i32 {
-    event_capture!(
-        ctx,
-        MSG_PTRACE_ACCESS_CHECK,
-        false,
-        try_ptrace_access_check_capture
-    )
+    event_capture!(ctx, MSG_PROCESS, false, try_ptrace_access_check_capture)
 }
 
 fn try_ptrace_access_check_capture(
     ctx: LsmContext,
     generic_event: &mut GenericEvent,
 ) -> Result<i32, i32> {
-    let Event::ProcPtraceAccessCheck(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -764,6 +793,15 @@ fn try_ptrace_access_check_capture(
     };
 
     filter_by_process(config, proc)?;
+
+    unsafe {
+        let p = event as *mut ProcessMsg as *mut u8;
+        // PtraceAccessCheck
+        *p = 4;
+    }
+    let ProcessMsg::PtraceAccessCheck(event) = event else {
+        return Err(0);
+    };
 
     let proc_child = unsafe {
         let child: *const task_struct = ctx.arg(0);

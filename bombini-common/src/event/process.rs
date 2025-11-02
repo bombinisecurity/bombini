@@ -377,3 +377,20 @@ bitflags! {
         const PTRACE_MODE_REALCREDS = 0b00010000;
     }
 }
+
+/// Raw Process event messages
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+#[repr(u8)]
+pub enum ProcessMsg {
+    /// Set uid/euid for process
+    Setuid(ProcSetUid) = 0,
+    /// Set capabilities for process
+    Setcaps(ProcCapset) = 1,
+    /// Prctl cmd for process
+    Prctl(ProcPrctl) = 2,
+    /// Create user namespace
+    CreateUserNs(ProcCreateUserNs) = 3,
+    /// Ptrace access check
+    PtraceAccessCheck(ProcPtraceAccessCheck) = 4,
+}

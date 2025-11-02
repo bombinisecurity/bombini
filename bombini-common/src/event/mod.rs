@@ -23,20 +23,11 @@ pub enum Event {
     /// 0 - 31 reserved for common events
     ProcExec(process::ProcInfo) = 0,
     ProcExit(process::ProcInfo) = 1,
-    File(file::FileMsg) = 2,
-    Network(network::NetworkMsg) = 3,
+    Process(process::ProcessMsg) = 2,
+    File(file::FileMsg) = 3,
+    Network(network::NetworkMsg) = 4,
     /// IOUring submit request event type
-    IOUring(io_uring::IOUringMsg) = 4,
-    /// Proc setuid
-    ProcSetUid(process::ProcSetUid) = 5,
-    /// Proc capset
-    ProcCapset(process::ProcCapset) = 6,
-    /// Proc prctl
-    ProcPrctl(process::ProcPrctl) = 7,
-    /// create_user_ns
-    ProcCreateUserNs(process::ProcCreateUserNs) = 8,
-    /// ptrace_attach
-    ProcPtraceAccessCheck(process::ProcPtraceAccessCheck) = 9,
+    IOUring(io_uring::IOUringMsg) = 5,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
     /// Histfile modification event type
@@ -49,22 +40,14 @@ pub enum Event {
 pub const MSG_PROCEXEC: u8 = 0;
 /// ProcExit message code
 pub const MSG_PROCEXIT: u8 = 1;
+/// ProcEvent message code
+pub const MSG_PROCESS: u8 = 2;
 /// File message code
-pub const MSG_FILE: u8 = 2;
+pub const MSG_FILE: u8 = 3;
 /// Network message code
-pub const MSG_NETWORK: u8 = 3;
+pub const MSG_NETWORK: u8 = 4;
 /// IOUring submit request message code
-pub const MSG_IOURING: u8 = 4;
-/// Process setuid message code
-pub const MSG_SETUID: u8 = 5;
-/// Process capset message code
-pub const MSG_CAPSET: u8 = 6;
-/// Process prctl message code
-pub const MSG_PRCTL: u8 = 7;
-/// Process create_user_ns message code
-pub const MSG_CREATE_USER_NS: u8 = 8;
-/// Process ptrace_attach message code
-pub const MSG_PTRACE_ACCESS_CHECK: u8 = 9;
+pub const MSG_IOURING: u8 = 5;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
 /// HISTFILESIZE/HISTSIZE modification message code
