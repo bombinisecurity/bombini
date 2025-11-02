@@ -1,11 +1,14 @@
 //! Transmutes HistFileEvent to serialized format
 
-use bombini_common::event::histfile::HistFileMsg;
+use anyhow::anyhow;
+use async_trait::async_trait;
+
+use bombini_common::event::{Event, histfile::HistFileMsg};
 
 use serde::Serialize;
 
 use super::process::Process;
-use super::{Transmute, str_from_bytes, transmute_ktime};
+use super::{Transmuter, str_from_bytes, transmute_ktime};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
@@ -21,7 +24,7 @@ pub struct HistFileEvent {
 
 impl HistFileEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: HistFileMsg, ktime: u64) -> Self {
+    pub fn new(event: &HistFileMsg, ktime: u64) -> Self {
         Self {
             process: Process::new(event.process),
             command: str_from_bytes(&event.command),
@@ -30,4 +33,16 @@ impl HistFileEvent {
     }
 }
 
-impl Transmute for HistFileEvent {}
+pub struct HistFileEventTransmuter;
+
+#[async_trait]
+impl Transmuter for HistFileEventTransmuter {
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::HistFile(event) = event {
+            let high_level_event = HistFileEvent::new(event, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}

@@ -1,12 +1,18 @@
 //! Transmutes NetworkEvent to serialized format
 
-use bombini_common::event::network::{NetworkMsg, TcpConnectionV4, TcpConnectionV6};
+use anyhow::anyhow;
+use async_trait::async_trait;
+
+use bombini_common::event::{
+    Event,
+    network::{NetworkMsg, TcpConnectionV4, TcpConnectionV6},
+};
 use serde::Serialize;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use super::process::Process;
-use super::{Transmute, transmute_ktime};
+use super::{Transmuter, transmute_ktime};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
@@ -49,10 +55,10 @@ pub struct TcpConnection {
 
 impl NetworkEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: NetworkMsg, ktime: u64) -> Self {
+    pub fn new(event: &NetworkMsg, ktime: u64) -> Self {
         match event {
             NetworkMsg::TcpConV4Establish(con) => {
-                let con_event = transmute_connection_v4(&con);
+                let con_event = transmute_connection_v4(con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
@@ -60,7 +66,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV6Establish(con) => {
-                let con_event = transmute_connection_v6(&con);
+                let con_event = transmute_connection_v6(con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
@@ -68,7 +74,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV4Close(con) => {
-                let con_event = transmute_connection_v4(&con);
+                let con_event = transmute_connection_v4(con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
@@ -76,7 +82,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV6Close(con) => {
-                let con_event = transmute_connection_v6(&con);
+                let con_event = transmute_connection_v6(con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
@@ -84,7 +90,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV4Accept(con) => {
-                let con_event = transmute_connection_v4(&con);
+                let con_event = transmute_connection_v4(con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
@@ -92,7 +98,7 @@ impl NetworkEvent {
                 }
             }
             NetworkMsg::TcpConV6Accept(con) => {
-                let con_event = transmute_connection_v6(&con);
+                let con_event = transmute_connection_v6(con);
                 Self {
                     process: Process::new(con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
@@ -125,4 +131,16 @@ fn transmute_connection_v6(con: &TcpConnectionV6) -> TcpConnection {
     }
 }
 
-impl Transmute for NetworkEvent {}
+pub struct NetworkEventTransmuter;
+
+#[async_trait]
+impl Transmuter for NetworkEventTransmuter {
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::Network(event) = event {
+            let high_level_event = NetworkEvent::new(event, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}

@@ -1,8 +1,14 @@
 //! Transmutes IOUringEvent to serialized format
-//!
+
+use anyhow::anyhow;
+use async_trait::async_trait;
+
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-use bombini_common::event::io_uring::{IOUringMsg, IOUringOp};
+use bombini_common::event::{
+    Event,
+    io_uring::{IOUringMsg, IOUringOp},
+};
 
 use serde::Serialize;
 
@@ -10,7 +16,7 @@ use crate::transmuter::str_from_bytes;
 
 use super::file::{AccessMode, CreationFlags};
 use super::process::Process;
-use super::{Transmute, transmute_ktime};
+use super::{Transmuter, transmute_ktime};
 
 /// High-level event representation
 #[derive(Clone, Debug, Serialize)]
@@ -56,7 +62,7 @@ fn no_iouring_extra_info(info: &IOUringOpInfo) -> bool {
 
 impl IOUringEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: IOUringMsg, ktime: u64) -> Self {
+    pub fn new(event: &IOUringMsg, ktime: u64) -> Self {
         let op_info = match event.opcode {
             IOUringOp::IORING_OP_OPENAT | IOUringOp::IORING_OP_OPENAT2 => IOUringOpInfo::FileOpen {
                 path: str_from_bytes(&event.path),
@@ -86,11 +92,23 @@ impl IOUringEvent {
         };
         Self {
             process: Process::new(event.process),
-            opcode: event.opcode,
+            opcode: event.opcode.clone(),
             op_info,
             timestamp: transmute_ktime(ktime),
         }
     }
 }
 
-impl Transmute for IOUringEvent {}
+pub struct IOUringEventTransmuter;
+
+#[async_trait]
+impl Transmuter for IOUringEventTransmuter {
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::IOUring(event) = event {
+            let high_level_event = IOUringEvent::new(event, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}

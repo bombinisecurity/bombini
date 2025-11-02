@@ -1,13 +1,19 @@
 //! Transmutes Process to serializable struct
 
-use bombini_common::event::process::{
-    Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl,
-    ProcPtraceAccessCheck, ProcSetUid, ProcessMsg, PtraceMode, SecureExec,
+use anyhow::anyhow;
+use async_trait::async_trait;
+
+use bombini_common::event::{
+    Event,
+    process::{
+        Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl,
+        ProcPtraceAccessCheck, ProcSetUid, ProcessMsg, PtraceMode, SecureExec,
+    },
 };
 
 use serde::{Serialize, Serializer};
 
-use super::{Transmute, str_from_bytes, transmute_ktime};
+use super::{Transmuter, str_from_bytes, transmute_ktime};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -262,27 +268,51 @@ impl Process {
 
 impl ProcessExec {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcInfo, ktime: u64) -> Self {
+    pub fn new(event: &ProcInfo, ktime: u64) -> Self {
         Self {
             timestamp: transmute_ktime(ktime),
-            process: Process::new(event),
+            process: Process::new(*event),
         }
     }
 }
 
-impl Transmute for ProcessExec {}
+pub struct ProcessExecTransmuter;
+
+#[async_trait]
+impl Transmuter for ProcessExecTransmuter {
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::ProcExec(event) = event {
+            let high_level_event = ProcessExec::new(event, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}
 
 impl ProcessExit {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: ProcInfo, ktime: u64) -> Self {
+    pub fn new(event: &ProcInfo, ktime: u64) -> Self {
         Self {
             timestamp: transmute_ktime(ktime),
-            process: Process::new(event),
+            process: Process::new(*event),
         }
     }
 }
 
-impl Transmute for ProcessExit {}
+pub struct ProcessExitTransmuter;
+
+#[async_trait]
+impl Transmuter for ProcessExitTransmuter {
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::ProcExit(event) = event {
+            let high_level_event = ProcessExit::new(event, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}
 
 impl ProcessSetUid {
     /// Constructs High level event representation from low eBPF message
@@ -306,7 +336,6 @@ impl ProcessCapset {
         }
     }
 }
-
 impl ProcessPrctl {
     /// Constructs High level event representation from low eBPF message
     pub fn new(event: &ProcPrctl) -> Self {
@@ -360,20 +389,20 @@ pub enum ProcessEventType {
 }
 
 impl ProcessEvent {
-    pub fn new(event: ProcessMsg, ktime: u64) -> Self {
+    pub fn new(event: &ProcessMsg, ktime: u64) -> Self {
         match event {
             ProcessMsg::Setuid(proc) => Self {
-                process_event: ProcessEventType::Setuid(ProcessSetUid::new(&proc)),
+                process_event: ProcessEventType::Setuid(ProcessSetUid::new(proc)),
                 process: Process::new(proc.process),
                 timestamp: transmute_ktime(ktime),
             },
             ProcessMsg::Setcaps(proc) => Self {
-                process_event: ProcessEventType::Setcaps(ProcessCapset::new(&proc)),
+                process_event: ProcessEventType::Setcaps(ProcessCapset::new(proc)),
                 process: Process::new(proc.process),
                 timestamp: transmute_ktime(ktime),
             },
             ProcessMsg::Prctl(proc) => Self {
-                process_event: ProcessEventType::Prctl(ProcessPrctl::new(&proc)),
+                process_event: ProcessEventType::Prctl(ProcessPrctl::new(proc)),
                 process: Process::new(proc.process),
                 timestamp: transmute_ktime(ktime),
             },
@@ -384,7 +413,7 @@ impl ProcessEvent {
             },
             ProcessMsg::PtraceAccessCheck(proc) => Self {
                 process_event: ProcessEventType::PtraceAccessCheck(ProcessPtraceAccessCheck::new(
-                    &proc,
+                    proc,
                 )),
                 process: Process::new(proc.process),
                 timestamp: transmute_ktime(ktime),
@@ -393,4 +422,16 @@ impl ProcessEvent {
     }
 }
 
-impl Transmute for ProcessEvent {}
+pub struct ProcessEventTransmuter;
+
+#[async_trait]
+impl Transmuter for ProcessEventTransmuter {
+    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::Process(event) = event {
+            let high_level_event = ProcessEvent::new(event, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}

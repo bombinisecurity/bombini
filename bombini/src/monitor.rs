@@ -7,15 +7,13 @@ use tokio::sync::mpsc;
 
 use bytes::Bytes;
 
-use log::debug;
-
 use std::convert::TryFrom;
 use std::path::Path;
 
 use bombini_common::event::GenericEvent;
 
 use crate::transmitter::Transmitter;
-use crate::transmuter::Transmuter;
+use crate::transmuter::TransmuterRegistry;
 
 pub struct Monitor<'a> {
     pin_path: &'a Path,
@@ -50,7 +48,7 @@ impl<'a> Monitor<'a> {
         ))
         .unwrap();
 
-        let transmuter = Transmuter;
+        let transmuter_registry = TransmuterRegistry::new();
 
         tokio::spawn(async move {
             let mut poll = AsyncFd::new(ring_buf).unwrap();
@@ -65,10 +63,9 @@ impl<'a> Monitor<'a> {
         });
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                let s: GenericEvent = unsafe { std::ptr::read(message.as_ptr() as *const _) };
-                let data = transmuter.transmute(s).await.unwrap();
-                if (transmitter.transmit(data).await).is_err() {
-                    debug!("failed to transmit event");
+                let event: GenericEvent = unsafe { std::ptr::read(message.as_ptr() as *const _) };
+                if let Ok(data) = transmuter_registry.transmute(event).await {
+                    let _ = transmitter.transmit(data).await;
                 }
             }
         });
