@@ -60,7 +60,7 @@ docker run --pid=host --rm -it --privileged --env "RUST_LOG=info" -v <your-confi
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 2. Prepare environment for [Aya](https://aya-rs.dev/book/start/development/).
 
-If you building Bombini on Linux kernel with version **6.8.0-62-generic**, you can skip the next step.
+If you building Bombini on Linux kernel with version **6.8.0-86-generic**, you can skip the next step.
 Otherwise, please, regenerate `vmlinux.rs` before building:
 
 ```bash
