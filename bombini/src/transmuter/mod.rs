@@ -1,7 +1,10 @@
 //! Transmuter provides an interface to transmute raw eBPF events into
 //! serialized formats
 
-use bombini_common::event::{Event, GenericEvent};
+use bombini_common::event::{
+    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_HISTFILE, MSG_IOURING, MSG_NETWORK,
+    MSG_PROCESS, MSG_PROCEXEC, MSG_PROCEXIT,
+};
 
 use chrono::{DateTime, SecondsFormat};
 use nix::time::{ClockId, clock_gettime};
@@ -17,6 +20,8 @@ mod io_uring;
 mod network;
 mod process;
 
+use crate::config::{Config, DetectorConfig};
+
 use file::FileEventTransmuter;
 use gtfobins::GTFOBinsEventTransmuter;
 use histfile::HistFileEventTransmuter;
@@ -28,21 +33,43 @@ pub struct TransmuterRegistry {
     handlers: [Option<Arc<dyn Transmuter>>; 256],
 }
 impl TransmuterRegistry {
-    pub fn new() -> Self {
+    pub fn new(config: &Config) -> Self {
         let mut registry = Self {
             handlers: std::array::from_fn(|_| None),
         };
 
-        registry.handlers[0] = Some(Arc::new(ProcessExecTransmuter));
-        registry.handlers[1] = Some(Arc::new(ProcessExitTransmuter));
-        registry.handlers[2] = Some(Arc::new(ProcessEventTransmuter));
-        registry.handlers[3] = Some(Arc::new(FileEventTransmuter));
-        registry.handlers[4] = Some(Arc::new(NetworkEventTransmuter));
-        registry.handlers[5] = Some(Arc::new(IOUringEventTransmuter));
-
-        registry.handlers[32] = Some(Arc::new(GTFOBinsEventTransmuter));
-        registry.handlers[33] = Some(Arc::new(HistFileEventTransmuter));
-
+        // Install transmuters according loaded detectors
+        for detector_cfg in config.detector_configs.values() {
+            match detector_cfg {
+                DetectorConfig::ProcMon(_) => {
+                    registry.handlers[MSG_PROCEXEC as usize] =
+                        Some(Arc::new(ProcessExecTransmuter));
+                    registry.handlers[MSG_PROCEXIT as usize] =
+                        Some(Arc::new(ProcessExitTransmuter));
+                    registry.handlers[MSG_PROCESS as usize] =
+                        Some(Arc::new(ProcessEventTransmuter));
+                }
+                DetectorConfig::FileMon(_) => {
+                    registry.handlers[MSG_FILE as usize] = Some(Arc::new(FileEventTransmuter));
+                }
+                DetectorConfig::NetMon(_) => {
+                    registry.handlers[MSG_NETWORK as usize] =
+                        Some(Arc::new(NetworkEventTransmuter));
+                }
+                DetectorConfig::IOUringMon(_) => {
+                    registry.handlers[MSG_IOURING as usize] =
+                        Some(Arc::new(IOUringEventTransmuter));
+                }
+                DetectorConfig::GTFOBins(_) => {
+                    registry.handlers[MSG_GTFOBINS as usize] =
+                        Some(Arc::new(GTFOBinsEventTransmuter));
+                }
+                DetectorConfig::Histfile => {
+                    registry.handlers[MSG_HISTFILE as usize] =
+                        Some(Arc::new(HistFileEventTransmuter));
+                }
+            }
+        }
         registry
     }
 

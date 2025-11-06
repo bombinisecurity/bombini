@@ -41,14 +41,18 @@ impl<'a> Monitor<'a> {
     /// # Arguments
     ///
     /// `transmitter` - interface for sending events
-    pub async fn monitor<T: Transmitter + Send + 'static>(&self, mut transmitter: T) {
+    ///
+    /// `transmuters` - registry for transmuting ebpf events
+    pub async fn monitor<T: Transmitter + Send + 'static>(
+        &self,
+        mut transmitter: T,
+        transmuters: TransmuterRegistry,
+    ) {
         let (tx, mut rx) = mpsc::channel::<Bytes>(self.event_chanel_size);
         let ring_buf = RingBuf::try_from(Map::RingBuf(
             aya::maps::MapData::from_pin(self.pin_path).unwrap(),
         ))
         .unwrap();
-
-        let transmuter_registry = TransmuterRegistry::new();
 
         tokio::spawn(async move {
             let mut poll = AsyncFd::new(ring_buf).unwrap();
@@ -64,7 +68,7 @@ impl<'a> Monitor<'a> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let event: GenericEvent = unsafe { std::ptr::read(message.as_ptr() as *const _) };
-                if let Ok(data) = transmuter_registry.transmute(event).await {
+                if let Ok(data) = transmuters.transmute(event).await {
                     let _ = transmitter.transmit(data).await;
                 }
             }

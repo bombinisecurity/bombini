@@ -4,26 +4,29 @@ use bombini_common::event::histfile::MAX_BASH_COMMAND_SIZE;
 
 use aya::maps::lpm_trie::{Key, LpmTrie};
 use aya::programs::UProbe;
-use aya::{Ebpf, EbpfError};
+use aya::{Ebpf, EbpfError, EbpfLoader};
 
 use std::path::Path;
 
-use super::{Detector, load_ebpf_obj};
+use super::Detector;
 
 pub struct HistFileDetector {
     ebpf: Ebpf,
 }
 
-impl Detector for HistFileDetector {
-    async fn new<P, U>(obj_path: P, _yaml_config: Option<U>) -> Result<Self, anyhow::Error>
+impl HistFileDetector {
+    pub fn new<P>(obj_path: P, maps_pin_path: P) -> Result<Self, anyhow::Error>
     where
-        U: AsRef<str>,
         P: AsRef<Path>,
     {
-        let ebpf = load_ebpf_obj(obj_path).await?;
+        let mut ebpf_loader = EbpfLoader::new();
+        let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
         Ok(HistFileDetector { ebpf })
     }
+}
 
+impl Detector for HistFileDetector {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut hist_fsz_buf = [0; MAX_BASH_COMMAND_SIZE];
         let mut hist_sz_buf = [0; MAX_BASH_COMMAND_SIZE];

@@ -8,47 +8,33 @@ use aya::maps::{
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use bombini_common::{
     config::{filemon::Config, filemon::PathFilterMask, procmon::ProcessFilterMask},
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
 };
 
-use crate::{
-    config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME},
-    init_process_filter_maps,
-    proto::config::FileMonConfig,
-    resize_process_filter_maps,
-};
+use crate::{init_process_filter_maps, proto::config::FileMonConfig, resize_process_filter_maps};
 
 use super::Detector;
 
 pub struct FileMon {
     ebpf: Ebpf,
-    config: FileMonConfig,
+    config: Arc<FileMonConfig>,
 }
 
-impl Detector for FileMon {
-    async fn new<P, U>(obj_path: P, yaml_config: Option<U>) -> Result<Self, anyhow::Error>
+impl FileMon {
+    pub fn new<P>(
+        obj_path: P,
+        maps_pin_path: P,
+        config: Arc<FileMonConfig>,
+    ) -> Result<Self, anyhow::Error>
     where
-        U: AsRef<str>,
         P: AsRef<Path>,
     {
-        let Some(yaml_config) = yaml_config else {
-            anyhow::bail!("Config for filemon must be provided");
-        };
-
-        let config: FileMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
-        let config_opts = CONFIG.read().await;
         let mut ebpf_loader = EbpfLoader::new();
-        let mut ebpf_loader_ref = ebpf_loader
-            .map_pin_path(config_opts.maps_pin_path.as_ref().unwrap())
-            .set_max_entries(EVENT_MAP_NAME, config_opts.event_map_size.unwrap())
-            .set_max_entries(
-                PROCMON_PROC_MAP_NAME,
-                config_opts.procmon_proc_map_size.unwrap(),
-            );
+        let mut ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
@@ -59,7 +45,9 @@ impl Detector for FileMon {
 
         Ok(FileMon { ebpf, config })
     }
+}
 
+impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
             filter_mask: ProcessFilterMask::empty(),
