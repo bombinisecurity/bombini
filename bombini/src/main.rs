@@ -5,17 +5,20 @@ use tokio::signal;
 mod config;
 mod detector;
 mod monitor;
+mod options;
 mod proto;
 mod registry;
 mod transmitter;
 mod transmuter;
 
-use config::{CONFIG, Config};
+use config::Config;
 use monitor::Monitor;
+use options::{Options, TransmitterOpts};
 use registry::Registry;
 use transmitter::file::FileTransmitter;
 use transmitter::stdout::StdoutTransmitter;
 use transmitter::unix_sock::USockTransmitter;
+use transmuter::TransmuterRegistry;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -26,31 +29,33 @@ async fn main() -> Result<(), anyhow::Error> {
 
     env_logger::init();
 
-    {
-        let mut config = CONFIG.write().await;
-        config.init()?;
-    }
+    let mut options = Options::default();
+    options.parse_options()?;
+    let mut config = Config::new(options);
+    config.parse_configs()?;
 
-    let config = CONFIG.read().await;
-
-    if std::fs::exists(config.maps_pin_path.as_ref().unwrap()).unwrap() {
+    if std::fs::exists(config.options.maps_pin_path.as_ref().unwrap()).unwrap() {
         anyhow::bail!(
             "Map pin directory {} exists. Remove it to start.",
-            config.maps_pin_path.as_ref().unwrap()
+            config.options.maps_pin_path.as_ref().unwrap()
         );
     }
 
-    let _ = std::fs::create_dir(config.maps_pin_path.as_ref().unwrap());
+    let _ = std::fs::create_dir(config.options.maps_pin_path.as_ref().unwrap());
     defer! {
-        let _ = std::fs::remove_dir_all(config.maps_pin_path.as_ref().unwrap());
+        let _ = std::fs::remove_dir_all(config.options.maps_pin_path.as_ref().unwrap());
     }
 
     let mut registry = Registry::new();
-    registry.load_detectors().await?;
+    registry.load_detectors(&config).await?;
+    let transmuter_registry = TransmuterRegistry::new(&config);
 
-    let event_pin_path = config.event_pin_path();
-    let monitor = Monitor::new(event_pin_path.as_path(), config.event_channel_size.unwrap());
-    start_monitor(&config, &monitor).await?;
+    let event_pin_path = config.options.event_pin_path();
+    let monitor = Monitor::new(
+        event_pin_path.as_path(),
+        config.options.event_channel_size.unwrap(),
+    );
+    start_monitor(&config.options.transmit_opts, &monitor, transmuter_registry).await?;
 
     tokio::select! {
         _ = sigint.recv() => {
@@ -64,16 +69,24 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn start_monitor(config: &Config, monitor: &Monitor<'_>) -> Result<(), anyhow::Error> {
-    if let Some(file) = &config.transmit_opts.event_log {
-        monitor.monitor(FileTransmitter::new(file).await?).await;
+async fn start_monitor(
+    options: &TransmitterOpts,
+    monitor: &Monitor<'_>,
+    transmuters: TransmuterRegistry,
+) -> Result<(), anyhow::Error> {
+    if let Some(file) = &options.event_log {
+        monitor
+            .monitor(FileTransmitter::new(file).await?, transmuters)
+            .await;
         Ok(())
-    } else if let Some(file) = &config.transmit_opts.event_socket {
-        monitor.monitor(USockTransmitter::new(file).await?).await;
+    } else if let Some(file) = &options.event_socket {
+        monitor
+            .monitor(USockTransmitter::new(file).await?, transmuters)
+            .await;
         Ok(())
     } else {
         // default: send events to stdout
-        monitor.monitor(StdoutTransmitter).await;
+        monitor.monitor(StdoutTransmitter, transmuters).await;
         Ok(())
     }
 }

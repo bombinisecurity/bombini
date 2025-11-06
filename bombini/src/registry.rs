@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::config::CONFIG;
+use crate::config::{Config, DetectorConfig};
 use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::histfile::HistFileDetector;
 use crate::detector::io_uringmon::IOUringMon;
@@ -15,20 +15,6 @@ use crate::detector::Detector;
 use crate::detector::filemon::FileMon;
 use crate::detector::netmon::NetMon;
 use crate::detector::procmon::ProcMon;
-
-macro_rules! load_detector {
-    ($detectors:expr, $name:expr, $obj:expr, $config:expr, $(($key:expr, $type:ty)),+) => {
-        match $name {
-            $($key => {
-                let mut detector = <$type>::new($obj, $config).await?;
-                detector.load()?;
-                $detectors.insert($name.to_string(), Box::new(detector));
-                Ok(())
-            },)+
-            _ => Err(anyhow!("{} unknown detector", $name))
-        }
-    };
-}
 
 pub struct Registry {
     /// Loader Detectors
@@ -42,45 +28,81 @@ impl Registry {
         }
     }
 
-    pub async fn load_detectors(&mut self) -> Result<(), anyhow::Error> {
-        let config = CONFIG.read().await;
-        let Some(ref names) = config.detectors else {
-            return Ok(());
+    pub async fn load_detectors(&mut self, config: &Config) -> Result<(), anyhow::Error> {
+        let mut obj_path = PathBuf::from(config.options.bpf_objs.as_ref().unwrap());
+        let mut config_path = PathBuf::from(&config.options.config_dir);
+        let maps_pin_path = PathBuf::from(config.options.maps_pin_path.as_ref().unwrap());
+
+        // Load ProcMon first.
+        // ProcMon provides process information that is used by all other detectors.
+        let name = "procmon".to_string();
+        let DetectorConfig::ProcMon(procmon_cfg) = config.detector_configs.get(&name).unwrap()
+        else {
+            return Err(anyhow!("ProcMon config is not found"));
         };
-        let config = CONFIG.read().await;
-        let mut obj_path = PathBuf::from(config.bpf_objs.as_ref().unwrap());
-        let mut config_path = PathBuf::from(&config.config_dir);
-        for name in names.iter().map(|e| e.as_str()) {
-            obj_path.push(name);
-            config_path.push(name.to_owned() + ".yaml");
-            let yaml_config = std::fs::read_to_string(&config_path).ok();
-            self.load_detector(name, &obj_path, yaml_config).await?;
+        obj_path.push(&name);
+        let mut procmon = ProcMon::new(
+            &obj_path,
+            &maps_pin_path,
+            config.options.event_map_size.unwrap(),
+            config.options.procmon_proc_map_size.unwrap(),
+            procmon_cfg.clone(),
+        )?;
+        procmon.load()?;
+        self.detectors.insert(name, Box::new(procmon));
+        debug!("Detector procmon is loaded");
+
+        let names = config.options.detectors.as_ref().unwrap();
+        for name in names.iter().map(|e| e.as_str()).filter(|e| *e != "procmon") {
             obj_path.pop();
+            obj_path.push(name);
+
+            let Some(config) = config.detector_configs.get(name) else {
+                return Err(anyhow!("{} unknown detector", name));
+            };
+            self.load_detector(name, &obj_path, &maps_pin_path, config)?;
             config_path.pop();
         }
         Ok(())
     }
 
-    pub async fn load_detector(
+    fn load_detector(
         &mut self,
         name: &str,
         obj_path: &Path,
-        yaml_config: Option<String>,
+        maps_pin_path: &Path,
+        config: &DetectorConfig,
     ) -> Result<(), anyhow::Error> {
-        load_detector!(
-            &mut self.detectors,
-            name,
-            obj_path,
-            yaml_config,
-            /* List of supported Detecotors */
-            ("procmon", ProcMon),
-            ("filemon", FileMon),
-            ("netmon", NetMon),
-            ("io_uringmon", IOUringMon),
-            ("gtfobins", GTFOBinsDetector),
-            ("histfile", HistFileDetector)
-        )?;
-
+        match config {
+            DetectorConfig::FileMon(cfg) => {
+                let mut detector = FileMon::new(obj_path, maps_pin_path, cfg.clone())?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::NetMon(cfg) => {
+                let mut detector = NetMon::new(obj_path, maps_pin_path, cfg.clone())?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::IOUringMon(cfg) => {
+                let mut detector = IOUringMon::new(obj_path, maps_pin_path, cfg.clone())?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::GTFOBins(cfg) => {
+                let mut detector = GTFOBinsDetector::new(obj_path, maps_pin_path, cfg.clone())?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::Histfile => {
+                let mut detector = HistFileDetector::new(obj_path, maps_pin_path)?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            _ => {
+                return Err(anyhow!("{} unknown detector", name));
+            }
+        }
         debug!("Detector {name} is loaded");
         Ok(())
     }

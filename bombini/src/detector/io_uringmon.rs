@@ -10,7 +10,7 @@ use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
 use procfs::sys::kernel::Version;
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use bombini_common::{
     config::io_uringmon::Config,
@@ -19,10 +19,7 @@ use bombini_common::{
 };
 
 use crate::{
-    config::{CONFIG, EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME},
-    init_process_filter_maps,
-    proto::config::IoUringMonConfig,
-    resize_process_filter_maps,
+    init_process_filter_maps, proto::config::IoUringMonConfig, resize_process_filter_maps,
 };
 
 use super::Detector;
@@ -30,36 +27,29 @@ use super::Detector;
 pub struct IOUringMon {
     ebpf: Ebpf,
     /// User supplied config
-    config: IoUringMonConfig,
+    config: Arc<IoUringMonConfig>,
 }
 
-impl Detector for IOUringMon {
-    async fn new<P, U>(obj_path: P, yaml_config: Option<U>) -> Result<Self, anyhow::Error>
+impl IOUringMon {
+    pub fn new<P>(
+        obj_path: P,
+        maps_pin_path: P,
+        config: Arc<IoUringMonConfig>,
+    ) -> Result<Self, anyhow::Error>
     where
-        U: AsRef<str>,
         P: AsRef<Path>,
     {
-        let Some(yaml_config) = yaml_config else {
-            anyhow::bail!("Config for io_uringmon must be provided");
-        };
-
-        let config: IoUringMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
-        let config_opts = CONFIG.read().await;
         let mut ebpf_loader = EbpfLoader::new();
-        let mut ebpf_loader_ref = ebpf_loader
-            .map_pin_path(config_opts.maps_pin_path.as_ref().unwrap())
-            .set_max_entries(EVENT_MAP_NAME, config_opts.event_map_size.unwrap())
-            .set_max_entries(
-                PROCMON_PROC_MAP_NAME,
-                config_opts.procmon_proc_map_size.unwrap(),
-            );
+        let mut ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
         Ok(IOUringMon { ebpf, config })
     }
+}
 
+impl Detector for IOUringMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
             filter_mask: ProcessFilterMask::empty(),

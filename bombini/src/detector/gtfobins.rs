@@ -2,36 +2,38 @@
 
 use aya::maps::hash_map::HashMap;
 use aya::programs::Lsm;
-use aya::{Btf, Ebpf, EbpfError};
+use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
 use bombini_common::constants::MAX_FILENAME_SIZE;
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use crate::proto::config::GtfoBinsConfig;
 
-use super::{Detector, load_ebpf_obj};
+use super::Detector;
 
 pub struct GTFOBinsDetector {
     ebpf: Ebpf,
-    config: GtfoBinsConfig,
+    config: Arc<GtfoBinsConfig>,
+}
+
+impl GTFOBinsDetector {
+    pub fn new<P>(
+        obj_path: P,
+        maps_pin_path: P,
+        config: Arc<GtfoBinsConfig>,
+    ) -> Result<Self, anyhow::Error>
+    where
+        P: AsRef<Path>,
+    {
+        let mut ebpf_loader = EbpfLoader::new();
+        let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
+        Ok(GTFOBinsDetector { ebpf, config })
+    }
 }
 
 impl Detector for GTFOBinsDetector {
-    async fn new<P, U>(obj_path: P, yaml_config: Option<U>) -> Result<Self, anyhow::Error>
-    where
-        U: AsRef<str>,
-        P: AsRef<Path>,
-    {
-        let Some(yaml_config) = yaml_config else {
-            anyhow::bail!("Config for GTFOBins detector must be provided");
-        };
-        let ebpf = load_ebpf_obj(obj_path).await?;
-
-        let config: GtfoBinsConfig = serde_yml::from_str(yaml_config.as_ref())?;
-        Ok(GTFOBinsDetector { ebpf, config })
-    }
-
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut file_names: HashMap<_, [u8; MAX_FILENAME_SIZE], u32> =
             HashMap::try_from(self.ebpf.map_mut("GTFOBINS_NAME_MAP").unwrap())?;
