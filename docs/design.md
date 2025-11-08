@@ -54,4 +54,3 @@ interact with them (change config maps).
 * [netmon](detectors/netmon.md)
 * [io_uringmon](detectors/io_uringmon.md)
 * [gtflobins](detectors/gtfobins.md)
-* [histfile](detectors/histfile.md)
