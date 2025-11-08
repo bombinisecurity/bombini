@@ -2,8 +2,8 @@
 //! serialized formats
 
 use bombini_common::event::{
-    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_HISTFILE, MSG_IOURING, MSG_NETWORK,
-    MSG_PROCESS, MSG_PROCEXEC, MSG_PROCEXIT,
+    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_NETWORK, MSG_PROCESS,
+    MSG_PROCEXEC, MSG_PROCEXIT,
 };
 
 use chrono::{DateTime, SecondsFormat};
@@ -15,7 +15,6 @@ use std::{sync::Arc, time::Duration};
 
 mod file;
 mod gtfobins;
-mod histfile;
 mod io_uring;
 mod network;
 mod process;
@@ -24,7 +23,6 @@ use crate::config::{Config, DetectorConfig};
 
 use file::FileEventTransmuter;
 use gtfobins::GTFOBinsEventTransmuter;
-use histfile::HistFileEventTransmuter;
 use io_uring::IOUringEventTransmuter;
 use network::NetworkEventTransmuter;
 use process::{ProcessEventTransmuter, ProcessExecTransmuter, ProcessExitTransmuter};
@@ -63,10 +61,6 @@ impl TransmuterRegistry {
                 DetectorConfig::GTFOBins(_) => {
                     registry.handlers[MSG_GTFOBINS as usize] =
                         Some(Arc::new(GTFOBinsEventTransmuter));
-                }
-                DetectorConfig::Histfile => {
-                    registry.handlers[MSG_HISTFILE as usize] =
-                        Some(Arc::new(HistFileEventTransmuter));
                 }
             }
         }

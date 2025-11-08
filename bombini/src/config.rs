@@ -18,7 +18,6 @@ pub enum DetectorConfig {
     NetMon(Arc<NetMonConfig>),
     IOUringMon(Arc<IoUringMonConfig>),
     GTFOBins(Arc<GtfoBinsConfig>),
-    Histfile,
 }
 
 /// Configuration for agent and all detectors
@@ -73,7 +72,6 @@ impl Config {
                     let config: GtfoBinsConfig = serde_yml::from_str(yaml_config.as_ref())?;
                     DetectorConfig::GTFOBins(Arc::new(config))
                 }
-                "histfile" => DetectorConfig::Histfile,
                 _ => {
                     return Err(anyhow!("{} unknown detector", name));
                 }

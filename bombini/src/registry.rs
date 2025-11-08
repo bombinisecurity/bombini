@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 use crate::config::{Config, DetectorConfig};
 use crate::detector::gtfobins::GTFOBinsDetector;
-use crate::detector::histfile::HistFileDetector;
 use crate::detector::io_uringmon::IOUringMon;
 
 use crate::detector::Detector;
@@ -91,11 +90,6 @@ impl Registry {
             }
             DetectorConfig::GTFOBins(cfg) => {
                 let mut detector = GTFOBinsDetector::new(obj_path, maps_pin_path, cfg.clone())?;
-                detector.load()?;
-                self.detectors.insert(name.to_string(), Box::new(detector));
-            }
-            DetectorConfig::Histfile => {
-                let mut detector = HistFileDetector::new(obj_path, maps_pin_path)?;
                 detector.load()?;
                 self.detectors.insert(name.to_string(), Box::new(detector));
             }

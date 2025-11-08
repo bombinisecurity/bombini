@@ -64,8 +64,6 @@ fn test_detectors_load() {
             "io_uringmon",
             "--detector",
             "gtfobins",
-            "--detector",
-            "histfile",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -87,7 +85,6 @@ fn test_detectors_load() {
     // Check loaded detectors
     assert!(log.contains("gtfobins is loaded"));
     assert!(log.contains("procmon is loaded"));
-    assert!(log.contains("histfile is loaded"));
     assert!(log.contains("filemon is loaded"));
     assert!(log.contains("netmon is loaded"));
     assert!(log.contains("io_uringmon is loaded"));

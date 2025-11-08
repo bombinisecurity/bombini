@@ -8,7 +8,6 @@ use anyhow::anyhow;
 
 pub mod filemon;
 pub mod gtfobins;
-pub mod histfile;
 pub mod io_uringmon;
 pub mod netmon;
 pub mod procmon;
