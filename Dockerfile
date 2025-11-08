@@ -8,7 +8,7 @@ RUN rustup install stable; \
 COPY . ./
 # Update vmlinux.rs acroding current kernel verison
 RUN  uname -a; \
-    ./bombini-detectors-ebpf/generate_vmlinux.sh
+    cargo xtask vmlinux-gen
 RUN cargo xtask build --release
 RUN mkdir -p ./target/bpf-objs && \
     find ./target/bpfel-unknown-none/release -maxdepth 1 -exec file {} + | \
@@ -23,5 +23,5 @@ COPY --from=bombini-builder ./config /usr/local/lib/bombini/config
 
 ENTRYPOINT [ "/usr/local/bin/bombini" ]
 
-# How to run:
-# docker run --pid=host --rm -it --privileged --env "RUST_LOG=info" -v <your-config-dir>:/usr/local/lib/bombini/config:ro  -v /sys/fs/bpf:/sys/fs/bpf bombini
+# How to run
+LABEL description="docker run --pid=host --rm -it --privileged --env 'RUST_LOG=info' -v <your-config-dir>:/usr/local/lib/bombini/config:ro  -v /sys/fs/bpf:/sys/fs/bpf bombini"
