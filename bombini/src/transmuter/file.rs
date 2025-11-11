@@ -285,7 +285,7 @@ impl FileEvent {
                     i_mode: event.i_mode.into(),
                 };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::FileOpen(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -295,7 +295,7 @@ impl FileEvent {
                     path: str_from_bytes(&event.path),
                 };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::PathTruncate(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -304,7 +304,7 @@ impl FileEvent {
                 let path = str_from_bytes(&event.path);
                 let info = PathInfo { path };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::PathUnlink(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -315,7 +315,7 @@ impl FileEvent {
                     i_mode: event.i_mode.into(),
                 };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::PathChmod(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -327,7 +327,7 @@ impl FileEvent {
                     gid: event.gid,
                 };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::PathChown(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -339,7 +339,7 @@ impl FileEvent {
                     flags: event.flags,
                 };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::SbMount(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -351,7 +351,7 @@ impl FileEvent {
                     flags: SharingType::from_bits_truncate(event.flags),
                 };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::MmapFile(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -363,7 +363,7 @@ impl FileEvent {
                     cmd: event.flags,
                 };
                 Self {
-                    process: Process::new(event.process),
+                    process: Process::new(&event.process),
                     hook: LsmFileHook::FileIoctl(info),
                     timestamp: transmute_ktime(ktime),
                 }

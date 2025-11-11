@@ -67,7 +67,7 @@ impl TransmuterRegistry {
         registry
     }
 
-    pub async fn transmute(&self, generic_event: GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
+    pub async fn transmute(&self, generic_event: &GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
         let event_type = generic_event.msg_code as usize;
         if let Some(handler) = self.handlers[event_type].as_ref() {
             handler

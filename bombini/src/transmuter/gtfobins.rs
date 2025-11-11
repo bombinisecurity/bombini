@@ -24,7 +24,7 @@ impl GTFOBinsEvent {
     /// Constructs High level event representation from low eBPF message
     pub fn new(event: &GTFOBinsMsg, ktime: u64) -> Self {
         Self {
-            process: Process::new(event.process),
+            process: Process::new(&event.process),
             timestamp: transmute_ktime(ktime),
         }
     }

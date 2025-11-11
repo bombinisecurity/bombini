@@ -60,7 +60,7 @@ impl NetworkEvent {
             NetworkMsg::TcpConV4Establish(con) => {
                 let con_event = transmute_connection_v4(con);
                 Self {
-                    process: Process::new(con.process),
+                    process: Process::new(&con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -68,7 +68,7 @@ impl NetworkEvent {
             NetworkMsg::TcpConV6Establish(con) => {
                 let con_event = transmute_connection_v6(con);
                 Self {
-                    process: Process::new(con.process),
+                    process: Process::new(&con.process),
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -76,7 +76,7 @@ impl NetworkEvent {
             NetworkMsg::TcpConV4Close(con) => {
                 let con_event = transmute_connection_v4(con);
                 Self {
-                    process: Process::new(con.process),
+                    process: Process::new(&con.process),
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -84,7 +84,7 @@ impl NetworkEvent {
             NetworkMsg::TcpConV6Close(con) => {
                 let con_event = transmute_connection_v6(con);
                 Self {
-                    process: Process::new(con.process),
+                    process: Process::new(&con.process),
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -92,7 +92,7 @@ impl NetworkEvent {
             NetworkMsg::TcpConV4Accept(con) => {
                 let con_event = transmute_connection_v4(con);
                 Self {
-                    process: Process::new(con.process),
+                    process: Process::new(&con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -100,7 +100,7 @@ impl NetworkEvent {
             NetworkMsg::TcpConV6Accept(con) => {
                 let con_event = transmute_connection_v6(con);
                 Self {
-                    process: Process::new(con.process),
+                    process: Process::new(&con.process),
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
                 }

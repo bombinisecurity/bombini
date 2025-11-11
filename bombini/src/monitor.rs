@@ -67,7 +67,7 @@ impl<'a> Monitor<'a> {
         });
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                let event: GenericEvent = unsafe { std::ptr::read(message.as_ptr() as *const _) };
+                let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
                 if let Ok(data) = transmuters.transmute(event).await {
                     let _ = transmitter.transmit(data).await;
                 }

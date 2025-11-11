@@ -238,13 +238,14 @@ pub struct ProcessPtraceAccessCheck {
 
 impl Process {
     /// Constructs High level event representation from low eBPF
-    pub fn new(mut proc: ProcInfo) -> Self {
-        proc.args.iter_mut().for_each(|e| {
+    pub fn new(proc: &ProcInfo) -> Self {
+        let mut args = proc.args;
+        args.iter_mut().for_each(|e| {
             if *e == 0x00 {
                 *e = 0x20
             }
         });
-        let args = String::from_utf8_lossy(&proc.args).trim_end().to_string();
+        let args = String::from_utf8_lossy(&args).trim_end().to_string();
         Self {
             start_time: transmute_ktime(proc.start),
             pid: proc.pid,
@@ -271,7 +272,7 @@ impl ProcessExec {
     pub fn new(event: &ProcInfo, ktime: u64) -> Self {
         Self {
             timestamp: transmute_ktime(ktime),
-            process: Process::new(*event),
+            process: Process::new(event),
         }
     }
 }
@@ -295,7 +296,7 @@ impl ProcessExit {
     pub fn new(event: &ProcInfo, ktime: u64) -> Self {
         Self {
             timestamp: transmute_ktime(ktime),
-            process: Process::new(*event),
+            process: Process::new(event),
         }
     }
 }
@@ -356,7 +357,7 @@ impl ProcessPtraceAccessCheck {
     /// Constructs High level event representation from low eBPF message
     pub fn new(event: &ProcPtraceAccessCheck) -> Self {
         Self {
-            child: Process::new(event.child),
+            child: Process::new(&event.child),
             mode: event.mode.clone(),
         }
     }
@@ -393,29 +394,29 @@ impl ProcessEvent {
         match event {
             ProcessMsg::Setuid(proc) => Self {
                 process_event: ProcessEventType::Setuid(ProcessSetUid::new(proc)),
-                process: Process::new(proc.process),
+                process: Process::new(&proc.process),
                 timestamp: transmute_ktime(ktime),
             },
             ProcessMsg::Setcaps(proc) => Self {
                 process_event: ProcessEventType::Setcaps(ProcessCapset::new(proc)),
-                process: Process::new(proc.process),
+                process: Process::new(&proc.process),
                 timestamp: transmute_ktime(ktime),
             },
             ProcessMsg::Prctl(proc) => Self {
                 process_event: ProcessEventType::Prctl(ProcessPrctl::new(proc)),
-                process: Process::new(proc.process),
+                process: Process::new(&proc.process),
                 timestamp: transmute_ktime(ktime),
             },
             ProcessMsg::CreateUserNs(proc) => Self {
                 process_event: ProcessEventType::CreateUserNs(ProcessCreateUserNs {}),
-                process: Process::new(proc.process),
+                process: Process::new(&proc.process),
                 timestamp: transmute_ktime(ktime),
             },
             ProcessMsg::PtraceAccessCheck(proc) => Self {
                 process_event: ProcessEventType::PtraceAccessCheck(ProcessPtraceAccessCheck::new(
                     proc,
                 )),
-                process: Process::new(proc.process),
+                process: Process::new(&proc.process),
                 timestamp: transmute_ktime(ktime),
             },
         }
