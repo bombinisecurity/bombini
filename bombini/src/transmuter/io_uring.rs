@@ -91,7 +91,7 @@ impl IOUringEvent {
             _ => IOUringOpInfo::NoInfo,
         };
         Self {
-            process: Process::new(event.process),
+            process: Process::new(&event.process),
             opcode: event.opcode.clone(),
             op_info,
             timestamp: transmute_ktime(ktime),
