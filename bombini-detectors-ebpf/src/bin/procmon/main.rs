@@ -640,9 +640,12 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
     unsafe {
         let creds: *const cred = ctx.arg(0);
-        event.effective = Capabilities::from_bits_retain((*creds).cap_effective.val);
-        event.inheritable = Capabilities::from_bits_retain((*creds).cap_inheritable.val);
-        event.permitted = Capabilities::from_bits_retain((*creds).cap_permitted.val)
+        event.effective =
+            Capabilities::from_bits_retain(*(&(*creds).cap_effective as *const _ as *const u64));
+        event.inheritable =
+            Capabilities::from_bits_retain(*(&(*creds).cap_inheritable as *const _ as *const u64));
+        event.permitted =
+            Capabilities::from_bits_retain(*(&(*creds).cap_permitted as *const _ as *const u64))
     }
     let filter = CapFilter::new(&PROCMON_FILTER_CAPSET_ECAP_MAP);
     if !config.cred_mask[1].is_empty() && !filter.filter(config.cred_mask[1], &event.effective) {
@@ -749,7 +752,8 @@ fn try_create_user_ns_capture(
     unsafe {
         let creds: *const cred = ctx.arg(0);
         let cap_filter = CapFilter::new(&PROCMON_FILTER_USERNS_ECAP_MAP);
-        let effective = Capabilities::from_bits_retain((*creds).cap_effective.val);
+        let effective =
+            Capabilities::from_bits_retain(*(&(*creds).cap_effective as *const _ as *const u64));
         if config.cred_mask[2].intersects(CredFilterMask::E_CAPS | CredFilterMask::E_CAPS_DENY_LIST)
             && !cap_filter.filter(config.cred_mask[2], &effective)
         {
