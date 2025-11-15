@@ -42,7 +42,7 @@ fn init_test_env() -> (TempDir, PathBuf, PathBuf) {
 }
 
 #[test]
-fn test_detectors_load() {
+fn test_6_2_detectors_load() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     config.pop();
@@ -100,7 +100,7 @@ fn test_detectors_load() {
 }
 
 #[test]
-fn test_procmon_file() {
+fn test_6_2_procmon() {
     let (temp_dir, config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -155,7 +155,7 @@ fn test_procmon_file() {
 }
 
 #[test]
-fn test_gtfobins_detector_file() {
+fn test_6_8_gtfobins_detector() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -224,7 +224,7 @@ fn test_gtfobins_detector_file() {
 }
 
 #[test]
-fn test_filemon_unlink_file() {
+fn test_6_8_filemon_unlink() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -304,7 +304,7 @@ path_unlink:
 }
 
 #[test]
-fn test_filemon_chmod_file() {
+fn test_6_8_filemon_chmod() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -356,7 +356,7 @@ path_chmod:
         .stderr(Stdio::null())
         .stdin(Stdio::null())
         .status()
-        .expect("can't start chown");
+        .expect("can't start chmod");
 
     assert!(chmod_status.success());
 
@@ -379,7 +379,7 @@ path_chmod:
 }
 
 #[test]
-fn test_filemon_open_filter_stdout() {
+fn test_6_2_filemon_open_filter() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -467,7 +467,7 @@ file_open:
 }
 
 #[test]
-fn test_filemon_ioctl_file() {
+fn test_6_2_filemon_ioctl() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -540,7 +540,7 @@ file_ioctl:
 }
 
 #[test]
-fn test_filemon_chown_file() {
+fn test_6_8_filemon_chown() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -615,7 +615,7 @@ path_chown:
 }
 
 #[test]
-fn test_netmon_tcp_ip4_file() {
+fn test_6_2_netmon_tcp_ip4() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -709,7 +709,7 @@ egress:
 }
 
 #[test]
-fn test_procmon_allow_list_file() {
+fn test_6_2_procmon_allow_list() {
     let (temp_dir, config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -803,7 +803,7 @@ process_filter:
 }
 
 #[test]
-fn test_procmon_deny_list_file() {
+fn test_6_2_procmon_deny_list() {
     let (temp_dir, config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -873,7 +873,7 @@ process_filter:
 }
 
 #[test]
-fn test_iouring_allow_list_file() {
+fn test_6_8_iouring_allow_list() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -947,7 +947,7 @@ process_filter:
 }
 
 #[test]
-fn test_filemon_open_mmap_allow_list_file() {
+fn test_6_2_filemon_open_mmap_allow_list() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -1034,7 +1034,7 @@ process_filter:
 }
 
 #[test]
-fn test_procmon_setuid_stdout() {
+fn test_6_2_procmon_setuid() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -1108,7 +1108,7 @@ setuid:
 }
 
 #[test]
-fn test_procmon_setcaps_stdout() {
+fn test_6_2_procmon_setcaps() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -1192,7 +1192,7 @@ capset:
 }
 
 #[test]
-fn test_procmon_prctl_stdout() {
+fn test_6_2_procmon_prctl() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -1266,7 +1266,7 @@ create_user_ns:
 }
 
 #[test]
-fn test_procmon_create_user_ns_stdout() {
+fn test_6_2_procmon_create_user_ns() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -1337,7 +1337,7 @@ create_user_ns:
 }
 
 #[test]
-fn test_procmon_fileless_exec_stdout() {
+fn test_6_2_procmon_fileless_exec() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -1427,7 +1427,7 @@ create_user_ns:
 }
 
 #[test]
-fn test_procmon_ima_stdout() {
+fn test_6_2_procmon_ima() {
     let cmdline = fs::read_to_string("/proc/cmdline").unwrap();
     if !cmdline.contains("ima") {
         println!("⚠️ IMA is disabled. Test is skipped.");
