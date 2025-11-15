@@ -12,7 +12,7 @@ Hooks:
 
 ### Required Linux Kernel Version
 
-5.15 or greater
+6.2 or greater
 
 ### Config
 

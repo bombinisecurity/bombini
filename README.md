@@ -6,7 +6,13 @@ found [here](docs/design.md).
 
 ## Run
 
-Your Linux kernel version must be greater or equal **5.15**.
+Supported Linux kernels:
+
+* 6.2
+* **6.8 (this version is also used for develop)**
+* 6.14
+
+
 [Compatibility](https://github.com/aya-rs/aya/issues/349) between different kernel versions (CO-RE) is not yet fully implemented.
 
 The easiest way to use Bombini is to build docker image and run:

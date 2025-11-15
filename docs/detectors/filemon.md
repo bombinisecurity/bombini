@@ -13,14 +13,14 @@ Detector for file operations. Each event has process information. Supported LSM 
 
 ### Required Linux Kernel Version
 
-* `file_open`: 5.15 or greater
-* `mmap_file`: 5.15 or greater
-* `sb_mount`: 5.15 or greater
-* `file_ioctl`: 5.15 or greater
-* `path_truncate`: 6.5 or greater
-* `path_unlink`: 6.5 or greater
-* `path_chmod`: 6.5 or greater
-* `path_chown`: 6.5 or greater
+* `file_open`: 6.2 or greater
+* `mmap_file`: 6.2 or greater
+* `sb_mount`: 6.2 or greater
+* `file_ioctl`: 6.2 or greater
+* `path_truncate`: 6.8 or greater
+* `path_unlink`: 6.8 or greater
+* `path_chmod`: 6.8 or greater
+* `path_chown`: 6.8 or greater
 
 ### Config
 

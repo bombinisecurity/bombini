@@ -4,6 +4,10 @@ GTFOBins detector detects [GTFOBins](https://gtfobins.github.io/) execution.
 It checks if privileged shell is executed and returns process information about GTFOBins
 binary that is spawning the shell.
 
+### Required Linux Kernel Version
+
+6.8 or greater
+
 ### Configuration
 
 Config represents the list of GTFOBins filenames.

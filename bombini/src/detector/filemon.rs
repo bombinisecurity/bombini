@@ -10,6 +10,9 @@ use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
 use std::{path::Path, sync::Arc};
 
+use log::warn;
+use procfs::sys::kernel::Version;
+
 use bombini_common::{
     config::{filemon::Config, filemon::PathFilterMask, procmon::ProcessFilterMask},
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
@@ -39,7 +42,7 @@ impl FileMon {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
 
-        resize_all_path_filter_maps(&config, ebpf_loader_ref);
+        resize_all_path_filter_maps(&config, ebpf_loader_ref)?;
 
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
@@ -68,6 +71,9 @@ impl Detector for FileMon {
 
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
         let btf = Btf::from_sys_fs()?;
+        // safe
+        let kernel_ver = Version::current().unwrap();
+        let ver_6_8 = Version::new(6, 8, 0);
 
         if let Some(ref open_cfg) = self.config.file_open
             && open_cfg.enabled
@@ -83,46 +89,74 @@ impl Detector for FileMon {
         if let Some(ref truncate_cfg) = self.config.path_truncate
             && truncate_cfg.enabled
         {
-            let truncate: &mut Lsm = self
-                .ebpf
-                .program_mut("path_truncate_capture")
-                .unwrap()
-                .try_into()?;
-            truncate.load("path_truncate", &btf)?;
-            truncate.attach()?;
+            if kernel_ver >= ver_6_8 {
+                let truncate: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_truncate_capture")
+                    .unwrap()
+                    .try_into()?;
+                truncate.load("path_truncate", &btf)?;
+                truncate.attach()?;
+            } else {
+                warn!(
+                    "Truncate hook needs 6.8+ kernel version. Current kernel {:?}",
+                    &kernel_ver
+                );
+            }
         }
         if let Some(ref unlink_cfg) = self.config.path_unlink
             && unlink_cfg.enabled
         {
-            let unlink: &mut Lsm = self
-                .ebpf
-                .program_mut("path_unlink_capture")
-                .unwrap()
-                .try_into()?;
-            unlink.load("path_unlink", &btf)?;
-            unlink.attach()?;
+            if kernel_ver >= ver_6_8 {
+                let unlink: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_unlink_capture")
+                    .unwrap()
+                    .try_into()?;
+                unlink.load("path_unlink", &btf)?;
+                unlink.attach()?;
+            } else {
+                warn!(
+                    "Unlink hook needs 6.8+ kernel version. Current kernel {:?}",
+                    &kernel_ver
+                );
+            }
         }
         if let Some(ref chmod_cfg) = self.config.path_chmod
             && chmod_cfg.enabled
         {
-            let chmod: &mut Lsm = self
-                .ebpf
-                .program_mut("path_chmod_capture")
-                .unwrap()
-                .try_into()?;
-            chmod.load("path_chmod", &btf)?;
-            chmod.attach()?;
+            if kernel_ver >= ver_6_8 {
+                let chmod: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_chmod_capture")
+                    .unwrap()
+                    .try_into()?;
+                chmod.load("path_chmod", &btf)?;
+                chmod.attach()?;
+            } else {
+                warn!(
+                    "Chmod hook needs 6.8+ kernel version. Current kernel {:?}",
+                    &kernel_ver
+                );
+            }
         }
         if let Some(ref chown_cfg) = self.config.path_chown
             && chown_cfg.enabled
         {
-            let chown: &mut Lsm = self
-                .ebpf
-                .program_mut("path_chown_capture")
-                .unwrap()
-                .try_into()?;
-            chown.load("path_chown", &btf)?;
-            chown.attach()?;
+            if kernel_ver >= ver_6_8 {
+                let chown: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_chown_capture")
+                    .unwrap()
+                    .try_into()?;
+                chown.load("path_chown", &btf)?;
+                chown.attach()?;
+            } else {
+                warn!(
+                    "Chown hook needs 6.8+ kernel version. Current kernel {:?}",
+                    &kernel_ver
+                );
+            }
         }
         if let Some(ref sb_mount_cfg) = self.config.sb_mount
             && sb_mount_cfg.enabled
@@ -176,7 +210,12 @@ macro_rules! resize_path_filter_maps {
 }
 
 #[inline]
-fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) {
+fn resize_all_path_filter_maps(
+    config: &FileMonConfig,
+    loader: &mut EbpfLoader,
+) -> Result<(), anyhow::Error> {
+    let kernel_ver = Version::current()?;
+    let ver_6_8 = Version::new(6, 8, 0);
     if let Some(ref file_open_cfg) = config.file_open
         && let Some(ref filter) = file_open_cfg.path_filter
     {
@@ -190,6 +229,7 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
     }
     if let Some(ref truncate_cfg) = config.path_truncate
         && let Some(ref filter) = truncate_cfg.path_filter
+        && kernel_ver >= ver_6_8
     {
         resize_path_filter_maps!(
             filter,
@@ -201,6 +241,7 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
     }
     if let Some(ref unlink_cfg) = config.path_unlink
         && let Some(ref filter) = unlink_cfg.path_filter
+        && kernel_ver >= ver_6_8
     {
         resize_path_filter_maps!(
             filter,
@@ -223,6 +264,7 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
     }
     if let Some(ref chown_cfg) = config.path_chown
         && let Some(ref filter) = chown_cfg.path_filter
+        && kernel_ver >= ver_6_8
     {
         resize_path_filter_maps!(
             filter,
@@ -254,6 +296,7 @@ fn resize_all_path_filter_maps(config: &FileMonConfig, loader: &mut EbpfLoader) 
             FILTER_IOCTL_PREFIX_MAP
         );
     }
+    Ok(())
 }
 
 macro_rules! init_path_filter_maps {
@@ -318,6 +361,9 @@ fn init_all_path_filter_maps(
     config: &FileMonConfig,
     ebpf: &mut Ebpf,
 ) -> Result<(), EbpfError> {
+    // safe
+    let kernel_ver = Version::current().unwrap();
+    let ver_6_8 = Version::new(6, 8, 0);
     if let Some(ref file_open_cfg) = config.file_open
         && let Some(ref filter) = file_open_cfg.path_filter
     {
@@ -331,6 +377,7 @@ fn init_all_path_filter_maps(
     }
     if let Some(ref truncate_cfg) = config.path_truncate
         && let Some(ref filter) = truncate_cfg.path_filter
+        && kernel_ver >= ver_6_8
     {
         ebpf_config.path_mask[1] = init_path_filter_maps!(
             filter,
@@ -342,6 +389,7 @@ fn init_all_path_filter_maps(
     }
     if let Some(ref unlink_cfg) = config.path_unlink
         && let Some(ref filter) = unlink_cfg.path_filter
+        && kernel_ver >= ver_6_8
     {
         ebpf_config.path_mask[2] = init_path_filter_maps!(
             filter,
@@ -353,6 +401,7 @@ fn init_all_path_filter_maps(
     }
     if let Some(ref chmod_cfg) = config.path_chmod
         && let Some(ref filter) = chmod_cfg.path_filter
+        && kernel_ver >= ver_6_8
     {
         ebpf_config.path_mask[3] = init_path_filter_maps!(
             filter,
@@ -364,6 +413,7 @@ fn init_all_path_filter_maps(
     }
     if let Some(ref chown_cfg) = config.path_chown
         && let Some(ref filter) = chown_cfg.path_filter
+        && kernel_ver >= ver_6_8
     {
         ebpf_config.path_mask[4] = init_path_filter_maps!(
             filter,

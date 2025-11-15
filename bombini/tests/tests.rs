@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::{thread, time::Duration};
 
+use procfs::sys::kernel::Version;
+
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 
@@ -48,23 +50,26 @@ fn test_detectors_load() {
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
 
+    let kernel_ver = Version::current().unwrap();
+    let ver_6_8 = Version::new(6, 8, 0);
+    let mut args = vec![
+        "--config-dir",
+        config.to_str().unwrap(),
+        "--bpf-objs",
+        bpf_objs.to_str().unwrap(),
+        "--detector",
+        "procmon",
+        "--detector",
+        "filemon",
+        "--detector",
+        "netmon",
+    ];
+    if kernel_ver >= ver_6_8 {
+        let mut detectors_6_8 = vec!["--detector", "io_uringmon", "--detector", "gtfobins"];
+        args.append(&mut detectors_6_8);
+    }
     let bombini = Command::new(EXE_BOMBINI)
-        .args([
-            "--config-dir",
-            config.to_str().unwrap(),
-            "--bpf-objs",
-            bpf_objs.to_str().unwrap(),
-            "--detector",
-            "procmon",
-            "--detector",
-            "filemon",
-            "--detector",
-            "netmon",
-            "--detector",
-            "io_uringmon",
-            "--detector",
-            "gtfobins",
-        ])
+        .args(&args)
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
         .stdout(Stdio::null())
@@ -83,11 +88,13 @@ fn test_detectors_load() {
     let log = fs::read_to_string(bombini_temp_dir.join("bombini.log")).expect("can't read events");
 
     // Check loaded detectors
-    assert!(log.contains("gtfobins is loaded"));
     assert!(log.contains("procmon is loaded"));
     assert!(log.contains("filemon is loaded"));
     assert!(log.contains("netmon is loaded"));
-    assert!(log.contains("io_uringmon is loaded"));
+    if kernel_ver >= ver_6_8 {
+        assert!(log.contains("gtfobins is loaded"));
+        assert!(log.contains("io_uringmon is loaded"));
+    }
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
