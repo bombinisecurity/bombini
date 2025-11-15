@@ -78,7 +78,7 @@ impl Detector for IOUringMon {
     }
 
     fn min_kenrel_verison(&self) -> Version {
-        Version::new(6, 5, 0)
+        Version::new(6, 8, 0)
     }
 }
 

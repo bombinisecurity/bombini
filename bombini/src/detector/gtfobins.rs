@@ -8,6 +8,8 @@ use bombini_common::constants::MAX_FILENAME_SIZE;
 
 use std::{path::Path, sync::Arc};
 
+use procfs::sys::kernel::Version;
+
 use crate::proto::config::GtfoBinsConfig;
 
 use super::Detector;
@@ -61,5 +63,9 @@ impl Detector for GTFOBinsDetector {
         program.load("bprm_check_security", &btf)?;
         program.attach()?;
         Ok(())
+    }
+
+    fn min_kenrel_verison(&self) -> Version {
+        Version::new(6, 8, 0)
     }
 }
