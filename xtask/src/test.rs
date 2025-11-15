@@ -3,6 +3,8 @@ use std::process::Command;
 use anyhow::Context as _;
 use clap::Parser;
 
+use procfs::sys::kernel::Version;
+
 use crate::{
     build::{Options as BuildOptions, build},
     build_ebpf::Architecture,
@@ -53,6 +55,21 @@ pub fn test(opts: Options) -> Result<(), anyhow::Error> {
     args.push("--");
     args.push("--test-threads");
     args.push("1");
+
+    let kernel_ver = Version::current().unwrap();
+    let ver_6_2 = Version::new(6, 2, 0);
+    let ver_6_8 = Version::new(6, 8, 0);
+    let ver_6_14 = Version::new(6, 14, 0);
+
+    if run_args.is_empty() && kernel_ver >= ver_6_2 {
+        args.push("test_6_2_");
+    }
+    if run_args.is_empty() && kernel_ver >= ver_6_8 {
+        args.push("test_6_8_");
+    }
+    if run_args.is_empty() && kernel_ver >= ver_6_14 {
+        args.push("test_6_14_");
+    }
     args.append(&mut run_args);
 
     let status = Command::new(args.first().expect("No first argument"))
