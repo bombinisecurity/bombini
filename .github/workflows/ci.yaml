@@ -74,3 +74,55 @@ jobs:
           name: bombini-logs
           path: /tmp/bombini-test-*
           retention-days: 5
+
+  test-ubuntu-kernel-6_14:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lima-vm/lima-actions/setup@v1
+        id: lima-actions-setup
+
+      - uses: actions/cache@v4
+        id: lima-ubuntu-kernel-v6_14
+        with:
+          path: ~/.lima/ubuntu-kernel-v6.14
+          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_14
+
+      - name: Configure lima VM 
+        if: steps.lima-ubuntu-kernel-v6_14.outputs.cache-hit != 'true'
+        run: |
+          limactl start --plain --name=ubuntu-kernel-v6.14 --cpus=1 --memory=1 template:ubuntu-lts
+          echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
+
+          ssh lima-ubuntu-kernel-v6-14 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
+          ssh lima-ubuntu-kernel-v6-14 sudo update-grub
+          ssh lima-ubuntu-kernel-v6-14 'sudo apt update && sudo apt install -y clang linux-generic-hwe-24.04'
+          ssh lima-ubuntu-kernel-v6-14 'curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz'
+          ssh lima-ubuntu-kernel-v6-14 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
+          ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
+          ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
+          ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya aya-tool'
+          
+          limactl stop ubuntu-kernel-v6.14
+
+      - name: Build and Run tests
+        run: |
+          limactl start ubuntu-kernel-v6.14
+
+          rsync -a -e ssh . lima-ubuntu-kernel-v6-14:/tmp/repo
+          ssh lima-ubuntu-kernel-v6-14 "uname -a && cd /tmp/repo && source ~/.cargo/env && cargo xtask vmlinux-gen && cargo xtask test --release"
+
+          limactl stop ubuntu-kernel-v6.14
+
+      - name: Get Bombini logs from lima VM
+        if: failure()
+        run: |
+          rsync -a -e ssh 'lima-ubuntu-kernel-v6-14:/tmp/bombini-test-*' /tmp
+
+      - name: Upload Bombini logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bombini-logs
+          path: /tmp/bombini-test-*
+          retention-days: 5
