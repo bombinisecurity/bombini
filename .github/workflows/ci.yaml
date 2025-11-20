@@ -34,7 +34,7 @@ jobs:
         id: lima-ubuntu-kernel-v6_8
         with:
           path: ~/.lima/ubuntu-kernel-v6.8
-          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_8
+          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_8-${{ hashFiles('.github/workflows/ci.yaml') }}
 
       - name: Configure lima VM 
         if: steps.lima-ubuntu-kernel-v6_8.outputs.cache-hit != 'true'
@@ -86,7 +86,7 @@ jobs:
         id: lima-ubuntu-kernel-v6_14
         with:
           path: ~/.lima/ubuntu-kernel-v6.14
-          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_14
+          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_14-${{ hashFiles('.github/workflows/ci.yaml') }}
 
       - name: Configure lima VM 
         if: steps.lima-ubuntu-kernel-v6_14.outputs.cache-hit != 'true'
@@ -138,7 +138,7 @@ jobs:
         id: lima-ubuntu-kernel-v6_2
         with:
           path: ~/.lima/ubuntu-kernel-v6.2
-          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_2
+          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_2-${{ hashFiles('.github/workflows/ci.yaml') }}
 
       - name: Configure lima VM 
         if: steps.lima-ubuntu-kernel-v6_2.outputs.cache-hit != 'true'
