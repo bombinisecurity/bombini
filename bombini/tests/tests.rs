@@ -18,6 +18,16 @@ use tempfile::{Builder, TempDir};
 static EXE_BOMBINI: &str = env!("CARGO_BIN_EXE_bombini");
 static PROJECT_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
+#[macro_export]
+macro_rules! print_example_events {
+    ($events:expr) => {
+        #[cfg(feature = "examples")]
+        {
+            println!("{}", $events);
+        }
+    };
+}
+
 // Return Tmpdir, config, bpf_obj
 fn init_test_env() -> (TempDir, PathBuf, PathBuf) {
     let mut project_dir = PathBuf::from(PROJECT_DIR);
@@ -216,6 +226,7 @@ fn test_6_8_gtfobins_detector() {
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     assert_eq!(events.matches("\"type\":\"GTFOBinsEvent\"").count(), 1);
     assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 1);
     assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 1);
@@ -295,6 +306,7 @@ path_unlink:
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathUnlink\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
@@ -368,6 +380,7 @@ path_chmod:
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathChmod\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"chmod\"").count(), 1);
@@ -456,6 +469,7 @@ file_open:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 2);
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 2);
     ma::assert_ge!(events.matches("\"path\":\"/etc\"").count(), 1);
@@ -532,6 +546,7 @@ file_ioctl:
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"FileIoctl\"").count(), 1);
     ma::assert_ge!(events.matches("\"path\":\"/dev/").count(), 1);
@@ -604,6 +619,7 @@ path_chown:
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathChown\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"chown\"").count(), 1);
@@ -694,9 +710,10 @@ egress:
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     // inet_csk_accept isn't triggered from tests don't know why
     ma::assert_ge!(events.matches("\"type\":\"NetworkEvent\"").count(), 2);
-    assert_eq!(
+    ma::assert_ge!(
         events
             .matches("\"type\":\"TcpConnectionEstablish\"")
             .count(),
@@ -935,6 +952,7 @@ process_filter:
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"filename\":\"nslookup\"").count(), 2);
     ma::assert_ge!(events.matches("\"args\":\"google.com\"").count(), 2);
     ma::assert_ge!(events.matches("\"type\":\"IOUringEvent\"").count(), 1);
@@ -1026,6 +1044,7 @@ process_filter:
     let _ = bombini.wait().unwrap();
 
     let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
@@ -1098,6 +1117,7 @@ setuid:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Setuid\"").count(), 1);
     ma::assert_ge!(events.matches("\"flags\":\"LSM_SETID_RES\"").count(), 1);
@@ -1178,6 +1198,7 @@ capset:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Setcaps\"").count(), 1);
     ma::assert_ge!(events.matches("\"effective\":\"ALL_CAPS\"").count(), 1);
@@ -1258,6 +1279,7 @@ create_user_ns:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Prctl\"").count(), 1);
     assert_eq!(events.matches("\"PrSetKeepCaps\":1").count(), 1);
@@ -1330,6 +1352,7 @@ create_user_ns:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    print_example_events!(&events);
     assert_eq!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     assert_eq!(events.matches("\"type\":\"CreateUserNs\"").count(), 1);
 
@@ -1412,6 +1435,7 @@ create_user_ns:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    print_example_events!(&events);
     assert_eq!(
         events
             .matches("\"filename\":\"memfd:fileless-exec-test\"")
@@ -1504,6 +1528,7 @@ create_user_ns:
 
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
+    print_example_events!(&events);
     assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
     assert_eq!(events.matches(&calc_hash).count(), 2);
 

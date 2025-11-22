@@ -33,6 +33,10 @@ more-asserts = "0.3"
 libc = "0.2.177"
 sha256 = "1.6.0"
 
+[features]
+# Only for test to generate example events
+examples = []
+
 [[bin]]
 name = "bombini"
 path = "src/main.rs"

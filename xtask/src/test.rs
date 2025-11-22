@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -21,6 +21,9 @@ pub struct Options {
     /// Just build do not run
     #[clap(long)]
     pub no_run: bool,
+    /// Print example events to stdout
+    #[clap(long)]
+    pub example_events: bool,
     /// The command used to wrap cargo
     #[clap(short, long, default_value = "sudo -E")]
     pub runner: String,
@@ -52,7 +55,14 @@ pub fn test(opts: Options) -> Result<(), anyhow::Error> {
     if opts.no_run {
         args.push("--no-run");
     }
+    if opts.example_events {
+        args.push("--features=examples");
+    }
     args.push("--");
+    if opts.example_events {
+        args.push("-q");
+        args.push("--show-output");
+    }
     args.push("--test-threads");
     args.push("1");
 
@@ -72,14 +82,30 @@ pub fn test(opts: Options) -> Result<(), anyhow::Error> {
     }
     args.append(&mut run_args);
 
-    let status = Command::new(args.first().expect("No first argument"))
-        .args(args.iter().skip(1))
-        .status()
-        .expect("failed to run the command");
+    let mut cargo = Command::new(args.first().expect("No first argument"));
 
-    assert!(status.success());
-    if !status.success() {
+    cargo.args(args.iter().skip(1));
+
+    if opts.example_events {
+        cargo.stdout(Stdio::piped());
+    }
+    let child = cargo.spawn().expect("failed to run the command");
+
+    let output = child.wait_with_output().expect("Failed to wait");
+
+    if !output.status.success() {
         anyhow::bail!("Failed to start tests `{}`", args.join(" "));
+    }
+    if opts.example_events {
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        for line in stdout_str.lines() {
+            if !line.trim().is_empty()
+                && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(line)
+                && let Ok(pretty) = serde_json::to_string_pretty(&json_val)
+            {
+                println!("{}", pretty);
+            }
+        }
     }
     Ok(())
 }
