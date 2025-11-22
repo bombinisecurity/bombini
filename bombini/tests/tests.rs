@@ -1,6 +1,6 @@
 use std::{env, fs};
 
-use libc::{memfd_create, write};
+use libc::{memfd_create, write, truncate};
 use std::ffi::CString;
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -311,6 +311,79 @@ path_unlink:
     ma::assert_ge!(events.matches("\"type\":\"PathUnlink\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
     assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 2); // FileEvent + ProcInfo
+
+    let _ = fs::remove_dir_all(bombini_temp_dir);
+}
+
+#[test]
+fn test_6_8_filemon_truncate() {
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
+    let _ = fs::copy(&config, &tmp_config);
+    tmp_config.pop();
+    config.pop();
+    let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
+    let filemon_config = tmp_config.join("filemon.yaml");
+    let config_contents = r#"
+path_truncate:
+  enabled: true
+  path_filter:
+    prefix:
+    - /tmp/bombini-test-
+"#;
+    let _ = fs::write(&filemon_config, config_contents);
+    let bombini_log =
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
+    let event_log = temp_dir.path().join("events.log");
+
+    let bombini = Command::new(EXE_BOMBINI)
+        .args([
+            "--config-dir",
+            tmp_config.to_str().unwrap(),
+            "--bpf-objs",
+            bpf_objs.to_str().unwrap(),
+            "--event-log",
+            event_log.to_str().unwrap(),
+            "--detector",
+            "procmon",
+            "--detector",
+            "filemon",
+        ])
+        .env("RUST_LOG", "debug")
+        .stderr(bombini_log.try_clone().unwrap())
+        .spawn();
+
+    if bombini.is_err() {
+        panic!("{:?}", bombini.err().unwrap());
+    }
+    let mut bombini = bombini.expect("failed to start bombini");
+    // Wait for detectors being loaded
+    thread::sleep(Duration::from_millis(2000));
+
+    // Create tmp file
+    let tmp_file = Builder::new()
+        .prefix("bombini-test-")
+        .rand_bytes(5)
+        .tempfile()
+        .expect("can't create temp file");
+
+    let _ = unsafe {
+        truncate(tmp_file.path().to_str().unwrap().as_ptr() as *const libc::c_char, 0)
+    };
+    // Wait Events being processed
+    thread::sleep(Duration::from_millis(500));
+
+    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
+
+    let _ = bombini.wait().unwrap();
+
+    let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"PathTruncate\"").count(), 1);
+    assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
