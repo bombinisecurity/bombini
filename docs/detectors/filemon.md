@@ -95,29 +95,30 @@ Event for `security_path_truncate` (truncating file):
 
 ```json
 {
-  "type": "FileEvent",
-  "process": {
-    "start_time": "2025-05-31T10:01:41.691Z",
-    "pid": 742873,
-    "tid": 742873,
-    "ppid": 462192,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 0,
-    "cap_effective": 0,
-    "secureexec": "",
-    "filename": "tr",
-    "binary_path": "/home/fedotoff/tr",
-    "args": "",
-    "container_id": ""
-  },
   "hook": {
-    "type": "PathTruncate",
-    "path": "/home/fedotoff/bombini/bombini.log"
+    "path": "/tmp/bombini-test-Umxig",
+    "type": "PathTruncate"
   },
-  "timestamp": "2025-05-31T10:01:41.741Z"
+  "process": {
+    "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
+    "auid": 1000,
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-ce492bbece96232d",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "tests-ce492bbece96232d",
+    "gid": 0,
+    "pid": 2273865,
+    "ppid": 2273546,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2273865,
+    "uid": 0
+  },
+  "timestamp": "2025-11-23T13:48:05.016Z",
+  "type": "FileEvent"
 }
 ```
 
@@ -125,29 +126,30 @@ Event for `security_path_unlink` (deleting file):
 
 ```json
 {
-  "type": "FileEvent",
-  "process": {
-    "start_time": "2025-05-31T10:02:15.722Z",
-    "pid": 743301,
-    "tid": 743301,
-    "ppid": 462192,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 0,
-    "cap_effective": 0,
-    "secureexec": "",
-    "filename": "rm",
-    "binary_path": "/usr/bin/rm",
-    "args": "bombini.log",
-    "container_id": ""
-  },
   "hook": {
-    "type": "PathUnlink",
-    "path": "/home/fedotoff/bombini/bombini.log"
+    "path": "/tmp/bombini-test-4XQVT",
+    "type": "PathUnlink"
   },
-  "timestamp": "2025-05-31T10:02:15.812Z"
+  "process": {
+    "args": "/tmp/bombini-test-4XQVT",
+    "auid": 1000,
+    "binary_path": "/usr/bin/rm",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "rm",
+    "gid": 0,
+    "pid": 2275200,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2275200,
+    "uid": 0
+  },
+  "timestamp": "2025-11-23T13:48:07.929Z",
+  "type": "FileEvent"
 }
 ```
 
@@ -155,34 +157,35 @@ Event for `security_file_open` (opening file):
 
 ```json
 {
-  "type": "FileEvent",
-  "process": {
-    "start_time": "2025-05-31T10:02:45.347Z",
-    "pid": 744458,
-    "tid": 744458,
-    "ppid": 462192,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 0,
-    "cap_effective": 0,
-    "secureexec": "",
-    "filename": "cat",
-    "binary_path": "/usr/bin/cat",
-    "args": "/etc/passwd",
-    "container_id": ""
-  },
   "hook": {
-    "type": "FileOpen",
-    "path": "/etc/passwd",
     "access_mode": "O_RDONLY",
-    "creation_flags": "O_LARGEFILE",
-    "uid": 0,
+    "creation_flags": "O_NONBLOCK | O_LARGEFILE | O_DIRECTORY",
     "gid": 0,
-    "i_mode": "-rw-r--r--"
+    "i_mode": "drwxr-xr-x",
+    "path": "/etc",
+    "type": "FileOpen",
+    "uid": 0
   },
-  "timestamp": "2025-05-31T10:02:45.887Z"
+  "process": {
+    "args": "-lah /etc",
+    "auid": 1000,
+    "binary_path": "/usr/bin/ls",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "ls",
+    "gid": 0,
+    "pid": 2274126,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274126,
+    "uid": 0
+  },
+  "timestamp": "2025-11-23T13:47:23.204Z",
+  "type": "FileEvent"
 }
 ```
 
@@ -190,30 +193,31 @@ Event for `security_path_chmod` (file permissions change):
 
 ```json
 {
-  "type": "FileEvent",
-  "process": {
-    "start_time": "2025-07-12T19:55:50.421Z",
-    "pid": 1235041,
-    "tid": 1235041,
-    "ppid": 437558,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 0,
-    "cap_effective": 0,
-    "secureexec": "",
-    "filename": "chmod",
-    "binary_path": "/usr/bin/chmod",
-    "args": "+s ./gdb",
-    "container_id": ""
-  },
   "hook": {
-    "type": "PathChmod",
-    "path": "/home/fedotoff/gdb",
-    "i_mode": "?rwsr-sr-x"
+    "i_mode": "?rw-r--r--",
+    "path": "/tmp/bombini-test-B3eQr/config/filemon.yaml",
+    "type": "PathChmod"
   },
-  "timestamp": "2025-07-12T19:55:50.771Z"
+  "process": {
+    "args": "+w /tmp/bombini-test-B3eQr/config/filemon.yaml",
+    "auid": 1000,
+    "binary_path": "/usr/bin/chmod",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "chmod",
+    "gid": 0,
+    "pid": 2274989,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274989,
+    "uid": 0
+  },
+  "timestamp": "2025-11-23T13:47:59.327Z",
+  "type": "FileEvent"
 }
 ```
 
@@ -221,31 +225,32 @@ Event for `security_path_chown` (file owner change):
 
 ```json
 {
-  "type": "FileEvent",
-  "process": {
-    "start_time": "2025-07-13T08:41:14.543Z",
-    "pid": 1321712,
-    "tid": 1321712,
-    "ppid": 1321711,
-    "uid": 0,
-    "euid": 0,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 2199023255551,
-    "cap_effective": 2199023255551,
-    "secureexec": "",
-    "filename": "chown",
-    "binary_path": "/usr/bin/chown",
-    "args": "0:0 ./gdb",
-    "container_id": ""
-  },
   "hook": {
+    "gid": 0,
+    "path": "/tmp/bombini-test-iAcJI/config/filemon.yaml",
     "type": "PathChown",
-    "path": "/home/fedotoff/gdb",
-    "uid": 0,
-    "gid": 0
+    "uid": 0
   },
-  "timestamp": "2025-07-13T08:41:14.865Z"
+  "process": {
+    "args": "0:0 /tmp/bombini-test-iAcJI/config/filemon.yaml",
+    "auid": 1000,
+    "binary_path": "/usr/bin/chown",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "chown",
+    "gid": 0,
+    "pid": 2275059,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2275059,
+    "uid": 0
+  },
+  "timestamp": "2025-11-23T13:48:02.134Z",
+  "type": "FileEvent"
 }
 ```
 
@@ -261,6 +266,8 @@ Event for `security_sb_mount` (mount block device):
     "ppid": 1405372,
     "uid": 0,
     "euid": 0,
+    "egid": 0,
+    "gid": 0,
     "auid": 4294967295,
     "cap_inheritable": 0,
     "cap_permitted": 2199023255551,
@@ -285,31 +292,32 @@ Event for `security_mmap_file`:
 
 ```json
 {
-  "type": "FileEvent",
-  "process": {
-    "start_time": "2025-07-16T18:09:50.345Z",
-    "pid": 1766332,
-    "tid": 1766332,
-    "ppid": 1766324,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 0,
-    "cap_effective": 0,
-    "secureexec": "",
-    "filename": "date",
-    "binary_path": "/usr/bin/date",
-    "args": "+%s",
-    "container_id": ""
-  },
   "hook": {
-    "type": "MmapFile",
-    "path": "/usr/lib/locale/locale-archive",
-    "prot": "PROT_READ",
-    "flags": "MAP_SHARED"
+    "flags": "MAP_SHARED | MAP_PRIVATE",
+    "path": "",
+    "prot": "PROT_READ | PROT_WRITE",
+    "type": "MmapFile"
   },
-  "timestamp": "2025-07-16T18:09:50.559Z"
+  "process": {
+    "args": "/tmp/bombini-test-DPeG9/config/filemon.yaml",
+    "auid": 1000,
+    "binary_path": "/usr/bin/tail",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "tail",
+    "gid": 0,
+    "pid": 2274218,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274218,
+    "uid": 0
+  },
+  "timestamp": "2025-11-23T13:47:25.915Z",
+  "type": "FileEvent"
 }
 ```
 
@@ -317,30 +325,31 @@ Event for `security_file_ioctl`:
 
 ```json
 {
-  "type": "FileEvent",
-  "process": {
-    "start_time": "2025-07-19T16:27:59.668Z",
-    "pid": 42233,
-    "tid": 42233,
-    "ppid": 42231,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 0,
-    "cap_effective": 0,
-    "secureexec": "",
-    "filename": "sed",
-    "binary_path": "/usr/bin/sed",
-    "args": "--follow-symlinks s/// /dev/null",
-    "container_id": ""
-  },
   "hook": {
-    "type": "FileIoctl",
-    "path": "/dev/null",
-    "i_mode": "crw-rw-rw-",
-    "cmd": 21505
+    "cmd": 16674,
+    "i_mode": "crw-rw----",
+    "path": "/dev/snd/pcmC1D0p",
+    "type": "FileIoctl"
   },
-  "timestamp": "2025-07-19T16:27:59.768Z"
+  "process": {
+    "args": "",
+    "auid": 1000,
+    "binary_path": "/usr/bin/pipewire",
+    "cap_effective": "",
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "egid": 1000,
+    "euid": 1000,
+    "filename": "pipewire",
+    "gid": 1000,
+    "pid": 2292,
+    "ppid": 2269,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2292,
+    "uid": 1000
+  },
+  "timestamp": "2025-11-23T13:47:18.989Z",
+  "type": "FileEvent"
 }
 ```

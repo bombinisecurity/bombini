@@ -106,100 +106,104 @@ the check if any capability is set (not equal 0).
 
 ```json
 {
-    "type": "ProcessExec",
-    "process": {
-      "start_time": "2025-05-31T09:04:45.896Z",
-      "pid": 746925,
-      "tid": 746925,
-      "ppid": 462192,
-      "uid": 1000,
-      "euid": 1000,
-      "auid": 1000,
-      "cap_inheritable": 0,
-      "cap_permitted": 0,
-      "cap_effective": 0,
-      "secureexec": "",
-      "filename": "git",
-      "binary_path": "/usr/bin/git",
-      "args": "rev-parse --quiet --verify HEAD",
-      "container_id": ""
-    },
-    "timestamp": "2025-05-31T09:04:45.896Z"
-  }
+  "process": {
+    "args": "--follow-symlinks s/// /dev/null",
+    "auid": 1000,
+    "binary_path": "/usr/bin/tmux",
+    "cap_effective": "",
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "egid": 1000,
+    "euid": 1000,
+    "filename": "sed",
+    "gid": 1000,
+    "pid": 2274635,
+    "ppid": 2274634,
+    "secureexec": "",
+    "start_time": "2025-11-23T13:47:43.767Z",
+    "tid": 2274635,
+    "uid": 1000
+  },
+  "timestamp": "2025-11-23T13:47:43.767Z",
+  "type": "ProcessExec"
+}
 ```
 ```json
-  {
-    "type": "ProcessExit",
-    "process": {
-      "start_time": "2025-05-31T09:04:45.896Z",
-      "pid": 746925,
-      "tid": 746925,
-      "ppid": 462192,
-      "uid": 1000,
-      "euid": 1000,
-      "auid": 1000,
-      "cap_inheritable": 0,
-      "cap_permitted": 0,
-      "cap_effective": 0,
-      "secureexec": "",
-      "filename": "git",
-      "binary_path": "/usr/bin/git",
-      "args": "rev-parse --quiet --verify HEAD",
-      "container_id": ""
-    },
-    "timestamp": "2025-05-31T09:04:45.909Z"
-  }
+{
+  "process": {
+    "args": "--follow-symlinks s/// /dev/null",
+    "auid": 1000,
+    "binary_path": "/usr/bin/tmux",
+    "cap_effective": "",
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "egid": 1000,
+    "euid": 1000,
+    "filename": "sed",
+    "gid": 1000,
+    "pid": 2274635,
+    "ppid": 2274634,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274635,
+    "uid": 1000
+  },
+  "timestamp": "2025-11-23T13:47:43.769Z",
+  "type": "ProcessExit"
+}
 ```
 
 Event with IMA hash of executed binary:
 
 ```json
 {
-  "type": "ProcessExec",
   "process": {
-    "start_time": "2025-09-18T16:55:41.559Z",
-    "pid": 518616,
-    "tid": 518616,
-    "ppid": 3573,
-    "uid": 1000,
-    "euid": 1000,
+    "args": "-lah",
     "auid": 1000,
+    "binary_ima_hash": "sha256:0148f5ab3062a905281d8deb9645363da5131011c9e7b6dcaa38b504e41b68ea",
+    "binary_path": "/usr/bin/ls",
+    "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "ls",
+    "gid": 0,
+    "pid": 2274735,
+    "ppid": 2273865,
     "secureexec": "",
-    "filename": "cat",
-    "binary_path": "/usr/bin/cat",
-    "args": "/etc/passwd",
-    "container_id": "",
-    "binary_ima_hash": "sha256:dda0961715677dff3cd560e1933379c0eca73c0b6e19fef2737492ebc1de1700"
+    "start_time": "2025-11-23T13:47:48.187Z",
+    "tid": 2274735,
+    "uid": 0
   },
-  "timestamp": "2025-09-18T16:55:41.559Z"
+  "timestamp": "2025-11-23T13:47:48.187Z",
+  "type": "ProcessExec"
 }
 ```
 Fileless execution:
 
 ```json
 {
-  "type": "ProcessExec",
   "process": {
-    "start_time": "2025-08-31T15:26:52.044Z",
-    "pid": 133303,
-    "tid": 133303,
-    "ppid": 131958,
-    "uid": 0,
-    "euid": 0,
+    "args": "fileless-exec-test",
     "auid": 1000,
+    "binary_path": "/memfd:fileless-exec-test (deleted)",
+    "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
-    "cap_effective": "ALL_CAPS",
-    "secureexec": "FILELESS_EXEC",
+    "egid": 0,
+    "euid": 0,
     "filename": "memfd:fileless-exec-test",
-    "binary_path": "/memfd:fileless-exec-test (deleted)",
-    "args": "fileless-exec-test",
-    "container_id": ""
+    "gid": 0,
+    "pid": 2274676,
+    "ppid": 2273865,
+    "secureexec": "FILELESS_EXEC",
+    "start_time": "2025-11-23T13:47:45.526Z",
+    "tid": 2274676,
+    "uid": 0
   },
-  "timestamp": "2025-08-31T15:26:52.044Z"
+  "timestamp": "2025-11-23T13:47:45.526Z",
+  "type": "ProcessExec"
 }
 ```
 
@@ -208,115 +212,122 @@ Privilege escalation events:
 
 ```json
 {
-  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-10-27T06:37:34.713Z",
-    "pid": 4098255,
-    "tid": 4098255,
-    "ppid": 4098254,
-    "uid": 1000,
-    "euid": 0,
-    "auid": 0,
+    "args": "-u nobody true",
+    "auid": 1000,
+    "binary_path": "/usr/bin/sudo",
+    "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
-    "cap_effective": "ALL_CAPS",
-    "secureexec": "",
+    "egid": 0,
+    "euid": 0,
     "filename": "sudo",
-    "binary_path": "/usr/bin/sudo",
-    "args": "-u nobody true"
+    "gid": 0,
+    "pid": 2274927,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274927,
+    "uid": 0
   },
   "process_event": {
+    "euid": 0,
+    "flags": "LSM_SETID_RES",
+    "fsuid": 0,
     "type": "Setuid",
-    "euid": 65534,
-    "uid": 65534,
-    "fsuid": 65534,
-    "flags": "LSM_SETID_RES"
+    "uid": 0
   },
-  "timestamp": "2025-11-02T14:25:01.334Z"
+  "timestamp": "2025-11-23T13:47:56.435Z",
+  "type": "ProcessEvent"
 }
 ```
 
 ```json
 {
-  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-10-27T06:37:34.713Z",
-    "pid": 4120114,
-    "tid": 4120114,
-    "ppid": 4120113,
-    "uid": 0,
-    "euid": 0,
+    "args": "--caps=cap_sys_admin=ep cap_net_raw=ep -- -c id",
     "auid": 1000,
+    "binary_path": "/usr/sbin/capsh",
+    "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
-    "cap_effective": "ALL_CAPS",
-    "secureexec": "",
+    "egid": 0,
+    "euid": 0,
     "filename": "capsh",
-    "binary_path": "/usr/sbin/capsh",
-    "args": "--caps=cap_sys_admin,cap_net_raw+ep -- -c id"
+    "gid": 0,
+    "pid": 2274860,
+    "ppid": 2274859,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274860,
+    "uid": 0
   },
   "process_event": {
-    "type": "Setcaps",
+    "effective": "CAP_NET_RAW | CAP_SYS_ADMIN",
     "inheritable": "",
     "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
-    "effective": "CAP_NET_RAW | CAP_SYS_ADMIN"
+    "type": "Setcaps"
   },
-  "timestamp": "2025-11-02T14:48:09.804Z"
+  "timestamp": "2025-11-23T13:47:53.639Z",
+  "type": "ProcessEvent"
 }
-
 ```
 
 ```json
 {
-  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-10-27T06:37:34.713Z",
-    "pid": 4127523,
-    "tid": 4127523,
-    "ppid": 3715631,
-    "uid": 1000,
-    "euid": 1000,
+    "args": "--keep=1 -- -c echo KEEPCAPS enabled",
     "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "capsh",
     "binary_path": "/usr/sbin/capsh",
-    "args": "--keep=1 -- -c echo KEEPCAPS enabled"
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "capsh",
+    "gid": 0,
+    "pid": 2274793,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274793,
+    "uid": 0
   },
   "process_event": {
-    "type": "Prctl",
     "cmd": {
       "PrSetKeepCaps": 1
-    }
+    },
+    "type": "Prctl"
   },
-  "timestamp": "2025-11-02T14:56:28.412Z"
+  "timestamp": "2025-11-23T13:47:50.743Z",
+  "type": "ProcessEvent"
 }
 ```
 ```json
 {
-  "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-10-27T06:37:34.713Z",
-    "pid": 4128633,
-    "tid": 4128633,
-    "ppid": 3715631,
-    "uid": 1000,
-    "euid": 1000,
+    "args": "-U",
     "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "unshare",
     "binary_path": "/usr/bin/unshare",
-    "args": "-U"
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "unshare",
+    "gid": 0,
+    "pid": 2274557,
+    "ppid": 2273865,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274557,
+    "uid": 0
   },
   "process_event": {
     "type": "CreateUserNs"
   },
-  "timestamp": "2025-11-02T14:57:37.194Z"
+  "timestamp": "2025-11-23T13:47:40.589Z",
+  "type": "ProcessEvent"
 }
 ```
 
@@ -330,6 +341,8 @@ Privilege escalation events:
     "ppid": 3715631,
     "uid": 1000,
     "euid": 1000,
+    "gid": 1000,
+    "egid": 1000,
     "auid": 1000,
     "cap_inheritable": "",
     "cap_permitted": "",
@@ -348,6 +361,8 @@ Privilege escalation events:
       "ppid": 4130287,
       "uid": 1000,
       "euid": 1000,
+      "gid": 1000,
+      "egid": 1000,
       "auid": 1000,
       "cap_inheritable": "",
       "cap_permitted": "",
