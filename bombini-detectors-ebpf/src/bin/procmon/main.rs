@@ -97,6 +97,8 @@ fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32, u32> 
             .map_err(|_| 0u32)?;
         let euid = bpf_probe_read_kernel::<kuid_t>(&(*cred).euid as *const _).map_err(|_| 0u32)?;
         let uid = bpf_probe_read_kernel::<kuid_t>(&(*cred).uid as *const _).map_err(|_| 0u32)?;
+        let egid = bpf_probe_read_kernel::<kgid_t>(&(*cred).egid as *const _).map_err(|_| 0u32)?;
+        let gid = bpf_probe_read_kernel::<kgid_t>(&(*cred).gid as *const _).map_err(|_| 0u32)?;
         proc.creds.cap_effective = Capabilities::from_bits_retain(
             bpf_probe_read_kernel::<u64>(&(*cred).cap_effective as *const _ as *const u64)
                 .map_err(|_| 0u32)?,
@@ -111,6 +113,8 @@ fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32, u32> 
         );
         proc.creds.uid = uid.val;
         proc.creds.euid = euid.val;
+        proc.creds.gid = gid.val;
+        proc.creds.egid = egid.val;
     }
     Ok(0)
 }

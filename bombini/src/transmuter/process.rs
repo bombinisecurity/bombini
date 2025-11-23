@@ -48,6 +48,10 @@ pub struct Process {
     pub uid: u32,
     /// EUID
     pub euid: u32,
+    /// GID
+    pub gid: u32,
+    /// EGID
+    pub egid: u32,
     /// login UID
     pub auid: u32,
     #[serde(serialize_with = "serialize_capabilities")]
@@ -254,6 +258,8 @@ impl Process {
             auid: proc.auid,
             uid: proc.creds.uid,
             euid: proc.creds.euid,
+            gid: proc.creds.gid,
+            egid: proc.creds.egid,
             cap_effective: proc.creds.cap_effective,
             cap_permitted: proc.creds.cap_permitted,
             cap_inheritable: proc.creds.cap_inheritable,
