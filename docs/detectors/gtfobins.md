@@ -31,24 +31,25 @@ The GTFOBins event is looks like:
 
 ```json
 {
-  "type": "GTFOBinsEvent",
   "process": {
-    "start_time": "2025-05-31T10:04:07.027Z",
-    "pid": 712851,
-    "tid": 712851,
-    "ppid": 462192,
-    "uid": 1000,
-    "euid": 0,
+    "args": "-a /dev/null sh",
     "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 2199023255551,
-    "cap_effective": 2199023255551,
-    "secureexec": "SETUID | SETGID",
+    "binary_path": "/usr/bin/xargs",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
     "filename": "xargs",
-    "binary_path": "/home/fedotoff/xargs",
-    "args": "-a /dev/null sh -p",
-    "container_id": ""
+    "gid": 0,
+    "pid": 2275262,
+    "ppid": 2275261,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2275262,
+    "uid": 0
   },
-  "timestamp": "2025-05-31T10:04:07.372Z",
+  "timestamp": "2025-11-23T13:48:10.223Z",
+  "type": "GTFOBinsEvent"
 }
 ```
