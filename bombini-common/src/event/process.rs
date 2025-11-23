@@ -54,6 +54,8 @@ impl ProcInfo {
         let creds = Cred {
             uid: status.ruid,
             euid: status.euid,
+            gid: status.rgid,
+            egid: status.egid,
             cap_effective: Capabilities::from_bits_truncate(status.capeff),
             cap_permitted: Capabilities::from_bits_truncate(status.capprm),
             cap_inheritable: Capabilities::from_bits_truncate(status.capinh),
@@ -156,6 +158,8 @@ pub struct Cred {
     pub uid: u32,
     /// EUID
     pub euid: u32,
+    pub gid: u32,
+    pub egid: u32,
     pub cap_inheritable: Capabilities,
     pub cap_permitted: Capabilities,
     pub cap_effective: Capabilities,
