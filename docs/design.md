@@ -1,53 +1,102 @@
 ## Overview
 
-Let's look at some design concepts.
+While looking at Bombini design conсepts consider two charts:
 
-![Bombini architecture](bombini-arch.png)
+* architecture flowchart
+* event transformation flowchart
+
+### Architecture Flowchart
+
+```mermaid
+---
+config:
+  layout: elk
+  look: handDrawn
+---
+flowchart TB
+    A["Config"] -- configure --> B["Detectors"]
+    B -- manage --> C["eBPF probes"]
+    B -- manage --> D["eBPF maps"]
+    A -- configure --> E["Transmuters"]
+    A -- configure --> F["Transmitter"]
+    G["Monitor"] -- use --> E
+    G["Monitor"] -- use --> F
+    G["Monitor"] -- read --> H["RingBuffer"]
+    C -- send --> H
+
+    A@{ shape: docs}
+    B@{ shape: processes}
+    C@{ shape: processes}
+    D@{ shape: cyl}
+    E@{ shape: processes}
+    H@{ shape: das}
+```
 
 ### Detector
 
-Detector provides a common interface for loading eBPF programs, initializing
-maps and attaching programs to hook points. All detector programs are viewed
-externally as a single entity that delivers events. EBPF part of detectors is
+Detector provides a common interface for loading / unloading eBPF programs, initializing
+maps and attaching programs to hook points. EBPF part of detectors is
 located
 [here](https://github.com/anfedotoff/bombini/tree/main/bombini-detectors-ebpf/src/bin).
 User mode part is
 [here](https://github.com/anfedotoff/bombini/tree/main/bombini/src/detector). Detectors
-also can provide information not only for user but for other detectors storing it
-in maps. Some parts of the detectors can be reused across different detectors.
+can share information between each other storing it in eBPF maps.
+Some parts of detectors can be reused across different detectors.
 Detectors submit events to user space using ring buffer. Detectors use YAML
-config files for initialization.
-
-### Filters
-
-Filters are applied to eBPF events in order to decide will be event exposed to user space or not.
-A detailed description of the filtering can be found directly in the description of the corresponding detector.
-
-### Monitor
-
-Monitor observes new low level events (messages) and extracts them from ring buffer.
+config files for initialization. Detectors are stored in Registry.
 
 ### Transmuter
 
-Transmuter converts (transmutes) low kernel event into serializable (json, for
-example) data structure. It also can enrich kernel event with some user mode
-data.
+Transmuter provides a common interface to convert (transmute) low kernel events into serializable (json, for
+example) data structures. Transmuters can enrich kernel events with some user mode data and implement different
+types of caching. Transmuters are stored in TransmuterRegistry. One Detector can have many types of Transmuters,
+but usualy it has only one.
 
 ### Transmitter
 
 Transmitter sends serialized events (byte arrays) to different sources (unix socket, stdout, file, etc).
 
+### Monitor
+
+Monitor observes new low level kernel events (messages) and extracts them from ring buffer. According to event type,
+it fetches corresponding transmuter to convert and enrich eBPF event. Futher transmuted events are send to destination with
+transmitter.
+
 ### Config
 
-Config holds global agent configuration. It also have list of the detectors to
-load during start up. Some detectors may have thier own configs.
+Config provides all information about Bombini setup. It also holds options of bombini cli and
+config for each detector to be looded. Detector's configs are also provided for corresponding transmuters. 
 
-### Registry
+### Event Transformation Flowchart
 
-Registry stores loaded detectors. It can load/unload detectors and possibly
-interact with them (change config maps).
+```mermaid
+---
+config:
+  layout: dagre
+  look: handDrawn
+---
+flowchart LR
+    A["Kernel Events"] -- collect & filter --> B["eBPF probes"]
+    B <-- store/update --> C["eBPF maps"]
+    B -- send --> D["RingBuffer"]
+    D --enrich & transform --> E["Transmuters"]
+    E -- serialize --> F["Tramsmitter"]
+    F -- send --> G["Collector"]
 
-## List of the Detectors
+    A@{ shape: docs}
+    B@{ shape: processes}
+    C@{ shape: cyl}
+    D@{ shape: das}
+    E@{ shape: processes}
+    G@{ shape: cyl}
+```
+
+### Filters
+
+Filters are applied to eBPF events inside eBPF probes in order to decide will be event exposed to user space or not.
+A detailed description of the filtering can be found directly in the description of the corresponding detector.
+
+## Detectors
 
 * [procmon](detectors/procmon.md)
 * [filemon](detectors/filemon.md)
