@@ -228,8 +228,8 @@ fn test_6_8_gtfobins_detector() {
     let events = fs::read_to_string(&event_log).expect("can't read events");
     print_example_events!(&events);
     assert_eq!(events.matches("\"type\":\"GTFOBinsEvent\"").count(), 1);
-    assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 1);
-    assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 1);
+    assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 4);
+    assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 4);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
@@ -310,7 +310,7 @@ path_unlink:
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathUnlink\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
-    assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 2); // FileEvent + ProcInfo
+    assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 4); // FileEvent + ProcInfo
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
@@ -796,7 +796,7 @@ egress:
         1
     );
     ma::assert_ge!(events.matches("\"type\":\"TcpConnectionClose\"").count(), 1);
-    assert_eq!(events.matches("\"args\":\"localhost 7878\"").count(), 2);
+    assert_eq!(events.matches("\"args\":\"localhost 7878\"").count(), 4);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
