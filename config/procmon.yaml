@@ -1,4 +1,4 @@
-expose_events: false
+expose_events: true
 setuid:
   enabled: false
 capset:
