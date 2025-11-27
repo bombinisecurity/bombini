@@ -1,108 +1,8 @@
-## Procmon
+# ProcMon
 
-Procmon is the main detector that collects information about process being spawend and detached.
-Information about living process is stored shared map and other detectors are using it.
+## ProcessExec
 
-### Required Linux Kernel Version
-
-6.2 or greater
-
-### Config
-
-Procmon detector supports allow/deny list for events filtereing. Let's look at the config example.
-
-```yaml
-expose_events: true
-process_filter:
-  deny_list: false
-  uid:
-    - 0
-  euid:
-    - 0
-  auid:
-    - 1000
-  binary:
-    name:
-      - tail
-      - curl
-    prefix:
-      - /usr/local/bin/
-    path:
-      - /usr/bin/uname
-```
-
-`expose_events` sends events to user-mode. False by default.
-If you want to send events you should set expose_events to true with filters or without.
-Filter list section is start by defining `process_filter`.
-events that DO satisfy the following conditions will be send to user space.
-`deny_list` is set false by default. It indicates that filter is acts like deny lists:
-events that do NOT satisfiy the following conditions will be
-send to user space. Conditions: `uid`, `eud`, `auid`, `binary` are combined with logical "AND".
-The values in these fields are represented as arrays, and are combined with
-logical "OR". Fields `name`, `prefix`, `path` in the `binary` section are combined with logical "OR".
-
-It is possible to enable IMA hashes of executed binary in process information.
-To enable put this to config (false by default):
-
-```yaml
-ima_hash: true
-```
-
-### Privilege escalation detection hooks
-
-Procmon helps to monitor privilege escalation during process execution. It uses LSM hooks for this:
-
-* security_task_fix_setuid
-* security_capset
-* security_task_prctl
-* security_create_user_ns
-
-To enable `setuid` events put this to config:
-
-```yaml
-setuid:
-  enabled: true
-```
-
-Enabling `capset` events:
-
-```yaml
-capset:
-  enabled: true
-```
-
-Enabling `prctl` events:
-
-```yaml
-prctl:
-  enabled: true
-```
-
-Enabling `create_user_ns` events:
-
-```yaml
-create_user_ns:
-  enabled: true
-```
-
-Enabling `ptrace_access_check` events:
-
-```yaml
-ptrace_access_check:
-  enabled: true
-```
-
-Cred filter can be applied to these hooks:
-
-* security_task_fix_setuid
-* security_capset
-* security_create_user_ns
-
-`cred_filter` supports filtering by EUID and effective capabilies. They are combined with OR logic operator.
-`cap_filter` supports `deny_list` that acts like NOT operator. `cap_filter` supports `ANY` key word  that equal
-the check if any capability is set (not equal 0).
-
-### Event
+ProcessExec event represents a new executed process.
 
 ```json
 {
@@ -128,32 +28,10 @@ the check if any capability is set (not equal 0).
   "type": "ProcessExec"
 }
 ```
-```json
-{
-  "process": {
-    "args": "--follow-symlinks s/// /dev/null",
-    "auid": 1000,
-    "binary_path": "/usr/bin/tmux",
-    "cap_effective": "",
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "egid": 1000,
-    "euid": 1000,
-    "filename": "sed",
-    "gid": 1000,
-    "pid": 2274635,
-    "ppid": 2274634,
-    "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274635,
-    "uid": 1000
-  },
-  "timestamp": "2025-11-23T13:47:43.769Z",
-  "type": "ProcessExit"
-}
-```
 
-Event with IMA hash of executed binary:
+### IMA Binary Hash
+
+Process information can be enriched with binary hashes collected from IMA.
 
 ```json
 {
@@ -180,7 +58,10 @@ Event with IMA hash of executed binary:
   "type": "ProcessExec"
 }
 ```
-Fileless execution:
+
+### Fileless Execution
+
+Event has information if no file used for process execution (memfd_create).
 
 ```json
 {
@@ -207,8 +88,40 @@ Fileless execution:
 }
 ```
 
+## ProcessExit
 
-Privilege escalation events:
+ProcessExit event represents an exited process.
+
+```json
+{
+  "process": {
+    "args": "--follow-symlinks s/// /dev/null",
+    "auid": 1000,
+    "binary_path": "/usr/bin/tmux",
+    "cap_effective": "",
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "egid": 1000,
+    "euid": 1000,
+    "filename": "sed",
+    "gid": 1000,
+    "pid": 2274635,
+    "ppid": 2274634,
+    "secureexec": "",
+    "start_time": "2025-11-21T21:32:13.849Z",
+    "tid": 2274635,
+    "uid": 1000
+  },
+  "timestamp": "2025-11-23T13:47:43.769Z",
+  "type": "ProcessExit"
+}
+```
+
+## ProcessEvents
+
+ProcessEvents represent a collection of events somehow related to privilege escalation
+
+### Setuid
 
 ```json
 {
@@ -242,6 +155,8 @@ Privilege escalation events:
 }
 ```
 
+### Setcaps
+
 ```json
 {
   "process": {
@@ -273,6 +188,8 @@ Privilege escalation events:
 }
 ```
 
+### Prctl
+
 ```json
 {
   "process": {
@@ -303,6 +220,9 @@ Privilege escalation events:
   "type": "ProcessEvent"
 }
 ```
+
+### CreateUserNs
+
 ```json
 {
   "process": {
@@ -330,6 +250,8 @@ Privilege escalation events:
   "type": "ProcessEvent"
 }
 ```
+
+### PtraceAccessCheck
 
 ```json
 {

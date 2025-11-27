@@ -1,97 +1,10 @@
-## FileMon
+# FileMon
 
-Detector for file operations. Each event has process information. Supported LSM hooks:
+**FileEvent** represent a collection of events related to file / filesystem operations.
 
-* `file_open` hook  provides info about file owner/permissions + permissions with process accessed the file.
-* `mmap_file` hook proivdes info about mmaped file: path, protetcion flags.
-* `path_truncate` hook provides info about path truncated by truncate syscall.
-* `path_unlink` provides info about path being deleted.
-* `path_chmod` provides info about changing file permissions.
-* `path_chown` provides info about changing file owner.
-* `sb_mount` provides info about mounted devices.
-* `file_ioctl` provides info about ioctl commands.
+## PathTruncate
 
-### Required Linux Kernel Version
-
-* `file_open`: 6.2 or greater
-* `mmap_file`: 6.2 or greater
-* `sb_mount`: 6.2 or greater
-* `file_ioctl`: 6.2 or greater
-* `path_truncate`: 6.8 or greater
-* `path_unlink`: 6.8 or greater
-* `path_chmod`: 6.8 or greater
-* `path_chown`: 6.8 or greater
-
-### Config
-
-Config represents a dictionary with supported LSM BPF file hooks:
-
-* file_open
-* mmap_file
-* path_truncate
-* path_unlink
-* path_chmod
-* path_chown
-* sb_mount
-* file_ioctl
-
-For each file hook the following options are supported:
-
-* `enabled` enables detection for current hook. False by default.
-
-**Event filtering**
-
-FileMon detector supports process allow/deny list for event filtering. It is global for all hooks.
-The detailed description of process filter config section can be found in ProcMon [config section](procmon.md#config).
-
-Filemon also supports path filtering for hooks:
-
-* file_open
-* path_truncate
-* path_unlink
-* path_chmod
-* path_chown
-* mmap_file
-* file_ioctl
-
-You can specify an allow list of supported paths, using name, prefix, or full path. If path has corresponding name, prefix or equals the provided full path event will be send.
-
-Config example:
-
-```yaml
-file_open:
-  enabled: true
-  path_filter:
-    name:
-      - .history
-      - .bash_history
-    prefix:
-      - /boot
-    path:
-      - /etc/passwd
-mmap_file:
-  enabled: true
-path_truncate:
-  enabled: false
-path_unlink:
-  enabled: false
-path_chmod:
-  enabled: false
-path_chown:
-  enabled: false
-sb_mount:
-  enabled: false
-process_filter:
-  binary:
-    name:
-      - tail
-    path:
-      - /usr/bin/cat
-```
-
-### Event
-
-Event for `security_path_truncate` (truncating file):
+Event is triggered when file is truncated by `truncate` syscall.
 
 ```json
 {
@@ -122,7 +35,9 @@ Event for `security_path_truncate` (truncating file):
 }
 ```
 
-Event for `security_path_unlink` (deleting file):
+## PathUnlink
+
+Event is triggered when file is deleted.
 
 ```json
 {
@@ -153,7 +68,7 @@ Event for `security_path_unlink` (deleting file):
 }
 ```
 
-Event for `security_file_open` (opening file):
+## FileOpen
 
 ```json
 {
@@ -189,7 +104,7 @@ Event for `security_file_open` (opening file):
 }
 ```
 
-Event for `security_path_chmod` (file permissions change):
+## PathChmod
 
 ```json
 {
@@ -221,7 +136,7 @@ Event for `security_path_chmod` (file permissions change):
 }
 ```
 
-Event for `security_path_chown` (file owner change):
+## PathChown
 
 ```json
 {
@@ -254,7 +169,9 @@ Event for `security_path_chown` (file owner change):
 }
 ```
 
-Event for `security_sb_mount` (mount block device):
+## SbMount
+
+Event is triggered when block device is mounted.
 
 ```json
 {
@@ -288,7 +205,7 @@ Event for `security_sb_mount` (mount block device):
 }
 ```
 
-Event for `security_mmap_file`:
+## MmapFile
 
 ```json
 {
@@ -321,7 +238,7 @@ Event for `security_mmap_file`:
 }
 ```
 
-Event for `security_file_ioctl`:
+## FileIoctl
 
 ```json
 {
