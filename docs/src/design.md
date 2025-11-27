@@ -1,11 +1,11 @@
-## Overview
+# Overview
 
-While looking at Bombini design conсepts consider two charts:
+Consider the design concepts through flowcharts below:
 
 * architecture flowchart
 * event transformation flowchart
 
-### Architecture Flowchart
+## Architecture Flowchart
 
 ```mermaid
 ---
@@ -47,10 +47,10 @@ config files for initialization. Detectors are stored in Registry.
 
 ### Transmuter
 
-Transmuter provides a common interface to convert (transmute) low kernel events into serializable (json, for
-example) data structures. Transmuters can enrich kernel events with some user mode data and implement different
+Transmuter provides a common interface to convert (transmute) low kernel events into serializable data structures (e.g. json).
+Transmuters can enrich kernel events with some user mode data and implement different
 types of caching. Transmuters are stored in TransmuterRegistry. One Detector can have many types of Transmuters,
-but usualy it has only one.
+but usually it has only one.
 
 ### Transmitter
 
@@ -59,15 +59,15 @@ Transmitter sends serialized events (byte arrays) to different sources (unix soc
 ### Monitor
 
 Monitor observes new low level kernel events (messages) and extracts them from ring buffer. According to event type,
-it fetches corresponding transmuter to convert and enrich eBPF event. Futher transmuted events are send to destination with
+it fetches corresponding transmuter to convert and enrich eBPF event. Further transmuted events are send to destination with
 transmitter.
 
 ### Config
 
 Config provides all information about Bombini setup. It also holds options of bombini cli and
-config for each detector to be looded. Detector's configs are also provided for corresponding transmuters. 
+config for each detector to be loaded. Detector's configs are also provided for corresponding transmuters. 
 
-### Event Transformation Flowchart
+## Event Transformation Flowchart
 
 ```mermaid
 ---
@@ -80,7 +80,7 @@ flowchart LR
     B <-- store/update --> C["eBPF maps"]
     B -- send --> D["RingBuffer"]
     D --enrich & transform --> E["Transmuters"]
-    E -- serialize --> F["Tramsmitter"]
+    E -- serialize --> F["Transmitter"]
     F -- send --> G["Collector"]
 
     A@{ shape: docs}
@@ -95,11 +95,3 @@ flowchart LR
 
 Filters are applied to eBPF events inside eBPF probes in order to decide will be event exposed to user space or not.
 A detailed description of the filtering can be found directly in the description of the corresponding detector.
-
-## Detectors
-
-* [procmon](detectors/procmon.md)
-* [filemon](detectors/filemon.md)
-* [netmon](detectors/netmon.md)
-* [io_uringmon](detectors/io_uringmon.md)
-* [gtflobins](detectors/gtfobins.md)

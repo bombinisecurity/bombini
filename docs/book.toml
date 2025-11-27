@@ -1,0 +1,11 @@
+[book]
+authors = ["Andrei Fedotov"]
+language = "en"
+src = "src"
+title = "Bombini: eBPF-based Security Monitoring Agent"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
