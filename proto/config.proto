@@ -24,9 +24,9 @@ message ProcMonConfig {
 
 // ProcMon hook configuration
 message ProcHookConfig {
-    // do not load ebpf program
+    // Load eBPF programs
     bool enabled = 1;
-    // filter by Cred
+    // Filter by Cred
     CredFilter cred_filter = 2;
 }
 
@@ -103,7 +103,7 @@ message FileMonConfig {
 
 // FileMon hook configuration
 message FileHookConfig {
-    // Do not load ebpf program
+    // Load eBPF programs
     bool enabled = 1;
     // Filter event by Path
     optional PathFilter path_filter = 2;
@@ -120,7 +120,7 @@ message  IpFilter {
 }
 // Connections control
 message ConnectionsControl {
-    // Do not load ebpf program
+    // Load eBPF programs
     bool enabled = 1;
     // Ipv4 filter connections
     IpFilter ipv4_filter = 2;
