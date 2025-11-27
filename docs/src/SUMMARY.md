@@ -13,6 +13,7 @@
     - [NetMon](./configuration/netmon.md)
     - [IOUringMon](./configuration/io_uringmon.md)
     - [GTFOBins](./configuration/gtfobins.md)
+    - [Reference](./configuration/reference.md)
 - [Events](./events/events.md)
     - [ProcMon](./events/procmon.md)
     - [FileMon](./events/filemon.md)
