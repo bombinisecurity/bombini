@@ -1,5 +1,15 @@
 # Bombini: eBPF-based Security Monitoring Agent
 
+![License][license-badge]
+[![CI][ci-badge]][ci-url]
+[![Book][book-badge]][book-url]
+
+[license-badge]: https://img.shields.io/badge/license-Apache--2.0-0078D4?style=for-the-badge
+[ci-badge]: https://img.shields.io/github/actions/workflow/status/bombinisecurity/bombini/ci.yaml?branch=main&style=for-the-badge
+[ci-url]: https://github.com/bombinisecurity/bombini/actions/workflows/ci.yaml
+[book-badge]: https://img.shields.io/badge/read%20the-book-9cf.svg?style=for-the-badge&logo=mdbook
+[book-url]: https://bombinisecurity.github.io/bombini/
+
 **Bombini** is an eBPF-based security agent written entirely in Rust using the [Aya](https://github.com/aya-rs/aya) library and built on LSM (Linux Security Module) BPF hooks. At its core, Bombini employs modular components called Detectors, each responsible for monitoring and reporting specific types of system events. 
 
 ## Getting Started
