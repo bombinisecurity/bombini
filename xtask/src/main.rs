@@ -1,5 +1,6 @@
 mod build;
 mod build_ebpf;
+mod docs_gen;
 mod proto_gen;
 mod run;
 mod tarball;
@@ -25,6 +26,7 @@ enum Command {
     Test(test::Options),
     Tarball(tarball::Options),
     VmlinuxGen(vmlinux_gen::Options),
+    DocsGen(docs_gen::Options),
 }
 
 fn main() {
@@ -39,6 +41,7 @@ fn main() {
         Test(opts) => test::test(opts),
         Tarball(opts) => tarball::tarball(opts),
         VmlinuxGen(opts) => vmlinux_gen::vmlinux_gen(opts),
+        DocsGen(opts) => docs_gen::docs_gen(opts),
     };
 
     if let Err(e) = ret {

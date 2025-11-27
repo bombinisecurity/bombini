@@ -5,6 +5,7 @@ Config files are stored in separate directory `./config` for example. In this di
 file must exist. This file provides a global Bombini agent configuration, which can be overrided by cli arguments.
 To load detectors in config directory detector config yaml's must be provided (e.g. `procmon.yaml`).
 Configuration of detectors is considered in the next chapters.
+Protobuf specification for detectors configs located in [reference](reference.md) chapter.
 
 ## Bombini Config
 
