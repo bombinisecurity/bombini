@@ -1,98 +1,34 @@
-# bombini
+# Bombini: eBPF-based Security Monitoring Agent
 
-Bombini is an eBPF-based agent for security monitoring. It is build on a
-top of [Aya](https://github.com/aya-rs/aya) library. Design concepts can be
-found [here](docs/design.md).
+**Bombini** is an eBPF-based security agent written entirely in Rust using the [Aya](https://github.com/aya-rs/aya) library and built on LSM (Linux Security Module) BPF hooks. At its core, Bombini employs modular components called Detectors, each responsible for monitoring and reporting specific types of system events. 
 
-## Run
+## Getting Started
 
-Supported Linux kernels:
+Please, check the compatibility [issues](./docs/src/compatibility.md) first.
 
-* 6.2
-* **6.8 (this version is also used for develop)**
-* 6.14
-
-
-[Compatibility](https://github.com/aya-rs/aya/issues/349) between different kernel versions (CO-RE) is not yet fully implemented.
-
-The easiest way to use Bombini is to build docker image and run:
+The most convenient way now is to build container with Bombini:
 
 ```bash
+git clone https://github.com/bombinisecurity/bombini.git && \
+cd ./bombini && \
 docker build  -t bombini .
 ```
 
-Before run, check if LSM BPF is enabled on your system.
+### Run
 
-```
-cat /sys/kernel/security/lsm
-```
-
-if there is `bpf` in the output, than BPF LSM is enabled.
-Otherwise, you have to enable it adding this line to `/etc/default/grub`:
-
-```
-GRUB_CMDLINE_LINUX="lsm=[previos lsm modules],bpf"
-```
-
-Update grub and reboot the system.
-
-Prepare configuration files and enable detectors for your needs. You can copy `./config` directory and modify config files.
-`config.yaml` has global Bombini parameters and enumerates detectors to be loaded. Other config files provides parameters for corresponding detector.
-To know more about detectors look at [docs](docs/detectors/).
-
-Run bombini:
+You can easily run Bombini with this command:
 
 ```bash
-docker run --pid=host --rm -it --privileged --env "RUST_LOG=info" -v <your-config-dir>:/usr/local/lib/bombini/config:ro  -v /sys/fs/bpf:/sys/fs/bpf bombini
+docker run --pid=host --rm -it --privileged -v /sys/fs/bpf:/sys/fs/bpf bombini
 ```
+By default Bombini sends event to stdout in JSON format and starts only `ProcMon` detector intercepting
+process execs and exits. To customize your Bombini setup, please, follow the configuration [guide](docs/src/configuration/README.md)
+and mount config directory to the container:
 
-You can also use file as output or unix socket combining with
-[vector](https://github.com/vectordotdev/vector).
-
-### File
 ```bash
-touch /tmp/bombini.log
-docker run --pid=host --rm -it --privileged --env "RUST_LOG=info" -v <your-config-dir>:/usr/local/lib/bombini/config:ro -v /tmp/bombini.log:/log/bombini.log -v /sys/fs/bpf:/sys/fs/bpf bombini --event-log /log/bombini.log
-```
-
-### Unix socket
-```bash
-vector --config ./vector/vector-sock.yaml
-docker run --pid=host --rm -it --privileged --env "RUST_LOG=info" -v <your-config-dir>:/usr/local/lib/bombini/config:ro -v /tmp/bombini.sock:/log/bombini.sock -v /sys/fs/bpf:/sys/fs/bpf bombini --event-socket /log/bombini.sock
+docker run --pid=host --rm -it --privileged -v <your-config-dir>:/usr/local/lib/bombini/config:ro  -v /sys/fs/bpf:/sys/fs/bpf bombini
 ```
 
 ## Build
 
-1. Install [Rust](https://www.rust-lang.org/tools/install).
-2. Prepare environment for [Aya](https://aya-rs.dev/book/start/development/).
-
-If you building Bombini on Linux kernel with version **6.8.0-86-generic**, you can skip the next step.
-Otherwise, please, regenerate `vmlinux.rs` before building:
-
-```bash
-cargo xtask vmlinux-gen
-```
-Release build:
-
-```bash
-cargo xtask build --relese
-```
-You can generate a tarball with instalation scripts for bombini systemd service:
-
-```bash
-cargo xtask tarball --relese
-```
-
-Release tarball will be located at `target/bombini.tar.gz`
-
-You can run bombini this way:
-
-```bash
-RUST_LOG=info sudo -E ./target/release/bombini --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config --stdout
-```
-
-Or using cargo:
-
-```bash
-RUST_LOG=info cargo xtask run --release -- --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config --stdout
-```
+To build Bombini from source, please, follow build [guide](./docs/src/getting_started/build.md).
