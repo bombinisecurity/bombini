@@ -1,8 +1,9 @@
+use std::os::fd::AsRawFd;
 use std::{env, fs};
 
-use libc::{memfd_create, truncate, write};
+use libc::{MAP_FAILED, MAP_SHARED, PROT_READ, PROT_WRITE, memfd_create, mmap, truncate, write};
 use std::ffi::CString;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::{thread, time::Duration};
@@ -486,6 +487,11 @@ file_open:
     - filemon.yaml
     path:
     - /etc
+process_filter:
+  binary:
+    name:
+      - ls
+      - tail
 "#;
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
@@ -1118,7 +1124,7 @@ process_filter:
 }
 
 #[test]
-fn test_6_2_filemon_open_mmap_allow_list() {
+fn test_6_2_filemon_mmap_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -1128,25 +1134,8 @@ fn test_6_2_filemon_open_mmap_allow_list() {
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let config_contents = r#"
-file_open:
-  enabled: true
 mmap_file:
   enabled: true
-path_truncate:
-  enabled: false
-path_unlink:
-  enabled: false
-path_chmod:
-  enabled: false
-path_chown:
-  enabled: false
-sb_mount:
-  enabled: false
-process_filter:
-  binary:
-    name:
-      - tail
-      - ldd
 "#;
     let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
@@ -1179,15 +1168,28 @@ process_filter:
     thread::sleep(Duration::from_millis(2000));
 
     let test_path = filemon_config.to_str().unwrap();
-    let tail_status = Command::new("tail")
-        .args([test_path])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .status()
-        .expect("can't start tail");
 
-    assert!(tail_status.success());
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&test_path)
+        .expect("Failed to open file");
+    let fd = file.as_raw_fd();
+    let mapped_ptr = unsafe {
+        mmap(
+            std::ptr::null_mut(),
+            10 as usize,
+            PROT_READ | PROT_WRITE,
+            MAP_SHARED,
+            fd,
+            0,
+        )
+    };
+
+    if mapped_ptr == MAP_FAILED {
+        panic!("mmap failed");
+    }
 
     // Wait Events being processed
     thread::sleep(Duration::from_millis(2000));
@@ -1199,9 +1201,10 @@ process_filter:
     let events = fs::read_to_string(&event_log).expect("can't read events");
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
-    ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
-    ma::assert_ge!(events.matches("\"filename\":\"tail\"").count(), 1);
+    let mut file_path = String::from("\"path\":\"");
+    file_path.push_str(test_path);
+    assert_eq!(events.matches(&file_path).count(), 1);
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
