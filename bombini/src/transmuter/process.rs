@@ -17,8 +17,10 @@ use super::{Transmuter, str_from_bytes, transmute_ktime};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+/// Process exec event
 pub struct ProcessExec {
-    /// Process Infro
+    /// Process information
     process: Process,
     /// Event's date and time
     timestamp: String,
@@ -26,15 +28,18 @@ pub struct ProcessExec {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+/// Process exit event
 pub struct ProcessExit {
-    /// Process Infro
+    /// Process information
     process: Process,
     /// Event's date and time
     timestamp: String,
 }
 
-/// High-level event representation
+/// Process information
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Process {
     /// Exec start
     pub start_time: String,
@@ -55,11 +60,16 @@ pub struct Process {
     /// login UID
     pub auid: u32,
     #[serde(serialize_with = "serialize_capabilities")]
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     pub cap_inheritable: Capabilities,
     #[serde(serialize_with = "serialize_capabilities")]
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     pub cap_permitted: Capabilities,
     #[serde(serialize_with = "serialize_capabilities")]
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     pub cap_effective: Capabilities,
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    /// SETUID, SETGID, FILECAPS, FILELESS_EXEC
     pub secureexec: SecureExec,
     /// executable name
     pub filename: String,
@@ -69,36 +79,45 @@ pub struct Process {
     pub args: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     /// skip for host
+    #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub container_id: String,
     /// IMA binary hash
     #[serde(skip_serializing_if = "is_invalid_ima")]
     #[serde(serialize_with = "serialize_ima")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub binary_ima_hash: ImaHash,
 }
 
-/// High-level event representation
+/// Setuid event
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessSetUid {
     euid: u32,
     uid: u32,
     fsuid: u32,
     /// LSM_SETID_* flag values
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     flags: LsmSetUidFlags,
 }
 
-/// High-level event representation
+/// Capset event
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessCapset {
     #[serde(serialize_with = "serialize_capabilities")]
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     pub inheritable: Capabilities,
     #[serde(serialize_with = "serialize_capabilities")]
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     pub permitted: Capabilities,
     #[serde(serialize_with = "serialize_capabilities")]
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     pub effective: Capabilities,
 }
 
-/// High-level event representation
+/// Prctl event
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessPrctl {
     cmd: PrctlCmdUser,
 }
@@ -106,6 +125,7 @@ pub struct ProcessPrctl {
 /// Enumeration of prctl supported commands
 #[derive(Clone, Debug, Serialize)]
 #[repr(u8)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PrctlCmdUser {
     Opcode(u8) = 0,
     PrSetDumpable(u8) = 4,
@@ -229,14 +249,17 @@ fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
     }
 }
 
-/// High-level event representation
+/// CreateUserNs event
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessCreateUserNs {}
 
-/// High-level event representation
+/// PtraceAttach event
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessPtraceAccessCheck {
     child: Process,
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     mode: PtraceMode,
 }
 
@@ -369,11 +392,12 @@ impl ProcessPtraceAccessCheck {
     }
 }
 
-/// High-level event representation
+/// Process Event
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessEvent {
-    /// Process Infro
+    /// Process information
     process: Process,
     /// Process event
     process_event: ProcessEventType,
@@ -384,9 +408,11 @@ pub struct ProcessEvent {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[repr(u8)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[allow(dead_code)]
 #[allow(clippy::enum_variant_names)]
 #[allow(clippy::large_enum_variant)]
+/// Process event types
 pub enum ProcessEventType {
     Setuid(ProcessSetUid),
     Setcaps(ProcessCapset),
@@ -440,5 +466,30 @@ impl Transmuter for ProcessEventTransmuter {
         } else {
             Err(anyhow!("Unexpected event variant"))
         }
+    }
+}
+
+#[cfg(all(test, feature = "schema"))]
+mod schema {
+    use super::{ProcessEvent, ProcessExec, ProcessExit};
+    use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
+
+    #[test]
+    fn generate_procmon_event_schema() {
+        let event_ref =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs/src/events/reference.md");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(&event_ref)
+            .unwrap();
+        let _ = writeln!(file, "## ProcMon\n\n```json");
+        let schema = schemars::schema_for!(ProcessExec);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let schema = schemars::schema_for!(ProcessExit);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let schema = schemars::schema_for!(ProcessEvent);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let _ = writeln!(file, "```\n");
     }
 }

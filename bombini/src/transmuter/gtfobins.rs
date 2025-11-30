@@ -10,11 +10,12 @@ use serde::Serialize;
 use super::process::Process;
 use super::{Transmuter, transmute_ktime};
 
-/// High-level event representation
+/// GTFO binary event execution attempt
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GTFOBinsEvent {
-    /// Process Infro
+    /// Process information
     process: Process,
     /// Event's date and time
     timestamp: String,
@@ -41,5 +42,26 @@ impl Transmuter for GTFOBinsEventTransmuter {
         } else {
             Err(anyhow!("Unexpected event variant"))
         }
+    }
+}
+
+#[cfg(all(test, feature = "schema"))]
+mod schema {
+    use super::GTFOBinsEvent;
+    use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
+
+    #[test]
+    fn generate_gtfobins_event_schema() {
+        let event_ref =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs/src/events/reference.md");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(&event_ref)
+            .unwrap();
+        let _ = writeln!(file, "## GTFOBins\n\n```json");
+        let schema = schemars::schema_for!(GTFOBinsEvent);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let _ = writeln!(file, "```\n");
     }
 }

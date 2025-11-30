@@ -18,13 +18,15 @@ use super::file::{AccessMode, CreationFlags};
 use super::process::Process;
 use super::{Transmuter, transmute_ktime};
 
-/// High-level event representation
+/// io_uring events
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct IOUringEvent {
-    /// Process Infro
+    /// Process information
     process: Process,
     /// io_uring_ops
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     opcode: IOUringOp,
     /// extra info for operation
     #[serde(skip_serializing_if = "no_iouring_extra_info")]
@@ -37,10 +39,13 @@ pub struct IOUringEvent {
 #[repr(u8)]
 #[allow(dead_code)]
 #[serde(untagged)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum IOUringOpInfo {
     FileOpen {
         path: String,
+        #[cfg_attr(feature = "schema", schemars(with = "String"))]
         access_flags: AccessMode,
+        #[cfg_attr(feature = "schema", schemars(with = "String"))]
         creation_flags: CreationFlags,
     },
     Statx {
@@ -50,6 +55,7 @@ pub enum IOUringOpInfo {
         path: String,
     },
     ConnectAccept {
+        #[cfg_attr(feature = "schema", schemars(with = "String"))]
         addr: IpAddr,
         port: u16,
     },
@@ -110,5 +116,26 @@ impl Transmuter for IOUringEventTransmuter {
         } else {
             Err(anyhow!("Unexpected event variant"))
         }
+    }
+}
+
+#[cfg(all(test, feature = "schema"))]
+mod schema {
+    use super::IOUringEvent;
+    use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
+
+    #[test]
+    fn generate_gtfobins_event_schema() {
+        let event_ref =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs/src/events/reference.md");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(&event_ref)
+            .unwrap();
+        let _ = writeln!(file, "## IOUringMon\n\n```json");
+        let schema = schemars::schema_for!(IOUringEvent);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let _ = writeln!(file, "```\n");
     }
 }
