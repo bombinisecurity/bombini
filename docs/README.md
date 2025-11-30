@@ -1,6 +1,6 @@
 # Updating Documentation
 
-Docs is manually updated. When you make changes in `proto/config.proto` then `docs/src/configuration/reference.md` must be regenerated.
+When you make changes in `proto/config.proto` then `docs/src/configuration/reference.md` must be regenerated.
 Install `protoc` and `protoc-gen-doc`:
 
 ```bash
@@ -10,8 +10,16 @@ chmod +x protoc-gen-doc
 sudo mv protoc-gen-doc /usr/local/bin/
 ```
 
-Generate `reference.md`:
+If you make changes in any event provided you must generate JSON schema for all events `docs/src/events/reference.md'.
+
+All `reference.md` files can be updated via:
 
 ```bash
 cargo xtask docs-gen
+```
+
+Event examples are updated manually. You can print event examples after tests execution and put them into docs:
+
+```bash
+cargo xtask test --release --example-events
 ```

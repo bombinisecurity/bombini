@@ -14,11 +14,12 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use super::process::Process;
 use super::{Transmuter, transmute_ktime};
 
-/// High-level event representation
+/// Network event
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NetworkEvent {
-    /// Process Infro
+    /// Process information
     process: Process,
     /// Network event
     network_event: NetworkEventType,
@@ -31,6 +32,7 @@ pub struct NetworkEvent {
 #[repr(u8)]
 #[allow(dead_code)]
 #[allow(clippy::enum_variant_names)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NetworkEventType {
     TcpConnectionEstablish(TcpConnection),
     TcpConnectionClose(TcpConnection),
@@ -39,11 +41,14 @@ pub enum NetworkEventType {
 
 /// TCP IPv4 connection information
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[repr(C)]
 pub struct TcpConnection {
     /// source IP address
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     saddr: IpAddr,
     /// destination IP address,
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     daddr: IpAddr,
     /// source port
     sport: u16,
@@ -142,5 +147,26 @@ impl Transmuter for NetworkEventTransmuter {
         } else {
             Err(anyhow!("Unexpected event variant"))
         }
+    }
+}
+
+#[cfg(all(test, feature = "schema"))]
+mod schema {
+    use super::NetworkEvent;
+    use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
+
+    #[test]
+    fn generate_gtfobins_event_schema() {
+        let event_ref =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs/src/events/reference.md");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(&event_ref)
+            .unwrap();
+        let _ = writeln!(file, "## NetMon\n\n```json");
+        let schema = schemars::schema_for!(NetworkEvent);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let _ = writeln!(file, "```\n");
     }
 }

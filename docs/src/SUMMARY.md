@@ -20,6 +20,7 @@
     - [NetMon](./events/netmon.md)
     - [IOUringMon](./events/io_uringmon.md)
     - [GTFOBins](./events/gtfobins.md)
+    - [Reference](./events/reference.md)
 - [Design](./design.md)
 - [Compatibility](./compatibility.md)
 - [Contribution]()

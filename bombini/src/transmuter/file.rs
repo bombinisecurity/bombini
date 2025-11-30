@@ -175,11 +175,12 @@ impl From<u16> for Imode {
     }
 }
 
-/// High-level event representation
+/// File Event
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FileEvent {
-    /// Process Infro
+    /// Process Information
     process: Process,
     /// LSM File hook info
     hook: LsmFileHook,
@@ -188,35 +189,43 @@ pub struct FileEvent {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FileOpenInfo {
     /// full path
     path: String,
     /// access mode passed to open()
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     access_mode: AccessMode,
     /// creation flags passed to open()
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     creation_flags: CreationFlags,
     /// File owner UID
     uid: u32,
     /// Group owner GID
     gid: u32,
     /// i_mode
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     i_mode: Imode,
 }
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PathInfo {
     /// full path
     path: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChmodInfo {
     /// full path
     path: String,
     /// i_mode
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     i_mode: Imode,
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChownInfo {
     /// full path
     path: String,
@@ -227,6 +236,7 @@ pub struct ChownInfo {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MountInfo {
     /// device name
     dev: String,
@@ -237,20 +247,25 @@ pub struct MountInfo {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MmapInfo {
     /// full path
     path: String,
     /// mmap protection
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     prot: ProtMode,
     /// mmap flags
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     flags: SharingType,
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct IoctlInfo {
     /// full path
     path: String,
     /// i_mode
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
     i_mode: Imode,
     /// cmd
     cmd: u32,
@@ -258,6 +273,7 @@ pub struct IoctlInfo {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[repr(u8)]
 #[allow(dead_code)]
 pub enum LsmFileHook {
@@ -386,5 +402,26 @@ impl Transmuter for FileEventTransmuter {
         } else {
             Err(anyhow!("Unexpected event variant"))
         }
+    }
+}
+
+#[cfg(all(test, feature = "schema"))]
+mod schema {
+    use super::FileEvent;
+    use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
+
+    #[test]
+    fn generate_gtfobins_event_schema() {
+        let event_ref =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs/src/events/reference.md");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(&event_ref)
+            .unwrap();
+        let _ = writeln!(file, "## FileMon\n\n```json");
+        let schema = schemars::schema_for!(FileEvent);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let _ = writeln!(file, "```\n");
     }
 }
