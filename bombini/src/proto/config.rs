@@ -26,6 +26,9 @@ pub struct ProcMonConfig {
     /// Collect IMA hashes for executed binaries.
     #[prost(bool, optional, tag = "8")]
     pub ima_hash: ::core::option::Option<bool>,
+    /// GC period for PROCMON_PROC_MAP default 30 sec.
+    #[prost(uint64, optional, tag = "9")]
+    pub gc_period: ::core::option::Option<u64>,
 }
 /// ProcMon hook configuration
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]

@@ -39,6 +39,8 @@ pub struct ProcInfo {
     pub cgroup: Cgroup,
     /// IMA binary hash
     pub ima_hash: ImaHash,
+    /// internal for gc clean up
+    pub exited: bool,
 }
 
 #[cfg(feature = "user")]
@@ -134,6 +136,7 @@ impl ProcInfo {
             creds,
             auid,
             clonned: false,
+            exited: false,
             filename,
             binary_path,
             args,
