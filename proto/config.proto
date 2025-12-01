@@ -20,6 +20,8 @@ message ProcMonConfig {
     ProcessFilter process_filter = 7;
     // Collect IMA hashes for executed binaries.
     optional bool ima_hash = 8;
+    // GC period for PROCMON_PROC_MAP default 30 sec.
+    optional uint64 gc_period = 9;
 }
 
 // ProcMon hook configuration

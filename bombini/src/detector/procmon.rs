@@ -1,7 +1,7 @@
 // Detect process execution life cycle
 
 use aya::maps::{
-    Array,
+    Array, Map, MapData,
     hash_map::HashMap,
     lpm_trie::{Key, LpmTrie},
 };
@@ -10,7 +10,11 @@ use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
 use procfs::process;
 
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+use tokio::time::{Duration, interval};
 
 use bombini_common::{
     config::procmon::{Config, CredFilterMask, ProcessFilterMask},
@@ -57,8 +61,42 @@ impl ProcMon {
 
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
+        // Start GC for PROCMON_PROC_MAP
+        start_proc_map_gc(maps_pin_path, config.clone())?;
+
         Ok(ProcMon { ebpf, config })
     }
+}
+
+fn start_proc_map_gc<P: AsRef<Path>>(
+    maps_pin_path: P,
+    config: Arc<ProcMonConfig>,
+) -> Result<(), anyhow::Error> {
+    let gc_period = config.gc_period.unwrap_or(30);
+    let proc_map_path = PathBuf::from(maps_pin_path.as_ref()).join(PROCMON_PROC_MAP_NAME);
+    let map = Map::LruHashMap(MapData::from_pin(&proc_map_path)?);
+    let mut proc_map: HashMap<_, u32, ProcInfo> = HashMap::try_from(map)?;
+    tokio::spawn(async move {
+        let mut interval = interval(Duration::from_secs(gc_period));
+        interval.tick().await;
+
+        loop {
+            interval.tick().await;
+
+            let to_delete: Vec<u32> = proc_map
+                .iter()
+                .filter_map(|entry| {
+                    let (pid, info) = entry.ok()?;
+                    if info.exited { Some(pid) } else { None }
+                })
+                .collect();
+
+            for pid in &to_delete {
+                let _ = proc_map.remove(pid);
+            }
+        }
+    });
+    Ok(())
 }
 
 impl Detector for ProcMon {

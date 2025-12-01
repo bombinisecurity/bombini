@@ -304,10 +304,17 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&pid) else {
+        return Err(0);
+    };
+    let proc = unsafe { proc_ptr.as_mut() };
+
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    // Mark exited for clean up
+    proc.exited = true;
     if config.expose_events {
         if !config.filter_mask.is_empty() {
             let process_filter: ProcessFilter = ProcessFilter::new(
@@ -324,17 +331,13 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
             }
             if allow {
                 util::copy_proc(proc, event);
-                PROCMON_PROC_MAP.remove(&pid).unwrap();
                 return Ok(0);
             }
-            PROCMON_PROC_MAP.remove(&pid).unwrap();
             return Err(0);
         }
         util::copy_proc(proc, event);
-        PROCMON_PROC_MAP.remove(&pid).unwrap();
         return Ok(0);
     }
-    PROCMON_PROC_MAP.remove(&pid).unwrap();
     Err(0)
 }
 
