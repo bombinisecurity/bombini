@@ -1,6 +1,6 @@
 //! Ring buffer to send events from all detectors.
 use aya_ebpf::{
-    helpers::bpf_ktime_get_ns,
+    helpers::bpf_ktime_get_boot_ns,
     macros::map,
     maps::{RingBuf, ring_buf::RingBufEntry},
 };
@@ -38,7 +38,7 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEve
         let p = &mut event_ref.event as *mut Event as *mut u8;
         *p = msg_code;
         event_ref.msg_code = msg_code;
-        event_ref.ktime = bpf_ktime_get_ns();
+        event_ref.ktime = bpf_ktime_get_boot_ns();
     }
     Ok(event_rb)
 }
