@@ -97,7 +97,7 @@ pub fn str_from_bytes(bytes: &[u8]) -> String {
 }
 
 pub fn transmute_ktime(ktime: u64) -> String {
-    let Ok(cur_time_boot) = clock_gettime(ClockId::CLOCK_MONOTONIC) else {
+    let Ok(cur_time_boot) = clock_gettime(ClockId::CLOCK_BOOTTIME) else {
         return String::new();
     };
     let Ok(cur_time_real) = clock_gettime(ClockId::CLOCK_REALTIME) else {

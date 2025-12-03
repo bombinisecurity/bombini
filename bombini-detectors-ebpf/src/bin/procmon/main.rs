@@ -161,7 +161,6 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     let Event::ProcExec(ref mut event) = generic_event.event else {
         return Err(0);
     };
-    event.start = ktime;
     let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
     let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
@@ -173,6 +172,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     let Some(proc) = proc else {
         return Err(0);
     };
+    proc.start = ktime;
     let parent_proc = execve_find_parent(task);
     if let Some(parent_proc) = parent_proc {
         proc.ppid = unsafe { (*parent_proc).pid };
@@ -312,6 +312,11 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    // Do not track exits for process clones without exec
+    if proc.start == 0 {
+        return Err(0);
+    }
 
     // Mark exited for clean up
     proc.exited = true;
