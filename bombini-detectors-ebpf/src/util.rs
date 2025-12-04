@@ -1,7 +1,7 @@
 //! Provides some common functions
 use aya_ebpf::helpers::bpf_probe_read_kernel_buf;
 
-use bombini_common::event::process::ProcInfo;
+use bombini_common::event::process::{ProcInfo, ProcessKey};
 
 /// Copy ProcInfo from src to dst. Commonly used to
 /// copy process information to ring buffer
@@ -23,4 +23,11 @@ pub fn copy_proc(src: &ProcInfo, dst: &mut ProcInfo) {
             let _ = bpf_probe_read_kernel_buf(src.ima_hash.hash.as_ptr(), &mut dst.ima_hash.hash);
         }
     }
+}
+
+/// Initialize ProcessKey from ProcInfo
+#[inline(always)]
+pub fn process_key_init(key: &mut ProcessKey, proc: &ProcInfo) {
+    key.start = proc.start;
+    key.pid = proc.pid;
 }

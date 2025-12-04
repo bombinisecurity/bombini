@@ -1,13 +1,13 @@
 //! File event module
 
 use crate::constants::{MAX_FILE_PATH, MAX_FILENAME_SIZE};
-use crate::event::process::ProcInfo;
+use crate::event::process::ProcessKey;
 
 /// File open/mmap, etc. event
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct FileMsg {
-    pub process: ProcInfo,
+    pub process: ProcessKey,
     pub hook: u8,
     /// full path or full dir path for unlink
     /// or mount path
@@ -18,7 +18,7 @@ pub struct FileMsg {
     /// or mount flags from sb_mount()
     /// mmap flags, or ioctl cmd
     pub flags: u32,
-    /// mmap protection falgs
+    /// mmap protection flags
     pub prot: u32,
     /// File owner UID
     pub uid: u32,

@@ -3,7 +3,10 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
 
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::{
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    sync::Arc,
+};
 
 use bombini_common::event::{
     Event,
@@ -12,11 +15,13 @@ use bombini_common::event::{
 
 use serde::Serialize;
 
-use crate::transmuter::str_from_bytes;
-
-use super::file::{AccessMode, CreationFlags};
-use super::process::Process;
-use super::{Transmuter, transmute_ktime};
+use super::{
+    Transmuter,
+    cache::process::ProcessCache,
+    file::{AccessMode, CreationFlags},
+    process::Process,
+    str_from_bytes, transmute_ktime,
+};
 
 /// io_uring events
 #[derive(Clone, Debug, Serialize)]
@@ -24,7 +29,7 @@ use super::{Transmuter, transmute_ktime};
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct IOUringEvent {
     /// Process information
-    process: Process,
+    process: Arc<Process>,
     /// io_uring_ops
     #[cfg_attr(feature = "schema", schemars(with = "String"))]
     opcode: IOUringOp,
@@ -68,7 +73,7 @@ fn no_iouring_extra_info(info: &IOUringOpInfo) -> bool {
 
 impl IOUringEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: &IOUringMsg, ktime: u64) -> Self {
+    pub fn new(process: Arc<Process>, event: &IOUringMsg, ktime: u64) -> Self {
         let op_info = match event.opcode {
             IOUringOp::IORING_OP_OPENAT | IOUringOp::IORING_OP_OPENAT2 => IOUringOpInfo::FileOpen {
                 path: str_from_bytes(&event.path),
@@ -97,7 +102,7 @@ impl IOUringEvent {
             _ => IOUringOpInfo::NoInfo,
         };
         Self {
-            process: Process::new(&event.process),
+            process,
             opcode: event.opcode.clone(),
             op_info,
             timestamp: transmute_ktime(ktime),
@@ -109,10 +114,24 @@ pub struct IOUringEventTransmuter;
 
 #[async_trait]
 impl Transmuter for IOUringEventTransmuter {
-    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
+    async fn transmute(
+        &self,
+        event: &Event,
+        ktime: u64,
+        process_cache: &mut ProcessCache,
+    ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::IOUring(event) = event {
-            let high_level_event = IOUringEvent::new(event, ktime);
-            Ok(serde_json::to_vec(&high_level_event)?)
+            if let Some(cached_process) = process_cache.get_mut(&event.process) {
+                let high_level_event =
+                    IOUringEvent::new(cached_process.process.clone(), event, ktime);
+                Ok(serde_json::to_vec(&high_level_event)?)
+            } else {
+                Err(anyhow!(
+                    "IoUringMsg: No process pid: {}, start: {} found in cache",
+                    event.process.pid,
+                    transmute_ktime(event.process.start)
+                ))
+            }
         } else {
             Err(anyhow!("Unexpected event variant"))
         }

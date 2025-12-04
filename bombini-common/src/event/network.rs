@@ -1,12 +1,11 @@
 //! Network event module
 
-use crate::event::process::ProcInfo;
+use crate::event::process::ProcessKey;
 
 /// TCP IPv4 connection information
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct TcpConnectionV4 {
-    pub process: ProcInfo,
     /// source IP address
     pub saddr: u32,
     /// destination IP address,
@@ -23,7 +22,6 @@ pub struct TcpConnectionV4 {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct TcpConnectionV6 {
-    pub process: ProcInfo,
     /// source IP address
     pub saddr: [u8; 16],
     /// destination IP address,
@@ -40,7 +38,7 @@ pub struct TcpConnectionV6 {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 #[repr(u8)]
-pub enum NetworkMsg {
+pub enum NetworkEventVariant {
     /// Establishing TCP connection for IPv4
     TcpConV4Establish(TcpConnectionV4) = 0,
     /// Establishing TCP connection for IPv6
@@ -53,4 +51,12 @@ pub enum NetworkMsg {
     TcpConV4Accept(TcpConnectionV4) = 4,
     /// Accepting TCP connection for IPv6
     TcpConV6Accept(TcpConnectionV6) = 5,
+}
+
+/// Network event message with process info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct NetworkMsg {
+    pub process: ProcessKey,
+    pub event: NetworkEventVariant,
 }

@@ -2,6 +2,7 @@
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use std::sync::Arc;
 
 use bombini_common::event::{
     Event,
@@ -14,8 +15,9 @@ use bombini_common::event::{
 use bitflags::bitflags;
 use serde::{Serialize, Serializer};
 
-use super::process::Process;
-use super::{Transmuter, str_from_bytes, transmute_ktime};
+use super::{
+    Transmuter, cache::process::ProcessCache, process::Process, str_from_bytes, transmute_ktime,
+};
 
 bitflags! {
     #[derive(Clone, Debug, Serialize)]
@@ -181,7 +183,7 @@ impl From<u16> for Imode {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FileEvent {
     /// Process Information
-    process: Process,
+    process: Arc<Process>,
     /// LSM File hook info
     hook: LsmFileHook,
     /// Event's date and time
@@ -289,7 +291,7 @@ pub enum LsmFileHook {
 
 impl FileEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: &FileMsg, ktime: u64) -> Self {
+    pub fn new(process: Arc<Process>, event: &FileMsg, ktime: u64) -> Self {
         match event.hook {
             HOOK_FILE_OPEN => {
                 let info = FileOpenInfo {
@@ -301,7 +303,7 @@ impl FileEvent {
                     i_mode: event.i_mode.into(),
                 };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::FileOpen(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -311,7 +313,7 @@ impl FileEvent {
                     path: str_from_bytes(&event.path),
                 };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::PathTruncate(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -320,7 +322,7 @@ impl FileEvent {
                 let path = str_from_bytes(&event.path);
                 let info = PathInfo { path };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::PathUnlink(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -331,7 +333,7 @@ impl FileEvent {
                     i_mode: event.i_mode.into(),
                 };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::PathChmod(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -343,7 +345,7 @@ impl FileEvent {
                     gid: event.gid,
                 };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::PathChown(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -355,7 +357,7 @@ impl FileEvent {
                     flags: event.flags,
                 };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::SbMount(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -367,7 +369,7 @@ impl FileEvent {
                     flags: SharingType::from_bits_truncate(event.flags),
                 };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::MmapFile(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -379,7 +381,7 @@ impl FileEvent {
                     cmd: event.flags,
                 };
                 Self {
-                    process: Process::new(&event.process),
+                    process,
                     hook: LsmFileHook::FileIoctl(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -395,10 +397,23 @@ pub struct FileEventTransmuter;
 
 #[async_trait]
 impl Transmuter for FileEventTransmuter {
-    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
-        if let Event::File(event) = event {
-            let high_level_event = FileEvent::new(event, ktime);
-            Ok(serde_json::to_vec(&high_level_event)?)
+    async fn transmute(
+        &self,
+        event: &Event,
+        ktime: u64,
+        process_cache: &mut ProcessCache,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::File(msg) = event {
+            if let Some(cached_process) = process_cache.get_mut(&msg.process) {
+                let high_level_event = FileEvent::new(cached_process.process.clone(), msg, ktime);
+                Ok(serde_json::to_vec(&high_level_event)?)
+            } else {
+                Err(anyhow!(
+                    "FileEvent: No process (pid: {}, start: {}) found in cache",
+                    msg.process.pid,
+                    transmute_ktime(msg.process.start),
+                ))
+            }
         } else {
             Err(anyhow!("Unexpected event variant"))
         }

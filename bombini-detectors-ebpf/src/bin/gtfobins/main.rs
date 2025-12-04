@@ -4,7 +4,10 @@
 use aya_ebpf::{
     helpers::{bpf_get_current_task_btf, bpf_probe_read_kernel, bpf_probe_read_kernel_str_bytes},
     macros::{lsm, map},
-    maps::hash_map::{HashMap, LruHashMap},
+    maps::{
+        hash_map::{HashMap, LruHashMap},
+        per_cpu_array::PerCpuArray,
+    },
     programs::LsmContext,
 };
 
@@ -22,6 +25,10 @@ static GTFOBINS_NAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u32> = HashMap::with_
 #[map]
 static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
+#[map]
+static GTFOBINS_FILENAME_HEAP: PerCpuArray<[u8; MAX_FILENAME_SIZE]> =
+    PerCpuArray::with_max_entries(1, 0);
+
 #[lsm]
 pub fn gtfobins_detect(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_GTFOBINS, true, try_detect)
@@ -31,6 +38,15 @@ static MAX_PROC_DEPTH: u32 = 4;
 
 fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::GTFOBins(ref mut event) = generic_event.event else {
+        return Err(0);
+    };
+    let Some(filename_ptr) = GTFOBINS_FILENAME_HEAP.get_ptr_mut(0) else {
+        return Err(0);
+    };
+
+    let filename = unsafe { filename_ptr.as_mut() };
+
+    let Some(filename) = filename else {
         return Err(0);
     };
     unsafe {
@@ -48,20 +64,17 @@ fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                 bpf_probe_read_kernel::<path>(&(*file).f_path as *const _).map_err(|_| 0_i32)?;
             let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
                 .map_err(|_| 0_i32)?;
-            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.process.filename)
-                .map_err(|_| 0_i32)?;
-            if (event.process.filename[0] == b's' && event.process.filename[1] == b'h')
-                || (event.process.filename[0] == b'b'
-                    && event.process.filename[1] == b'a'
-                    && event.process.filename[2] == b's'
-                    && event.process.filename[3] == b'h')
-                || (event.process.filename[0] == b'd'
-                    && event.process.filename[1] == b'a'
-                    && event.process.filename[2] == b's'
-                    && event.process.filename[3] == b'h')
-                || (event.process.filename[0] == b'z'
-                    && event.process.filename[1] == b's'
-                    && event.process.filename[2] == b'h')
+            bpf_probe_read_kernel_str_bytes(d_name.name, filename).map_err(|_| 0_i32)?;
+            if (filename[0] == b's' && filename[1] == b'h')
+                || (filename[0] == b'b'
+                    && filename[1] == b'a'
+                    && filename[2] == b's'
+                    && filename[3] == b'h')
+                || (filename[0] == b'd'
+                    && filename[1] == b'a'
+                    && filename[2] == b's'
+                    && filename[3] == b'h')
+                || (filename[0] == b'z' && filename[1] == b's' && filename[2] == b'h')
             {
                 let task = bpf_get_current_task_btf() as *const task_struct;
                 let parent_task =
@@ -81,7 +94,7 @@ fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                     }
                     // Check if GTFO binary
                     if let Some(enforce) = GTFOBINS_NAME_MAP.get_ptr(&parent_proc.filename) {
-                        util::copy_proc(parent_proc, &mut event.process);
+                        util::process_key_init(&mut event.process, parent_proc);
                         if *enforce != 0 {
                             return Ok(-1);
                         }

@@ -1,11 +1,6 @@
 //! Transmuter provides an interface to transmute raw eBPF events into
 //! serialized formats
 
-use bombini_common::event::{
-    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_NETWORK, MSG_PROCESS,
-    MSG_PROCEXEC, MSG_PROCEXIT,
-};
-
 use chrono::{DateTime, SecondsFormat};
 use nix::time::{ClockId, clock_gettime};
 
@@ -13,28 +8,60 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use std::{sync::Arc, time::Duration};
 
+use bombini_common::event::{
+    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_NETWORK, MSG_PROCESS,
+    MSG_PROCEXEC, MSG_PROCEXIT,
+    process::{ProcInfo, ProcessKey},
+};
+
+mod cache;
 mod file;
 mod gtfobins;
 mod io_uring;
 mod network;
 mod process;
 
-use crate::config::{Config, DetectorConfig};
+use crate::{
+    config::{Config, DetectorConfig},
+    transmuter::cache::process::{CachedProcess, ProcessCache},
+};
 
 use file::FileEventTransmuter;
 use gtfobins::GTFOBinsEventTransmuter;
 use io_uring::IOUringEventTransmuter;
 use network::NetworkEventTransmuter;
-use process::{ProcessEventTransmuter, ProcessExecTransmuter, ProcessExitTransmuter};
+use process::{Process, ProcessEventTransmuter, ProcessExecTransmuter, ProcessExitTransmuter};
 
 pub struct TransmuterRegistry {
     handlers: [Option<Arc<dyn Transmuter>>; 256],
+    process_cache: ProcessCache,
 }
 impl TransmuterRegistry {
     pub fn new(config: &Config) -> Self {
         let mut registry = Self {
             handlers: std::array::from_fn(|_| None),
+            process_cache: ProcessCache::with_capacity(
+                config.options.procmon_proc_map_size.unwrap() as usize,
+            ),
         };
+
+        // Init Process cache
+        let current_processes = procfs::process::all_processes().unwrap();
+        current_processes
+            .filter_map(|p| p.ok())
+            .filter(|p| p.is_alive())
+            .filter_map(|p| ProcInfo::from_procfs(&p))
+            .for_each(|p| {
+                let key = ProcessKey {
+                    pid: p.pid,
+                    start: p.start,
+                };
+                let process = CachedProcess {
+                    process: Arc::new(Process::new(&p)),
+                    exited: false,
+                };
+                let _ = registry.process_cache.insert(key, process);
+            });
 
         // Install transmuters according loaded detectors
         for detector_cfg in config.detector_configs.values() {
@@ -67,11 +94,18 @@ impl TransmuterRegistry {
         registry
     }
 
-    pub async fn transmute(&self, generic_event: &GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
+    pub async fn transmute(
+        &mut self,
+        generic_event: &GenericEvent,
+    ) -> Result<Vec<u8>, anyhow::Error> {
         let event_type = generic_event.msg_code as usize;
         if let Some(handler) = self.handlers[event_type].as_ref() {
             handler
-                .transmute(&generic_event.event, generic_event.ktime)
+                .transmute(
+                    &generic_event.event,
+                    generic_event.ktime,
+                    &mut self.process_cache,
+                )
                 .await
         } else {
             Err(anyhow!(
@@ -80,12 +114,21 @@ impl TransmuterRegistry {
             ))
         }
     }
+
+    pub fn retain_caches(&mut self) {
+        self.process_cache.retain(|_, p| !p.exited);
+    }
 }
 
 #[async_trait]
 pub trait Transmuter: Send + Sync {
     /// Transmutes low-level event to high level and serialized representation
-    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error>;
+    async fn transmute(
+        &self,
+        event: &Event,
+        ktime: u64,
+        process_cache: &mut ProcessCache,
+    ) -> Result<Vec<u8>, anyhow::Error>;
 }
 
 pub fn str_from_bytes(bytes: &[u8]) -> String {
