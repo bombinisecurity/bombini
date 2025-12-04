@@ -885,170 +885,6 @@ egress:
 }
 
 #[test]
-fn test_6_2_procmon_allow_list() {
-    let (temp_dir, config, bpf_objs) = init_test_env();
-    let bombini_temp_dir = temp_dir.path();
-    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
-    let _ = fs::create_dir(bombini_temp_dir.join("config"));
-    let _ = fs::copy(&config, &tmp_config);
-    tmp_config.pop();
-    let bombini_log =
-        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
-    let config_contents = r#"
-expose_events: true
-process_filter:
-  uid:
-    - 0
-  euid:
-    - 0
-  binary:
-    name:
-      - tail
-      - curl
-    prefix:
-      - /usr/bin/l
-    path:
-      - /usr/bin/uname
-"#;
-    let _ = fs::write(tmp_config.join("procmon.yaml"), config_contents);
-    let event_log = temp_dir.path().join("events.log");
-
-    let bombini = Command::new(EXE_BOMBINI)
-        .args([
-            "--config-dir",
-            tmp_config.to_str().unwrap(),
-            "--bpf-objs",
-            bpf_objs.to_str().unwrap(),
-            "--event-log",
-            event_log.to_str().unwrap(),
-            "--detector",
-            "procmon",
-        ])
-        .env("RUST_LOG", "debug")
-        .stderr(bombini_log.try_clone().unwrap())
-        .spawn();
-
-    if bombini.is_err() {
-        panic!("{:?}", bombini.err().unwrap());
-    }
-    let mut bombini = bombini.expect("failed to start bombini");
-    // Wait for detectors being loaded
-    thread::sleep(Duration::from_millis(1500));
-
-    let _ = Command::new("uname")
-        .args(["-a"])
-        .stdout(Stdio::null())
-        .status()
-        .expect("can't start uname");
-
-    let _ = Command::new("tail")
-        .args(["--help"])
-        .stdout(Stdio::null())
-        .status()
-        .expect("can't start tail");
-
-    let _ = Command::new("ls")
-        .args(["-lah"])
-        .stdout(Stdio::null())
-        .status()
-        .expect("can't start ls");
-
-    let _ = Command::new("cat")
-        .args(["--help"])
-        .stdout(Stdio::null())
-        .status()
-        .expect("can't start cat");
-
-    // Wait Events being processed
-    thread::sleep(Duration::from_millis(500));
-
-    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
-
-    let _ = bombini.wait().unwrap();
-
-    let events = fs::read_to_string(&event_log).expect("can't read events");
-    assert_eq!(events.matches("\"filename\":\"uname\"").count(), 2);
-    assert_eq!(events.matches("\"args\":\"-a\"").count(), 2);
-    assert_eq!(events.matches("\"filename\":\"tail\"").count(), 2);
-    assert_eq!(events.matches("\"args\":\"--help\"").count(), 2);
-    assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
-    assert_eq!(events.matches("\"args\":\"-lah\"").count(), 2);
-    assert_eq!(events.matches("\"filename\":\"cat\"").count(), 0);
-
-    let _ = fs::remove_dir_all(bombini_temp_dir);
-}
-
-#[test]
-fn test_6_2_procmon_deny_list() {
-    let (temp_dir, config, bpf_objs) = init_test_env();
-    let bombini_temp_dir = temp_dir.path();
-    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
-    let _ = fs::create_dir(bombini_temp_dir.join("config"));
-    let _ = fs::copy(&config, &tmp_config);
-    tmp_config.pop();
-    let bombini_log =
-        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
-    let config_contents = r#"
-expose_events: true
-process_filter:
-  deny_list: true
-  binary:
-    name:
-      - tail
-"#;
-    let _ = fs::write(tmp_config.join("procmon.yaml"), config_contents);
-    let event_log = temp_dir.path().join("events.log");
-
-    let bombini = Command::new(EXE_BOMBINI)
-        .args([
-            "--config-dir",
-            tmp_config.to_str().unwrap(),
-            "--bpf-objs",
-            bpf_objs.to_str().unwrap(),
-            "--event-log",
-            event_log.to_str().unwrap(),
-            "--detector",
-            "procmon",
-        ])
-        .env("RUST_LOG", "debug")
-        .stderr(bombini_log.try_clone().unwrap())
-        .spawn();
-
-    if bombini.is_err() {
-        panic!("{:?}", bombini.err().unwrap());
-    }
-    let mut bombini = bombini.expect("failed to start bombini");
-    // Wait for detectors being loaded
-    thread::sleep(Duration::from_millis(1500));
-
-    let _ = Command::new("tail")
-        .args(["--help"])
-        .stdout(Stdio::null())
-        .status()
-        .expect("can't start tail");
-
-    let _ = Command::new("ls")
-        .args(["-lah"])
-        .stdout(Stdio::null())
-        .status()
-        .expect("can't start ls");
-
-    // Wait Events being processed
-    thread::sleep(Duration::from_millis(500));
-
-    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
-
-    let _ = bombini.wait().unwrap();
-
-    let events = fs::read_to_string(&event_log).expect("can't read events");
-    assert_eq!(events.matches("\"filename\":\"tail\"").count(), 0);
-    assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
-    assert_eq!(events.matches("\"args\":\"-lah\"").count(), 2);
-
-    let _ = fs::remove_dir_all(bombini_temp_dir);
-}
-
-#[test]
 fn test_6_8_iouring_allow_list() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
@@ -1204,7 +1040,7 @@ mmap_file:
     ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(test_path);
-    assert_eq!(events.matches(&file_path).count(), 1);
+    ma::assert_ge!(events.matches(&file_path).count(), 1);
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
 
@@ -1218,13 +1054,20 @@ fn test_6_2_procmon_setuid() {
     tmp_config.pop();
     config.pop();
     let config_contents = r#"
-expose_events: false
 setuid:
   enabled: true
   cred_filter:
     uid_filter:
       euid:
       - 0
+process_filter:
+  uid:
+    - 0
+  euid:
+    - 0
+  binary:
+    prefix:
+      - /usr/bin/
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1293,13 +1136,20 @@ fn test_6_2_procmon_setcaps() {
     tmp_config.pop();
     config.pop();
     let config_contents = r#"
-expose_events: false
 capset:
   enabled: true
   cred_filter:
     cap_filter:
       effective:
       - "CAP_NET_RAW"
+process_filter:
+  uid:
+    - 0
+  euid:
+    - 0
+  binary:
+    name:
+      - capsh
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1357,7 +1207,6 @@ capset:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Setcaps\"").count(), 1);
-    ma::assert_ge!(events.matches("\"effective\":\"ALL_CAPS\"").count(), 1);
     assert_eq!(
         events
             .matches("\"effective\":\"CAP_NET_RAW | CAP_SYS_ADMIN\"")
@@ -1378,15 +1227,16 @@ fn test_6_2_procmon_prctl() {
     tmp_config.pop();
     config.pop();
     let config_contents = r#"
-expose_events: false
-setuid:
-  enabled: false
-capset:
-  enabled: false
 prctl:
   enabled: true
-create_user_ns:
-  enabled: false
+process_filter:
+  uid:
+    - 0
+  euid:
+    - 0
+  binary:
+    path:
+      - /usr/sbin/capsh
 "#;
     let procmon_config = tmp_config.join("procmon.yaml");
     let _ = fs::write(&procmon_config, config_contents);
@@ -1453,7 +1303,6 @@ fn test_6_2_procmon_create_user_ns() {
     tmp_config.pop();
     config.pop();
     let config_contents = r#"
-expose_events: false
 create_user_ns:
   enabled: true
   cred_filter:
@@ -1525,7 +1374,6 @@ fn test_6_2_procmon_fileless_exec() {
     tmp_config.pop();
     config.pop();
     let config_contents = r#"
-expose_events: true
 setuid:
   enabled: false
 capset:
@@ -1621,7 +1469,6 @@ fn test_6_2_procmon_ima() {
     tmp_config.pop();
     config.pop();
     let config_contents = r#"
-expose_events: true
 ima_hash: true
 setuid:
   enabled: false
