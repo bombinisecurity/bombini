@@ -150,13 +150,6 @@ pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
 }
 
 fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
     let ktime = generic_event.ktime;
     let Event::ProcExec(ref mut event) = generic_event.event else {
         return Err(0);
@@ -261,30 +254,8 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     }
 
     proc.clonned = false;
-    if config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &PROCMON_FILTER_UID_MAP,
-                &PROCMON_FILTER_EUID_MAP,
-                &PROCMON_FILTER_AUID_MAP,
-                &PROCMON_FILTER_BINNAME_MAP,
-                &PROCMON_FILTER_BINPATH_MAP,
-                &PROCMON_FILTER_BINPREFIX_MAP,
-            );
-            let mut allow = process_filter.filter(config.filter_mask, proc);
-            if config.deny_list {
-                allow = !allow;
-            }
-            if allow {
-                util::copy_proc(proc, event);
-                return Ok(0);
-            }
-            return Err(0);
-        }
-        util::copy_proc(proc, event);
-        return Ok(0);
-    }
-    Err(0)
+    util::copy_proc(proc, event);
+    Ok(0)
 }
 
 #[btf_tracepoint(function = "sched_process_exit")]
@@ -293,13 +264,6 @@ pub fn exit_capture(ctx: BtfTracePointContext) -> u32 {
 }
 
 fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
     let Event::ProcExit(ref mut event) = generic_event.event else {
         return Err(0);
     };
@@ -318,32 +282,10 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
         return Err(0);
     }
 
-    // Mark exited for clean up
+    // Mark exited for garbage collecor
     proc.exited = true;
-    if config.expose_events {
-        if !config.filter_mask.is_empty() {
-            let process_filter: ProcessFilter = ProcessFilter::new(
-                &PROCMON_FILTER_UID_MAP,
-                &PROCMON_FILTER_EUID_MAP,
-                &PROCMON_FILTER_AUID_MAP,
-                &PROCMON_FILTER_BINNAME_MAP,
-                &PROCMON_FILTER_BINPATH_MAP,
-                &PROCMON_FILTER_BINPREFIX_MAP,
-            );
-            let mut allow = process_filter.filter(config.filter_mask, proc);
-            if config.deny_list {
-                allow = !allow;
-            }
-            if allow {
-                util::copy_proc(proc, event);
-                return Ok(0);
-            }
-            return Err(0);
-        }
-        util::copy_proc(proc, event);
-        return Ok(0);
-    }
-    Err(0)
+    util::copy_proc(proc, event);
+    Ok(0)
 }
 
 #[lsm(hook = "bprm_committing_creds", sleepable)]
