@@ -10,16 +10,16 @@ For these IORING_OP's Bombini provides extra information:
 
 For other event types only opcode is provided.
 
-## IORING_OP_CONNECT 
+## IORING_OP_CONNECT
 
 ```json
 {
   "type": "IOUringEvent",
   "process": {
-    "start_time": "2025-11-23T14:23:17.055Z",
-    "pid": 2319039,
-    "tid": 2319039,
-    "ppid": 148879,
+    "start_time": "2025-12-04T07:30:11.462Z",
+    "pid": 2230188,
+    "tid": 2230188,
+    "ppid": 2230022,
     "uid": 1000,
     "euid": 1000,
     "gid": 1000,
@@ -38,28 +38,29 @@ For other event types only opcode is provided.
     "addr": "127.0.0.1",
     "port": 443
   },
-  "timestamp": "2025-11-23T14:24:00.256Z"
+  "timestamp": "2025-12-04T07:30:11.463Z"
 }
 ```
 
 ## IORING_OP_OPENAT
 
 ```json
+
 {
   "type": "IOUringEvent",
   "process": {
-    "start_time": "2025-11-23T14:26:43.264Z",
-    "pid": 2321741,
-    "tid": 2321741,
-    "ppid": 2319814,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
+    "start_time": "2025-12-04T07:37:58.995Z",
+    "pid": 2238307,
+    "tid": 2238307,
+    "ppid": 2238306,
+    "uid": 0,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
     "auid": 1000,
     "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
     "secureexec": "",
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
@@ -71,8 +72,9 @@ For other event types only opcode is provided.
     "access_flags": "O_RDONLY",
     "creation_flags": "O_LARGEFILE"
   },
-  "timestamp": "2025-11-23T14:27:17.862Z"
+  "timestamp": "2025-12-04T07:38:05.465Z"
 }
+
 ```
 
 ## IORING_OP_STATX
@@ -81,18 +83,18 @@ For other event types only opcode is provided.
 {
   "type": "IOUringEvent",
   "process": {
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "pid": 2321741,
-    "tid": 2321741,
-    "ppid": 2319814,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
+    "start_time": "2025-12-04T07:37:58.995Z",
+    "pid": 2238307,
+    "tid": 2238307,
+    "ppid": 2238306,
+    "uid": 0,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
     "auid": 1000,
     "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
     "secureexec": "",
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
@@ -102,7 +104,7 @@ For other event types only opcode is provided.
   "op_info": {
     "path": "/usr/bin/pkexec"
   },
-  "timestamp": "2025-11-23T14:28:24.124Z"
+  "timestamp": "2025-12-04T07:38:12.291Z"
 }
 ```
 
@@ -112,10 +114,10 @@ For other event types only opcode is provided.
 {
   "type": "IOUringEvent",
   "process": {
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "pid": 2321741,
-    "tid": 2321741,
-    "ppid": 2319814,
+    "start_time": "2025-12-04T07:30:12.039Z",
+    "pid": 2230188,
+    "tid": 2230188,
+    "ppid": 2230022,
     "uid": 1000,
     "euid": 1000,
     "gid": 1000,
@@ -133,6 +135,6 @@ For other event types only opcode is provided.
   "op_info": {
     "path": "/home/fedotoff/RingReaper/agent"
   },
-  "timestamp": "2025-11-23T14:28:40.236Z"
+  "timestamp": "2025-12-04T07:33:12.647Z"
 }
 ```

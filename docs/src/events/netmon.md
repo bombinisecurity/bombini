@@ -11,11 +11,11 @@ Example: `wget -qO- -6 google.com`
 
 {
   "network_event": {
-    "cookie": 36894,
-    "daddr": "2a00:1450:4010:c01::64",
+    "cookie": 40966,
+    "daddr": "2a00:1450:4001:831::200e",
     "dport": 80,
-    "saddr": "2a00:1370:81a6:3f56:3fd6:26ed:b655:ec7a",
-    "sport": 33978,
+    "saddr": "2a00:1370:81a6:3f56:d13e:2274:416f:dd83",
+    "sport": 57300,
     "type": "TcpConnectionEstablish"
   },
   "process": {
@@ -29,14 +29,14 @@ Example: `wget -qO- -6 google.com`
     "euid": 0,
     "filename": "wget",
     "gid": 0,
-    "pid": 2274372,
-    "ppid": 2273865,
+    "pid": 2158658,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274372,
+    "start_time": "2025-12-03T21:55:48.911Z",
+    "tid": 2158658,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:47:33.289Z",
+  "timestamp": "2025-12-03T21:55:48.949Z",
   "type": "NetworkEvent"
 }
 ```
@@ -49,34 +49,34 @@ telnet localhost 7878
 
 ```json
 {
-  "type": "NetworkEvent",
-  "process": {
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "pid": 2290814,
-    "tid": 2290814,
-    "ppid": 148879,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
-    "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "inetutils-telnet",
-    "binary_path": "/usr/bin/inetutils-telnet",
-    "args": "localhost 7878"
-  },
   "network_event": {
-    "type": "TcpConnectionEstablish",
-    "saddr": "127.0.0.1",
+    "cookie": 32785,
     "daddr": "127.0.0.1",
-    "sport": 56424,
     "dport": 7878,
-    "cookie": 45066
+    "saddr": "127.0.0.1",
+    "sport": 37792,
+    "type": "TcpConnectionEstablish"
   },
-  "timestamp": "2025-11-23T14:00:58.013Z"
+  "process": {
+    "args": "localhost 7878",
+    "auid": 1000,
+    "binary_path": "/usr/bin/inetutils-telnet",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "inetutils-telnet",
+    "gid": 0,
+    "pid": 2158596,
+    "ppid": 2158108,
+    "secureexec": "",
+    "start_time": "2025-12-03T21:55:46.063Z",
+    "tid": 2158596,
+    "uid": 0
+  },
+  "timestamp": "2025-12-03T21:55:46.066Z",
+  "type": "NetworkEvent"
 }
 ```
 
@@ -87,11 +87,11 @@ Example: `wget -qO- -6 google.com`
 ```json
 {
   "network_event": {
-    "cookie": 36894,
-    "daddr": "2a00:1450:4010:c01::64",
+    "cookie": 40966,
+    "daddr": "2a00:1450:4001:831::200e",
     "dport": 80,
-    "saddr": "2a00:1370:81a6:3f56:3fd6:26ed:b655:ec7a",
-    "sport": 33978,
+    "saddr": "2a00:1370:81a6:3f56:d13e:2274:416f:dd83",
+    "sport": 57300,
     "type": "TcpConnectionClose"
   },
   "process": {
@@ -105,14 +105,14 @@ Example: `wget -qO- -6 google.com`
     "euid": 0,
     "filename": "wget",
     "gid": 0,
-    "pid": 2274372,
-    "ppid": 2273865,
+    "pid": 2158658,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274372,
+    "start_time": "2025-12-03T21:55:48.911Z",
+    "tid": 2158658,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:47:33.817Z",
+  "timestamp": "2025-12-03T21:55:49.461Z",
   "type": "NetworkEvent"
 }
 ```
@@ -125,33 +125,34 @@ telnet localhost 7878
 
 ```json
 {
-  "type": "NetworkEvent",
-  "process": {
-    "start_time": "2025-05-31T10:07:06.321Z",
-    "pid": 2549606,
-    "tid": 2549606,
-    "ppid": 1434309,
-    "uid": 1000,
-    "euid": 1000,
-    "auid": 1000,
-    "cap_inheritable": 0,
-    "cap_permitted": 0,
-    "cap_effective": 0,
-    "secureexec": "",
-    "filename": "inetutils-telnet",
-    "binary_path": "/usr/bin/inetutils-telnet",
-    "args": "localhost 7878",
-    "container_id": ""
-  },
   "network_event": {
-    "type": "TcpConnectionClose",
-    "saddr": "127.0.0.1",
+    "cookie": 32785,
     "daddr": "127.0.0.1",
-    "sport": 0,
     "dport": 7878,
-    "cookie": 16387
+    "saddr": "127.0.0.1",
+    "sport": 37792,
+    "type": "TcpConnectionClose"
   },
-  "timestamp": "2025-05-31T10:07:06.453Z"
+  "process": {
+    "args": "localhost 7878",
+    "auid": 1000,
+    "binary_path": "/usr/bin/inetutils-telnet",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "egid": 0,
+    "euid": 0,
+    "filename": "inetutils-telnet",
+    "gid": 0,
+    "pid": 2158596,
+    "ppid": 2158108,
+    "secureexec": "",
+    "start_time": "2025-12-03T21:55:46.063Z",
+    "tid": 2158596,
+    "uid": 0
+  },
+  "timestamp": "2025-12-03T21:55:46.067Z",
+  "type": "NetworkEvent"
 }
 ```
 
