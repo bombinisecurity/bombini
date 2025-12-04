@@ -1,4 +1,3 @@
-expose_events: true
 setuid:
   enabled: true
   cred_filter:

@@ -2,32 +2,29 @@
 /// Configuration file for ProcMon detector
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ProcMonConfig {
-    /// Flag for exporting  ProcessExec and ProcessExit events from kernel to user mode.
-    #[prost(bool, tag = "1")]
-    pub expose_events: bool,
     /// setuid hook config.
-    #[prost(message, optional, tag = "2")]
+    #[prost(message, optional, tag = "1")]
     pub setuid: ::core::option::Option<ProcHookConfig>,
     /// capset hook config.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub capset: ::core::option::Option<ProcHookConfig>,
     /// prctl hook config.
-    #[prost(message, optional, tag = "4")]
+    #[prost(message, optional, tag = "3")]
     pub prctl: ::core::option::Option<ProcHookConfig>,
     /// create_user_ns hook config.
-    #[prost(message, optional, tag = "5")]
+    #[prost(message, optional, tag = "4")]
     pub create_user_ns: ::core::option::Option<ProcHookConfig>,
     /// ptrace_attach hook config.
-    #[prost(message, optional, tag = "6")]
+    #[prost(message, optional, tag = "5")]
     pub ptrace_access_check: ::core::option::Option<ProcHookConfig>,
     /// Process Filter Configuration.
-    #[prost(message, optional, tag = "7")]
+    #[prost(message, optional, tag = "6")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
     /// Collect IMA hashes for executed binaries.
-    #[prost(bool, optional, tag = "8")]
+    #[prost(bool, optional, tag = "7")]
     pub ima_hash: ::core::option::Option<bool>,
     /// GC period for PROCMON_PROC_MAP default 30 sec.
-    #[prost(uint64, optional, tag = "9")]
+    #[prost(uint64, optional, tag = "8")]
     pub gc_period: ::core::option::Option<u64>,
 }
 /// ProcMon hook configuration
