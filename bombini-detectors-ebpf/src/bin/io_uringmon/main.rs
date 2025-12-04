@@ -78,6 +78,10 @@ fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -
         return Err(0);
     };
 
+    if proc.start == 0 {
+        return Err(0);
+    }
+
     // Filter event by process
 
     unsafe {
@@ -151,12 +155,12 @@ fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -
             allow = !allow;
         }
         if allow {
-            util::copy_proc(proc, &mut event.process);
+            util::process_key_init(&mut event.process, proc);
             return Ok(0);
         }
         return Err(0);
     }
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
 

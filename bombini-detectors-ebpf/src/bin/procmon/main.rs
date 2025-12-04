@@ -16,20 +16,20 @@ use aya_ebpf::{
     programs::{BtfTracePointContext, LsmContext},
 };
 
-use bombini_detectors_ebpf::vmlinux::{
-    cgroup, cred, css_set, file, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path, pid_t,
-    qstr, task_struct,
+use bombini_common::{
+    config::procmon::{Config, CredFilterMask},
+    constants::{
+        MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
+    },
+    event::{
+        Event, GenericEvent, MSG_PROCESS, MSG_PROCEXEC, MSG_PROCEXIT,
+        process::{
+            Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
+            PR_SET_NAME, PR_SET_SECUREBITS, PrctlCmd, ProcInfo, ProcessEventVariant, PtraceMode,
+            SecureExec,
+        },
+    },
 };
-
-use bombini_common::config::procmon::{Config, CredFilterMask};
-use bombini_common::constants::{
-    MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
-};
-use bombini_common::event::process::{
-    Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PR_SET_DUMPABLE, PR_SET_KEEPCAPS, PR_SET_NAME,
-    PR_SET_SECUREBITS, PrctlCmd, ProcInfo, ProcessMsg, PtraceMode, SecureExec,
-};
-use bombini_common::event::{Event, GenericEvent, MSG_PROCESS, MSG_PROCEXEC, MSG_PROCEXIT};
 
 use bombini_detectors_ebpf::{
     event_capture,
@@ -39,6 +39,10 @@ use bombini_detectors_ebpf::{
         process::ProcessFilter,
     },
     util,
+    vmlinux::{
+        cgroup, cred, css_set, file, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path,
+        pid_t, qstr, task_struct,
+    },
 };
 
 /// Extra info from bprm_committing_creds hook
@@ -282,9 +286,9 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
         return Err(0);
     }
 
-    // Mark exited for garbage collecor
+    // Mark exited for garbage collector
     proc.exited = true;
-    util::copy_proc(proc, event);
+    util::process_key_init(event, proc);
     Ok(0)
 }
 
@@ -515,7 +519,7 @@ pub fn setuid_capture(ctx: LsmContext) -> i32 {
 }
 
 fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
-    let Event::Process(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -531,14 +535,18 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         return Err(0);
     };
 
+    if proc.start == 0 {
+        return Err(0);
+    }
+
     filter_by_process(config, proc)?;
 
     unsafe {
-        let p = event as *mut ProcessMsg as *mut u8;
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
         // Setuid
         *p = 0;
     }
-    let ProcessMsg::Setuid(event) = event else {
+    let ProcessEventVariant::Setuid(ref mut event) = msg.event else {
         return Err(0);
     };
 
@@ -553,7 +561,7 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     if !config.cred_mask[0].is_empty() && !filter.filter(config.cred_mask[0], event.euid) {
         return Err(0);
     }
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 #[map]
@@ -565,7 +573,7 @@ pub fn capset_capture(ctx: LsmContext) -> i32 {
 }
 
 fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
-    let Event::Process(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -581,14 +589,18 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         return Err(0);
     };
 
+    if proc.start == 0 {
+        return Err(0);
+    }
+
     filter_by_process(config, proc)?;
 
     unsafe {
-        let p = event as *mut ProcessMsg as *mut u8;
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
         // Setcaps
         *p = 1;
     }
-    let ProcessMsg::Setcaps(event) = event else {
+    let ProcessEventVariant::Setcaps(ref mut event) = msg.event else {
         return Err(0);
     };
 
@@ -605,7 +617,7 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     if !config.cred_mask[1].is_empty() && !filter.filter(config.cred_mask[1], &event.effective) {
         return Err(0);
     }
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -615,7 +627,7 @@ pub fn task_prctl_capture(ctx: LsmContext) -> i32 {
 }
 
 fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
-    let Event::Process(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -631,14 +643,18 @@ fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
         return Err(0);
     };
 
+    if proc.start == 0 {
+        return Err(0);
+    }
+
     filter_by_process(config, proc)?;
 
     unsafe {
-        let p = event as *mut ProcessMsg as *mut u8;
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
         // Prctl
         *p = 2;
     }
-    let ProcessMsg::Prctl(event) = event else {
+    let ProcessEventVariant::Prctl(ref mut event) = msg.event else {
         return Err(0);
     };
 
@@ -657,7 +673,7 @@ fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             _ => event.cmd = PrctlCmd::Opcode(cmd),
         }
     }
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -676,7 +692,7 @@ fn try_create_user_ns_capture(
     ctx: LsmContext,
     generic_event: &mut GenericEvent,
 ) -> Result<i32, i32> {
-    let Event::Process(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -692,14 +708,18 @@ fn try_create_user_ns_capture(
         return Err(0);
     };
 
+    if proc.start == 0 {
+        return Err(0);
+    }
+
     filter_by_process(config, proc)?;
 
     unsafe {
-        let p = event as *mut ProcessMsg as *mut u8;
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
         // CreateUserNs
         *p = 3;
     }
-    let ProcessMsg::CreateUserNs(event) = event else {
+    let ProcessEventVariant::CreateUserNs = msg.event else {
         return Err(0);
     };
 
@@ -721,7 +741,7 @@ fn try_create_user_ns_capture(
             return Err(0);
         }
     }
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -734,7 +754,7 @@ fn try_ptrace_access_check_capture(
     ctx: LsmContext,
     generic_event: &mut GenericEvent,
 ) -> Result<i32, i32> {
-    let Event::Process(ref mut event) = generic_event.event else {
+    let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
@@ -750,14 +770,18 @@ fn try_ptrace_access_check_capture(
         return Err(0);
     };
 
+    if proc.start == 0 {
+        return Err(0);
+    }
+
     filter_by_process(config, proc)?;
 
     unsafe {
-        let p = event as *mut ProcessMsg as *mut u8;
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
         // PtraceAccessCheck
         *p = 4;
     }
-    let ProcessMsg::PtraceAccessCheck(event) = event else {
+    let ProcessEventVariant::PtraceAccessCheck(ref mut event) = msg.event else {
         return Err(0);
     };
 
@@ -771,7 +795,7 @@ fn try_ptrace_access_check_capture(
     let Some(proc_child) = proc_child else {
         return Err(0);
     };
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut msg.process, proc);
     util::copy_proc(proc_child, &mut event.child);
     Ok(0)
 }

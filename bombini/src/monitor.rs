@@ -2,57 +2,45 @@
 
 use aya::maps::{Map, RingBuf};
 
-use tokio::io::unix::AsyncFd;
-use tokio::sync::mpsc;
+use tokio::{
+    io::unix::AsyncFd,
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 
 use bytes::Bytes;
 
 use std::convert::TryFrom;
-use std::path::Path;
 
 use bombini_common::event::GenericEvent;
 
+use crate::config::Config;
 use crate::transmitter::Transmitter;
 use crate::transmuter::TransmuterRegistry;
 
-pub struct Monitor<'a> {
-    pin_path: &'a Path,
-    /// Size of raw event channel
-    event_chanel_size: usize,
-}
+pub struct Monitor;
 
-impl<'a> Monitor<'a> {
-    /// Construct `Monitor`.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - pin path to event ring buffer
-    ///
-    /// * `channel_size` - size of raw event channel
-    pub fn new<P: Into<&'a Path>>(path: P, chanel_sz: usize) -> Self {
-        Monitor {
-            pin_path: path.into(),
-            event_chanel_size: chanel_sz,
-        }
-    }
-
+impl Monitor {
     /// Start monitoring the events.
     ///
     /// # Arguments
     ///
-    /// `transmitter` - interface for sending events
+    /// * `config` - Bombini Config
     ///
-    /// `transmuters` - registry for transmuting ebpf events
+    /// * `transmitter` - interface for sending events
     pub async fn monitor<T: Transmitter + Send + 'static>(
         &self,
+        config: &Config,
         mut transmitter: T,
-        transmuters: TransmuterRegistry,
     ) {
-        let (tx, mut rx) = mpsc::channel::<Bytes>(self.event_chanel_size);
+        let (tx, mut rx) = mpsc::channel::<Bytes>(config.options.event_channel_size.unwrap());
         let ring_buf = RingBuf::try_from(Map::RingBuf(
-            aya::maps::MapData::from_pin(self.pin_path).unwrap(),
+            aya::maps::MapData::from_pin(config.options.event_pin_path()).unwrap(),
         ))
         .unwrap();
+        let mut last_gc = Instant::now();
+        let gc_period: Duration = Duration::from_secs(config.options.gc_period.unwrap());
+        let mut transmuters = TransmuterRegistry::new(config);
 
         tokio::spawn(async move {
             let mut poll = AsyncFd::new(ring_buf).unwrap();
@@ -68,8 +56,16 @@ impl<'a> Monitor<'a> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
-                if let Ok(data) = transmuters.transmute(event).await {
+                let transmuted = transmuters.transmute(event).await;
+                if let Ok(data) = transmuted {
                     let _ = transmitter.transmit(data).await;
+                } else {
+                    log::debug!("{}", transmuted.err().unwrap());
+                }
+
+                if last_gc.elapsed() >= gc_period {
+                    transmuters.retain_caches();
+                    last_gc = Instant::now();
                 }
             }
         });

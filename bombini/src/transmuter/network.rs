@@ -2,17 +2,17 @@
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use std::sync::Arc;
 
 use bombini_common::event::{
     Event,
-    network::{NetworkMsg, TcpConnectionV4, TcpConnectionV6},
+    network::{NetworkEventVariant, TcpConnectionV4, TcpConnectionV6},
 };
 use serde::Serialize;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-use super::process::Process;
-use super::{Transmuter, transmute_ktime};
+use super::{Transmuter, cache::process::ProcessCache, process::Process, transmute_ktime};
 
 /// Network event
 #[derive(Clone, Debug, Serialize)]
@@ -20,7 +20,7 @@ use super::{Transmuter, transmute_ktime};
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NetworkEvent {
     /// Process information
-    process: Process,
+    process: Arc<Process>,
     /// Network event
     network_event: NetworkEventType,
     /// Event's date and time
@@ -60,52 +60,52 @@ pub struct TcpConnection {
 
 impl NetworkEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: &NetworkMsg, ktime: u64) -> Self {
+    pub fn new(process: Arc<Process>, event: &NetworkEventVariant, ktime: u64) -> Self {
         match event {
-            NetworkMsg::TcpConV4Establish(con) => {
+            NetworkEventVariant::TcpConV4Establish(con) => {
                 let con_event = transmute_connection_v4(con);
                 Self {
-                    process: Process::new(&con.process),
+                    process,
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            NetworkMsg::TcpConV6Establish(con) => {
+            NetworkEventVariant::TcpConV6Establish(con) => {
                 let con_event = transmute_connection_v6(con);
                 Self {
-                    process: Process::new(&con.process),
+                    process,
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            NetworkMsg::TcpConV4Close(con) => {
+            NetworkEventVariant::TcpConV4Close(con) => {
                 let con_event = transmute_connection_v4(con);
                 Self {
-                    process: Process::new(&con.process),
+                    process,
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            NetworkMsg::TcpConV6Close(con) => {
+            NetworkEventVariant::TcpConV6Close(con) => {
                 let con_event = transmute_connection_v6(con);
                 Self {
-                    process: Process::new(&con.process),
+                    process,
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            NetworkMsg::TcpConV4Accept(con) => {
+            NetworkEventVariant::TcpConV4Accept(con) => {
                 let con_event = transmute_connection_v4(con);
                 Self {
-                    process: Process::new(&con.process),
+                    process,
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            NetworkMsg::TcpConV6Accept(con) => {
+            NetworkEventVariant::TcpConV6Accept(con) => {
                 let con_event = transmute_connection_v6(con);
                 Self {
-                    process: Process::new(&con.process),
+                    process,
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -140,10 +140,24 @@ pub struct NetworkEventTransmuter;
 
 #[async_trait]
 impl Transmuter for NetworkEventTransmuter {
-    async fn transmute(&self, event: &Event, ktime: u64) -> Result<Vec<u8>, anyhow::Error> {
-        if let Event::Network(event) = event {
-            let high_level_event = NetworkEvent::new(event, ktime);
-            Ok(serde_json::to_vec(&high_level_event)?)
+    async fn transmute(
+        &self,
+        event: &Event,
+        ktime: u64,
+        process_cache: &mut ProcessCache,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::Network(msg) = event {
+            if let Some(cached_process) = process_cache.get_mut(&msg.process) {
+                let high_level_event =
+                    NetworkEvent::new(cached_process.process.clone(), &msg.event, ktime);
+                Ok(serde_json::to_vec(&high_level_event)?)
+            } else {
+                Err(anyhow!(
+                    "NetworkEvent: No process (pid: {}, start: {}) found in cache",
+                    msg.process.pid,
+                    transmute_ktime(msg.process.start)
+                ))
+            }
         } else {
             Err(anyhow!("Unexpected event variant"))
         }

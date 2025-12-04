@@ -11,6 +11,16 @@ use crate::constants::{
     DOCKER_ID_LENGTH, MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
 };
 
+/// Process cache key
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+#[repr(C)]
+pub struct ProcessKey {
+    /// PID
+    pub pid: u32,
+    /// exec or clone time in nanos
+    pub start: u64,
+}
+
 /// Process information
 #[derive(Clone, Debug, Copy)]
 #[repr(C)]
@@ -195,7 +205,6 @@ bitflags! {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct ProcSetUid {
-    pub process: ProcInfo,
     pub euid: u32,
     pub uid: u32,
     pub fsuid: u32,
@@ -206,7 +215,6 @@ pub struct ProcSetUid {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct ProcCapset {
-    pub process: ProcInfo,
     pub effective: Capabilities,
     pub inheritable: Capabilities,
     pub permitted: Capabilities,
@@ -352,22 +360,13 @@ pub const PR_SET_SECUREBITS: u8 = 28;
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct ProcPrctl {
-    pub process: ProcInfo,
     pub cmd: PrctlCmd,
-}
-
-/// create_user_ns info
-#[derive(Clone, Debug)]
-#[repr(C)]
-pub struct ProcCreateUserNs {
-    pub process: ProcInfo,
 }
 
 /// ptrace_attach info
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct ProcPtraceAccessCheck {
-    pub process: ProcInfo,
     pub child: ProcInfo,
     pub mode: PtraceMode,
 }
@@ -385,11 +384,19 @@ bitflags! {
     }
 }
 
+/// Process event message with process info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcessMsg {
+    pub process: ProcessKey,
+    pub event: ProcessEventVariant,
+}
+
 /// Raw Process event messages
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 #[repr(u8)]
-pub enum ProcessMsg {
+pub enum ProcessEventVariant {
     /// Set uid/euid for process
     Setuid(ProcSetUid) = 0,
     /// Set capabilities for process
@@ -397,7 +404,7 @@ pub enum ProcessMsg {
     /// Prctl cmd for process
     Prctl(ProcPrctl) = 2,
     /// Create user namespace
-    CreateUserNs(ProcCreateUserNs) = 3,
+    CreateUserNs = 3,
     /// Ptrace access check
     PtraceAccessCheck(ProcPtraceAccessCheck) = 4,
 }
