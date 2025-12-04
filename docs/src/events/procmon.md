@@ -95,24 +95,24 @@ ProcessExit event represents an exited process.
 ```json
 {
   "process": {
-    "args": "--follow-symlinks s/// /dev/null",
+    "args": "-O /tmp/events.log",
     "auid": 1000,
-    "binary_path": "/usr/bin/tmux",
+    "binary_path": "/usr/bin/vim.basic",
     "cap_effective": "",
     "cap_inheritable": "",
     "cap_permitted": "",
     "egid": 1000,
     "euid": 1000,
-    "filename": "sed",
+    "filename": "vim.basic",
     "gid": 1000,
-    "pid": 2274635,
-    "ppid": 2274634,
+    "pid": 2108143,
+    "ppid": 72885,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274635,
+    "start_time": "2025-12-03T21:18:31.469Z",
+    "tid": 2108143,
     "uid": 1000
   },
-  "timestamp": "2025-11-23T13:47:43.769Z",
+  "timestamp": "2025-12-03T21:55:35.272Z",
   "type": "ProcessExit"
 }
 ```
@@ -136,11 +136,11 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "euid": 0,
     "filename": "sudo",
     "gid": 0,
-    "pid": 2274927,
-    "ppid": 2273865,
+    "pid": 2159291,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274927,
+    "start_time": "2025-12-03T21:56:12.517Z",
+    "tid": 2159291,
     "uid": 0
   },
   "process_event": {
@@ -150,7 +150,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "type": "Setuid",
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:47:56.435Z",
+  "timestamp": "2025-12-03T21:56:12.523Z",
   "type": "ProcessEvent"
 }
 ```
@@ -170,11 +170,11 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "euid": 0,
     "filename": "capsh",
     "gid": 0,
-    "pid": 2274860,
-    "ppid": 2274859,
+    "pid": 2159214,
+    "ppid": 2159213,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274860,
+    "start_time": "2025-12-03T21:56:09.614Z",
+    "tid": 2159214,
     "uid": 0
   },
   "process_event": {
@@ -183,7 +183,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
     "type": "Setcaps"
   },
-  "timestamp": "2025-11-23T13:47:53.639Z",
+  "timestamp": "2025-12-03T21:56:09.614Z",
   "type": "ProcessEvent"
 }
 ```
@@ -203,11 +203,11 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "euid": 0,
     "filename": "capsh",
     "gid": 0,
-    "pid": 2274793,
-    "ppid": 2273865,
+    "pid": 2159154,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274793,
+    "start_time": "2025-12-03T21:56:06.697Z",
+    "tid": 2159154,
     "uid": 0
   },
   "process_event": {
@@ -216,7 +216,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     },
     "type": "Prctl"
   },
-  "timestamp": "2025-11-23T13:47:50.743Z",
+  "timestamp": "2025-12-03T21:56:06.698Z",
   "type": "ProcessEvent"
 }
 ```
@@ -236,17 +236,17 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "euid": 0,
     "filename": "unshare",
     "gid": 0,
-    "pid": 2274557,
-    "ppid": 2273865,
+    "pid": 2158895,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274557,
+    "start_time": "2025-12-03T21:55:56.452Z",
+    "tid": 2158895,
     "uid": 0
   },
   "process_event": {
     "type": "CreateUserNs"
   },
-  "timestamp": "2025-11-23T13:47:40.589Z",
+  "timestamp": "2025-12-03T21:55:56.453Z",
   "type": "ProcessEvent"
 }
 ```
@@ -257,10 +257,10 @@ ProcessEvents represent a collection of events somehow related to privilege esca
 {
   "type": "ProcessEvent",
   "process": {
-    "start_time": "2025-10-27T06:37:34.713Z",
-    "pid": 4130822,
-    "tid": 4130822,
-    "ppid": 3715631,
+    "start_time": "2025-12-04T07:23:05.745Z",
+    "pid": 2222425,
+    "tid": 2222425,
+    "ppid": 72885,
     "uid": 1000,
     "euid": 1000,
     "gid": 1000,
@@ -272,15 +272,15 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "secureexec": "",
     "filename": "gdb",
     "binary_path": "/usr/bin/gdb",
-    "args": "attach -p 4130361"
+    "args": "attach -p 2222028"
   },
   "process_event": {
     "type": "PtraceAccessCheck",
     "child": {
-      "start_time": "2025-10-27T06:37:34.713Z",
-      "pid": 4130361,
-      "tid": 4130361,
-      "ppid": 4130287,
+      "start_time": "2025-12-04T07:22:42.118Z",
+      "pid": 2222028,
+      "tid": 2222028,
+      "ppid": 72751,
       "uid": 1000,
       "euid": 1000,
       "gid": 1000,
@@ -292,10 +292,10 @@ ProcessEvents represent a collection of events somehow related to privilege esca
       "secureexec": "",
       "filename": "vim.basic",
       "binary_path": "/usr/bin/vim.basic",
-      "args": ""
+      "args": "./evets.log"
     },
-    "mode": "PTRACE_MODE_ATTACH | PTRACE_MODE_FSCRED"
+    "mode": "PTRACE_MODE_ATTACH | PTRACE_MODE_REALCREDS"
   },
-  "timestamp": "2025-11-02T15:00:01.211Z"
+  "timestamp": "2025-12-04T07:23:05.883Z"
 }
 ```

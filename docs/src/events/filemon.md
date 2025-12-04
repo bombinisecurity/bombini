@@ -9,28 +9,28 @@ Event is triggered when file is truncated by `truncate` syscall.
 ```json
 {
   "hook": {
-    "path": "/tmp/bombini-test-Umxig",
+    "path": "/tmp/bombini-test-FdtIU",
     "type": "PathTruncate"
   },
   "process": {
     "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
     "auid": 1000,
-    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-ce492bbece96232d",
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-2ee26f9bff971ccf",
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
     "egid": 0,
     "euid": 0,
-    "filename": "tests-ce492bbece96232d",
+    "filename": "tests-2ee26f9bff971ccf",
     "gid": 0,
-    "pid": 2273865,
-    "ppid": 2273546,
+    "pid": 2158108,
+    "ppid": 2157792,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2273865,
+    "start_time": "2025-12-03T21:55:28.289Z",
+    "tid": 2158108,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:48:05.016Z",
+  "timestamp": "2025-12-03T21:56:21.175Z",
   "type": "FileEvent"
 }
 ```
@@ -42,11 +42,11 @@ Event is triggered when file is deleted.
 ```json
 {
   "hook": {
-    "path": "/tmp/bombini-test-4XQVT",
+    "path": "/tmp/bombini-test-QPrRF",
     "type": "PathUnlink"
   },
   "process": {
-    "args": "/tmp/bombini-test-4XQVT",
+    "args": "/tmp/bombini-test-QPrRF",
     "auid": 1000,
     "binary_path": "/usr/bin/rm",
     "cap_effective": "ALL_CAPS",
@@ -56,14 +56,14 @@ Event is triggered when file is deleted.
     "euid": 0,
     "filename": "rm",
     "gid": 0,
-    "pid": 2275200,
-    "ppid": 2273865,
+    "pid": 2159543,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2275200,
+    "start_time": "2025-12-03T21:56:24.047Z",
+    "tid": 2159543,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:48:07.929Z",
+  "timestamp": "2025-12-03T21:56:24.048Z",
   "type": "FileEvent"
 }
 ```
@@ -92,14 +92,14 @@ Event is triggered when file is deleted.
     "euid": 0,
     "filename": "ls",
     "gid": 0,
-    "pid": 2274126,
-    "ppid": 2273865,
+    "pid": 2158523,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274126,
+    "start_time": "2025-12-03T21:55:43.272Z",
+    "tid": 2158523,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:47:23.204Z",
+  "timestamp": "2025-12-03T21:55:43.275Z",
   "type": "FileEvent"
 }
 ```
@@ -110,11 +110,11 @@ Event is triggered when file is deleted.
 {
   "hook": {
     "i_mode": "?rw-r--r--",
-    "path": "/tmp/bombini-test-B3eQr/config/filemon.yaml",
+    "path": "/tmp/bombini-test-3LDzT/config/filemon.yaml",
     "type": "PathChmod"
   },
   "process": {
-    "args": "+w /tmp/bombini-test-B3eQr/config/filemon.yaml",
+    "args": "+w /tmp/bombini-test-3LDzT/config/filemon.yaml",
     "auid": 1000,
     "binary_path": "/usr/bin/chmod",
     "cap_effective": "ALL_CAPS",
@@ -124,14 +124,14 @@ Event is triggered when file is deleted.
     "euid": 0,
     "filename": "chmod",
     "gid": 0,
-    "pid": 2274989,
-    "ppid": 2273865,
+    "pid": 2159362,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274989,
+    "start_time": "2025-12-03T21:56:15.410Z",
+    "tid": 2159362,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:47:59.327Z",
+  "timestamp": "2025-12-03T21:56:15.411Z",
   "type": "FileEvent"
 }
 ```
@@ -142,12 +142,12 @@ Event is triggered when file is deleted.
 {
   "hook": {
     "gid": 0,
-    "path": "/tmp/bombini-test-iAcJI/config/filemon.yaml",
+    "path": "/tmp/bombini-test-Q1Owh/config/filemon.yaml",
     "type": "PathChown",
     "uid": 0
   },
   "process": {
-    "args": "0:0 /tmp/bombini-test-iAcJI/config/filemon.yaml",
+    "args": "0:0 /tmp/bombini-test-Q1Owh/config/filemon.yaml",
     "auid": 1000,
     "binary_path": "/usr/bin/chown",
     "cap_effective": "ALL_CAPS",
@@ -157,14 +157,14 @@ Event is triggered when file is deleted.
     "euid": 0,
     "filename": "chown",
     "gid": 0,
-    "pid": 2275059,
-    "ppid": 2273865,
+    "pid": 2159421,
+    "ppid": 2158108,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2275059,
+    "start_time": "2025-12-03T21:56:18.293Z",
+    "tid": 2159421,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:48:02.134Z",
+  "timestamp": "2025-12-03T21:56:18.295Z",
   "type": "FileEvent"
 }
 ```
@@ -211,29 +211,29 @@ Event is triggered when block device is mounted.
 {
   "hook": {
     "flags": "MAP_SHARED | MAP_PRIVATE",
-    "path": "",
+    "path": "/tmp/bombini-test-EZSO2/config/filemon.yaml",
     "prot": "PROT_READ | PROT_WRITE",
     "type": "MmapFile"
   },
   "process": {
-    "args": "/tmp/bombini-test-DPeG9/config/filemon.yaml",
+    "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
     "auid": 1000,
-    "binary_path": "/usr/bin/tail",
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-2ee26f9bff971ccf",
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
     "egid": 0,
     "euid": 0,
-    "filename": "tail",
+    "filename": "tests-2ee26f9bff971ccf",
     "gid": 0,
-    "pid": 2274218,
-    "ppid": 2273865,
+    "pid": 2158108,
+    "ppid": 2157792,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2274218,
+    "start_time": "2025-12-03T21:55:28.289Z",
+    "tid": 2158108,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:47:25.915Z",
+  "timestamp": "2025-12-03T21:55:38.884Z",
   "type": "FileEvent"
 }
 ```
@@ -259,14 +259,14 @@ Event is triggered when block device is mounted.
     "euid": 1000,
     "filename": "pipewire",
     "gid": 1000,
-    "pid": 2292,
-    "ppid": 2269,
+    "pid": 2238,
+    "ppid": 2219,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2292,
+    "start_time": "2025-11-26T14:28:30.379Z",
+    "tid": 2238,
     "uid": 1000
   },
-  "timestamp": "2025-11-23T13:47:18.989Z",
+  "timestamp": "2025-12-03T21:55:34.500Z",
   "type": "FileEvent"
 }
 ```

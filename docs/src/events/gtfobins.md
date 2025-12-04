@@ -15,14 +15,14 @@ GTFOBins event represents a process information about GTFO binary that tries to 
     "euid": 0,
     "filename": "xargs",
     "gid": 0,
-    "pid": 2275262,
-    "ppid": 2275261,
+    "pid": 2159624,
+    "ppid": 2159623,
     "secureexec": "",
-    "start_time": "2025-11-21T21:32:13.849Z",
-    "tid": 2275262,
+    "start_time": "2025-12-03T21:56:26.328Z",
+    "tid": 2159624,
     "uid": 0
   },
-  "timestamp": "2025-11-23T13:48:10.223Z",
+  "timestamp": "2025-12-03T21:56:26.329Z",
   "type": "GTFOBinsEvent"
 }
 ```
