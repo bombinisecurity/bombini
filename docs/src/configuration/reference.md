@@ -224,7 +224,6 @@ Configuration file for ProcMon detector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| expose_events | [bool](#bool) |  | Flag for exporting ProcessExec and ProcessExit events from kernel to user mode. |
 | setuid | [ProcHookConfig](#config-ProcHookConfig) |  | setuid hook config. |
 | capset | [ProcHookConfig](#config-ProcHookConfig) |  | capset hook config. |
 | prctl | [ProcHookConfig](#config-ProcHookConfig) |  | prctl hook config. |
@@ -232,6 +231,7 @@ Configuration file for ProcMon detector
 | ptrace_access_check | [ProcHookConfig](#config-ProcHookConfig) |  | ptrace_attach hook config. |
 | process_filter | [ProcessFilter](#config-ProcessFilter) |  | Process Filter Configuration. |
 | ima_hash | [bool](#bool) | optional | Collect IMA hashes for executed binaries. |
+| gc_period | [uint64](#uint64) | optional | GC period for PROCMON_PROC_MAP default 30 sec. |
 
 
 

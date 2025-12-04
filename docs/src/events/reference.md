@@ -4,8 +4,7 @@ JSON schema for all events.
 
 ## FileMon
 
- ```json
-
+```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "FileEvent",
@@ -426,8 +425,7 @@ JSON schema for all events.
 
 ## GTFOBins
 
- ```json
-
+```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "GTFOBinsEvent",
@@ -569,8 +567,7 @@ JSON schema for all events.
 
 ## IOUringMon
 
- ```json
-
+```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "IOUringEvent",
@@ -788,8 +785,7 @@ JSON schema for all events.
 
 ## NetMon
 
- ```json
-
+```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "NetworkEvent",
@@ -1020,8 +1016,7 @@ JSON schema for all events.
 
 ## ProcMon
 
- ```json
-
+```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ProcessExec",
