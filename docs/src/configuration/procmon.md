@@ -10,33 +10,6 @@ detector needs ProcMon that monitors process execs and exits. So, this detector 
 
 ## Config Description
 
-ProcMon supports [process filtering](filtering.md/#process-filter).
-
-Config example:
-
-```yaml
-expose_events: true
-process_filter:
-  deny_list: false
-  uid:
-    - 0
-  euid:
-    - 0
-  auid:
-    - 1000
-  binary:
-    name:
-      - tail
-      - curl
-    prefix:
-      - /usr/local/bin/
-    path:
-      - /usr/bin/uname
-```
-
-`expose_events` sends events to user-mode. False by default.
-If you want to send events you should set expose_events to true with filters or without.
-
 It is possible to enable IMA hashes of executed binary in process information.
 To enable put this to config (false by default):
 
@@ -88,8 +61,46 @@ ptrace_access_check:
   enabled: true
 ```
 
+ProcMon supports [process filtering](filtering.md/#process-filter).
+
 [Cred filter](filtering.md/#cred--filter) can be applied to these hooks:
 
 * security_task_fix_setuid
 * security_capset
 * security_create_user_ns
+
+Config example:
+
+```yaml
+setuid:
+  enabled: true
+  cred_filter:
+    uid_filter:
+      euid:
+      - 0
+capset:
+  enabled: true
+  cred_filter:
+    cap_filter:
+      effective:
+      - "ANY"
+create_user_ns:
+  enabled: true
+  cred_filter:
+    cap_filter:
+      effective:
+      - "CAP_SYS_ADMIN"
+      deny_list: true
+
+process_filter:
+  uid:
+    - 0
+  euid:
+    - 0
+  auid:
+    - 1000
+  binary:
+    prefix:
+      - /usr/bin/
+      - /usr/sbin/
+```
