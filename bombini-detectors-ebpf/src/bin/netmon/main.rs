@@ -19,14 +19,14 @@ use bombini_detectors_ebpf::{
     vmlinux::sock,
 };
 
-use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
+use bombini_common::config::network::{Config, IpFilterMask};
 use bombini_common::event::{
     Event, GenericEvent, MSG_NETWORK, network::TcpConnectionV4, network::TcpConnectionV6,
     process::ProcInfo,
 };
 use bombini_common::{
-    config::network::{Config, IpFilterMask},
-    event::network::NetworkMsg,
+    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
+    event::network::NetworkEventVariant,
 };
 
 use bombini_detectors_ebpf::{
@@ -132,7 +132,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(ref mut event) = generic_event.event else {
+    let Event::Network(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();
@@ -140,6 +140,10 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    if proc.start == 0 {
+        return Err(0);
+    }
 
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
@@ -165,12 +169,12 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(0);
     }
     unsafe {
-        let p = event as *mut NetworkMsg as *mut u8;
+        let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
         // TcpConV4Established
         *p = 0;
     }
 
-    let NetworkMsg::TcpConV4Establish(event) = event else {
+    let NetworkEventVariant::TcpConV4Establish(ref mut event) = msg.event else {
         return Err(0);
     };
 
@@ -199,7 +203,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
     }
 
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut msg.process, proc);
     let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
     Ok(0)
 }
@@ -223,7 +227,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(ref mut event) = generic_event.event else {
+    let Event::Network(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();
@@ -231,6 +235,10 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    if proc.start == 0 {
+        return Err(0);
+    }
 
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
@@ -257,12 +265,12 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     }
 
     unsafe {
-        let p = event as *mut NetworkMsg as *mut u8;
+        let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
         // TcpConV6Established
         *p = 1;
     }
 
-    let NetworkMsg::TcpConV6Establish(event) = event else {
+    let NetworkEventVariant::TcpConV6Establish(ref mut event) = msg.event else {
         return Err(0);
     };
 
@@ -290,7 +298,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
     }
 
-    util::copy_proc(proc, &mut event.process);
+    util::process_key_init(&mut msg.process, proc);
     let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
     Ok(0)
 }
@@ -308,7 +316,7 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(ref mut event) = generic_event.event else {
+    let Event::Network(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();
@@ -346,10 +354,10 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
         let family = (*s).__sk_common.skc_family;
         match family {
             AF_INET => {
-                let p = event as *mut NetworkMsg as *mut u8;
+                let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
                 // TcpConV4Closed
                 *p = 2;
-                let NetworkMsg::TcpConV4Close(event) = event else {
+                let NetworkEventVariant::TcpConV4Close(ref mut event) = msg.event else {
                     return Err(0);
                 };
                 parse_v4_sock(event, s);
@@ -378,15 +386,15 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     }
                 }
 
-                util::copy_proc(proc, &mut event.process);
+                util::process_key_init(&mut msg.process, proc);
                 let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 Ok(0)
             }
             AF_INET6 => {
-                let p = event as *mut NetworkMsg as *mut u8;
+                let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
                 // TcpConV6Closed
                 *p = 3;
-                let NetworkMsg::TcpConV6Close(event) = event else {
+                let NetworkEventVariant::TcpConV6Close(ref mut event) = msg.event else {
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
@@ -414,7 +422,7 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     }
                 }
 
-                util::copy_proc(proc, &mut event.process);
+                util::process_key_init(&mut msg.process, proc);
                 let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 Ok(0)
             }
@@ -448,7 +456,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::Network(ref mut event) = generic_event.event else {
+    let Event::Network(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = ctx.pid();
@@ -456,6 +464,10 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
     let Some(proc) = proc else {
         return Err(0);
     };
+
+    if proc.start == 0 {
+        return Err(0);
+    }
 
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
@@ -486,10 +498,10 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
         let family = (*s).__sk_common.skc_family;
         match family {
             AF_INET => {
-                let p = event as *mut NetworkMsg as *mut u8;
+                let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
                 // TcpConV6Accepted
                 *p = 4;
-                let NetworkMsg::TcpConV4Accept(event) = event else {
+                let NetworkEventVariant::TcpConV4Accept(ref mut event) = msg.event else {
                     return Err(0);
                 };
                 parse_v4_sock(event, s);
@@ -515,15 +527,15 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     }
                 }
 
-                util::copy_proc(proc, &mut event.process);
+                util::process_key_init(&mut msg.process, proc);
                 let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
                 Ok(0)
             }
             AF_INET6 => {
-                let p = event as *mut NetworkMsg as *mut u8;
+                let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
                 // TcpConV6Accepted
                 *p = 5;
-                let NetworkMsg::TcpConV6Accept(event) = event else {
+                let NetworkEventVariant::TcpConV6Accept(ref mut event) = msg.event else {
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
@@ -547,7 +559,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     }
                 }
 
-                util::copy_proc(proc, &mut event.process);
+                util::process_key_init(&mut msg.process, proc);
                 let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
                 Ok(0)
             }

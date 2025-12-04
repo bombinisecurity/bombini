@@ -4,7 +4,7 @@
 use serde::Serialize;
 
 use crate::constants::MAX_FILE_PATH;
-use crate::event::process::ProcInfo;
+use crate::event::process::ProcessKey;
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -83,7 +83,7 @@ pub enum IOUringOp {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct IOUringMsg {
-    pub process: ProcInfo,
+    pub process: ProcessKey,
     pub opcode: IOUringOp,
     pub flags: u64,
     /// path used in file operations
