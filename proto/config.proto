@@ -4,24 +4,22 @@ package config;
 
 // Configuration file for ProcMon detector
 message ProcMonConfig {
-    // Flag for exporting  ProcessExec and ProcessExit events from kernel to user mode.
-    bool expose_events = 1;
     // setuid hook config.
-    ProcHookConfig setuid = 2;
+    ProcHookConfig setuid = 1;
     // capset hook config.
-    ProcHookConfig capset = 3;
+    ProcHookConfig capset = 2;
     // prctl hook config.
-    ProcHookConfig prctl = 4;
+    ProcHookConfig prctl = 3;
     // create_user_ns hook config.
-    ProcHookConfig create_user_ns = 5;
+    ProcHookConfig create_user_ns = 4;
     // ptrace_attach hook config.
-    ProcHookConfig ptrace_access_check = 6;
+    ProcHookConfig ptrace_access_check = 5;
     // Process Filter Configuration.
-    ProcessFilter process_filter = 7;
+    ProcessFilter process_filter = 6;
     // Collect IMA hashes for executed binaries.
-    optional bool ima_hash = 8;
+    optional bool ima_hash = 7;
     // GC period for PROCMON_PROC_MAP default 30 sec.
-    optional uint64 gc_period = 9;
+    optional uint64 gc_period = 8;
 }
 
 // ProcMon hook configuration

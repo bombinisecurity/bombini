@@ -13,12 +13,11 @@ mod transmuter;
 
 use config::Config;
 use monitor::Monitor;
-use options::{Options, TransmitterOpts};
+use options::Options;
 use registry::Registry;
 use transmitter::file::FileTransmitter;
 use transmitter::stdout::StdoutTransmitter;
 use transmitter::unix_sock::USockTransmitter;
-use transmuter::TransmuterRegistry;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -48,14 +47,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut registry = Registry::new();
     registry.load_detectors(&config).await?;
-    let transmuter_registry = TransmuterRegistry::new(&config);
-
-    let event_pin_path = config.options.event_pin_path();
-    let monitor = Monitor::new(
-        event_pin_path.as_path(),
-        config.options.event_channel_size.unwrap(),
-    );
-    start_monitor(&config.options.transmit_opts, &monitor, transmuter_registry).await?;
+    let monitor = Monitor;
+    start_monitor(&config, &monitor).await?;
 
     tokio::select! {
         _ = sigint.recv() => {
@@ -69,24 +62,20 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn start_monitor(
-    options: &TransmitterOpts,
-    monitor: &Monitor<'_>,
-    transmuters: TransmuterRegistry,
-) -> Result<(), anyhow::Error> {
-    if let Some(file) = &options.event_log {
+async fn start_monitor(config: &Config, monitor: &Monitor) -> Result<(), anyhow::Error> {
+    if let Some(file) = &config.options.transmit_opts.event_log {
         monitor
-            .monitor(FileTransmitter::new(file).await?, transmuters)
+            .monitor(config, FileTransmitter::new(file).await?)
             .await;
         Ok(())
-    } else if let Some(file) = &options.event_socket {
+    } else if let Some(file) = &config.options.transmit_opts.event_socket {
         monitor
-            .monitor(USockTransmitter::new(file).await?, transmuters)
+            .monitor(config, USockTransmitter::new(file).await?)
             .await;
         Ok(())
     } else {
         // default: send events to stdout
-        monitor.monitor(StdoutTransmitter, transmuters).await;
+        monitor.monitor(config, StdoutTransmitter).await;
         Ok(())
     }
 }

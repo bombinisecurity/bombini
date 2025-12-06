@@ -45,6 +45,10 @@ pub struct Options {
     #[arg(short = 'D', long = "detector", value_name = "NAME")]
     pub detectors: Option<Vec<String>>,
 
+    /// GC period for user mode caches in seconds.
+    #[arg(long, value_name = "SEC")]
+    pub gc_period: Option<u64>,
+
     /// YAML config dir with global config and detector configs
     #[arg(long, value_name = "DIR", default_value_t = String::from("/usr/local/lib/bombini/config"))]
     #[serde(skip)]
@@ -92,6 +96,7 @@ impl Options {
         self.event_map_size = config.event_map_size;
         self.procmon_proc_map_size = config.procmon_proc_map_size;
         self.detectors = config.detectors;
+        self.gc_period = config.gc_period;
 
         // Redefine config from file if command args are set
         if let Some(v) = args.bpf_objs.as_deref() {
@@ -109,6 +114,9 @@ impl Options {
         }
         if let Some(v) = args.procmon_proc_map_size {
             self.procmon_proc_map_size = Some(v);
+        }
+        if let Some(v) = args.gc_period {
+            self.gc_period = Some(v);
         }
         if let Some(detectors) = args.detectors {
             self.detectors = Some(detectors.to_vec());

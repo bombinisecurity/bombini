@@ -21,7 +21,7 @@ pub struct GenericEvent {
 pub enum Event {
     /// 0 - 31 reserved for common events
     ProcExec(process::ProcInfo) = 0,
-    ProcExit(process::ProcInfo) = 1,
+    ProcExit(process::ProcessKey) = 1,
     Process(process::ProcessMsg) = 2,
     File(file::FileMsg) = 3,
     Network(network::NetworkMsg) = 4,

@@ -102,13 +102,11 @@ fn start_proc_map_gc<P: AsRef<Path>>(
 impl Detector for ProcMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
-            expose_events: false,
             filter_mask: ProcessFilterMask::empty(),
             cred_mask: [CredFilterMask::empty(); 3],
             deny_list: false,
             ima_hash: false,
         };
-        config.expose_events = self.config.expose_events;
         config.ima_hash = self.config.ima_hash.unwrap_or_default();
         if let Some(filter) = &self.config.process_filter {
             config.filter_mask = init_process_filter_maps!(filter, &mut self.ebpf);

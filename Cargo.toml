@@ -1,3 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["xtask", "bombini", "bombini-common"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
