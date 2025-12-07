@@ -22,7 +22,7 @@ use bombini_common::{
         MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
     },
     event::{
-        Event, GenericEvent, MSG_PROCESS, MSG_PROCEXEC, MSG_PROCEXIT,
+        Event, GenericEvent, MSG_PROCESS, MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
         process::{
             Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
             PR_SET_NAME, PR_SET_SECUREBITS, PrctlCmd, ProcInfo, ProcessEventVariant, PtraceMode,
@@ -150,12 +150,12 @@ fn get_cgroup_info(cgroup: &mut Cgroup, task: *const task_struct) -> Result<u32,
 
 #[btf_tracepoint(function = "sched_process_exec")]
 pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
-    event_capture!(ctx, MSG_PROCEXEC, false, try_execve)
+    event_capture!(ctx, MSG_PROCESS_EXEC, false, try_execve)
 }
 
 fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let ktime = generic_event.ktime;
-    let Event::ProcExec(ref mut event) = generic_event.event else {
+    let Event::ProcessExec(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
@@ -169,6 +169,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     let Some(proc) = proc else {
         return Err(0);
     };
+    proc.prev_start = proc.start;
     proc.start = ktime;
     let parent_proc = execve_find_parent(task);
     if let Some(parent_proc) = parent_proc {
@@ -257,18 +258,18 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
         PROCMON_CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
     }
 
-    proc.clonned = false;
+    proc.cloned = false;
     util::copy_proc(proc, event);
     Ok(0)
 }
 
 #[btf_tracepoint(function = "sched_process_exit")]
 pub fn exit_capture(ctx: BtfTracePointContext) -> u32 {
-    event_capture!(ctx, MSG_PROCEXIT, false, try_exit)
+    event_capture!(ctx, MSG_PROCESS_EXIT, false, try_exit)
 }
 
 fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
-    let Event::ProcExit(ref mut event) = generic_event.event else {
+    let Event::ProcessExit(ref mut event) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -280,11 +281,6 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    // Do not track exits for process clones without exec
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     // Mark exited for garbage collector
     proc.exited = true;
@@ -387,13 +383,10 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
 
 #[btf_tracepoint(function = "sched_process_fork")]
 pub fn fork_capture(ctx: BtfTracePointContext) -> u32 {
-    match try_sched_process_fork(ctx) {
-        Ok(ret) => ret,
-        Err(ret) => ret,
-    }
+    event_capture!(ctx, MSG_PROCESS_CLONE, false, try_fork)
 }
 
-fn try_sched_process_fork(ctx: BtfTracePointContext) -> Result<u32, u32> {
+fn try_fork(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let task: *const task_struct = unsafe { ctx.arg(1) };
     let tgid =
         unsafe { bpf_probe_read_kernel(&(*task).tgid as *const pid_t).map_err(|_| 0u32)? as u32 };
@@ -419,6 +412,7 @@ fn try_sched_process_fork(ctx: BtfTracePointContext) -> Result<u32, u32> {
     let Some(proc) = proc else {
         return Err(0);
     };
+    proc.start = generic_event.ktime;
     proc.pid = tgid;
     unsafe {
         proc.ppid = (*parent_proc).pid;
@@ -434,7 +428,11 @@ fn try_sched_process_fork(ctx: BtfTracePointContext) -> Result<u32, u32> {
             .map_err(|_| 0u32)?;
         get_creds(proc, task)?;
     }
-    proc.clonned = true;
+    proc.cloned = true;
+    let Event::ProcessClone(ref mut event) = generic_event.event else {
+        return Err(0);
+    };
+    util::copy_proc(proc, event);
     Ok(0)
 }
 
@@ -535,10 +533,6 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     unsafe {
@@ -589,10 +583,6 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     unsafe {
@@ -642,10 +632,6 @@ fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     filter_by_process(config, proc)?;
 
@@ -708,10 +694,6 @@ fn try_create_user_ns_capture(
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     unsafe {
@@ -769,10 +751,6 @@ fn try_ptrace_access_check_capture(
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     filter_by_process(config, proc)?;
 

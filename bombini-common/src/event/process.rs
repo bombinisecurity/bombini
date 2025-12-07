@@ -25,7 +25,7 @@ pub struct ProcessKey {
 #[derive(Clone, Debug, Copy)]
 #[repr(C)]
 pub struct ProcInfo {
-    /// exec time
+    /// last exec or clone time
     pub start: u64,
     /// PID
     pub pid: u32,
@@ -38,7 +38,7 @@ pub struct ProcInfo {
     /// login UID
     pub auid: u32,
     /// if this event from clone
-    pub clonned: bool,
+    pub cloned: bool,
     /// executable name
     pub filename: [u8; MAX_FILENAME_SIZE],
     /// full binary path
@@ -51,6 +51,8 @@ pub struct ProcInfo {
     pub ima_hash: ImaHash,
     /// internal for gc clean up
     pub exited: bool,
+    /// internal previous clone or exec time
+    pub prev_start: u64,
 }
 
 #[cfg(feature = "user")]
@@ -140,12 +142,13 @@ impl ProcInfo {
             // Since Linux 2.6, the value is expressed in clock ticks (divide by sysconf(_SC_CLK_TCK)).
             // CLK_TCK is 100. Convert to nanoseconds.
             start: stats.starttime * 1_000_000_000 / 100,
+            prev_start: 0,
             tid: status.pid as u32,
             pid: status.tgid as u32,
             ppid: status.ppid as u32,
             creds,
             auid,
-            clonned: false,
+            cloned: false,
             exited: false,
             filename,
             binary_path,

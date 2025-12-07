@@ -8,6 +8,8 @@ use bombini_common::event::process::{ProcInfo, ProcessKey};
 #[inline(always)]
 pub fn copy_proc(src: &ProcInfo, dst: &mut ProcInfo) {
     dst.start = src.start;
+    dst.prev_start = src.prev_start;
+    dst.cloned = src.cloned;
     dst.pid = src.pid;
     dst.tid = src.tid;
     dst.ppid = src.ppid;

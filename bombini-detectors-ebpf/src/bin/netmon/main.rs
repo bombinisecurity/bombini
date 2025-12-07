@@ -141,10 +141,6 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
         let process_filter: ProcessFilter = ProcessFilter::new(
@@ -235,10 +231,6 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {
@@ -464,10 +456,6 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     // Filter event by process
     let allow = if !config.filter_mask.is_empty() {

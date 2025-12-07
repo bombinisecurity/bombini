@@ -10,7 +10,7 @@ use std::{sync::Arc, time::Duration};
 
 use bombini_common::event::{
     Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_NETWORK, MSG_PROCESS,
-    MSG_PROCEXEC, MSG_PROCEXIT,
+    MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
     process::{ProcInfo, ProcessKey},
 };
 
@@ -30,7 +30,10 @@ use file::FileEventTransmuter;
 use gtfobins::GTFOBinsEventTransmuter;
 use io_uring::IOUringEventTransmuter;
 use network::NetworkEventTransmuter;
-use process::{Process, ProcessEventTransmuter, ProcessExecTransmuter, ProcessExitTransmuter};
+use process::{
+    Process, ProcessCloneTransmuter, ProcessEventTransmuter, ProcessExecTransmuter,
+    ProcessExitTransmuter,
+};
 
 pub struct TransmuterRegistry {
     handlers: [Option<Arc<dyn Transmuter>>; 256],
@@ -67,9 +70,11 @@ impl TransmuterRegistry {
         for detector_cfg in config.detector_configs.values() {
             match detector_cfg {
                 DetectorConfig::ProcMon(_) => {
-                    registry.handlers[MSG_PROCEXEC as usize] =
+                    registry.handlers[MSG_PROCESS_EXEC as usize] =
                         Some(Arc::new(ProcessExecTransmuter));
-                    registry.handlers[MSG_PROCEXIT as usize] =
+                    registry.handlers[MSG_PROCESS_CLONE as usize] =
+                        Some(Arc::new(ProcessCloneTransmuter));
+                    registry.handlers[MSG_PROCESS_EXIT as usize] =
                         Some(Arc::new(ProcessExitTransmuter));
                     registry.handlers[MSG_PROCESS as usize] =
                         Some(Arc::new(ProcessEventTransmuter));
