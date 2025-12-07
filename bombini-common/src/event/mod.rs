@@ -20,13 +20,14 @@ pub struct GenericEvent {
 #[repr(u8)]
 pub enum Event {
     /// 0 - 31 reserved for common events
-    ProcExec(process::ProcInfo) = 0,
-    ProcExit(process::ProcessKey) = 1,
-    Process(process::ProcessMsg) = 2,
-    File(file::FileMsg) = 3,
-    Network(network::NetworkMsg) = 4,
+    ProcessExec(process::ProcInfo) = 0,
+    ProcessClone(process::ProcInfo) = 1,
+    ProcessExit(process::ProcessKey) = 2,
+    Process(process::ProcessMsg) = 3,
+    File(file::FileMsg) = 4,
+    Network(network::NetworkMsg) = 5,
     /// IOUring submit request event type
-    IOUring(io_uring::IOUringMsg) = 5,
+    IOUring(io_uring::IOUringMsg) = 6,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
 }
@@ -34,16 +35,18 @@ pub enum Event {
 // Event message codes
 
 /// ProcExec message code
-pub const MSG_PROCEXEC: u8 = 0;
+pub const MSG_PROCESS_EXEC: u8 = 0;
+/// ProcClone message code
+pub const MSG_PROCESS_CLONE: u8 = 1;
 /// ProcExit message code
-pub const MSG_PROCEXIT: u8 = 1;
+pub const MSG_PROCESS_EXIT: u8 = 2;
 /// ProcEvent message code
-pub const MSG_PROCESS: u8 = 2;
+pub const MSG_PROCESS: u8 = 3;
 /// File message code
-pub const MSG_FILE: u8 = 3;
+pub const MSG_FILE: u8 = 4;
 /// Network message code
-pub const MSG_NETWORK: u8 = 4;
+pub const MSG_NETWORK: u8 = 5;
 /// IOUring submit request message code
-pub const MSG_IOURING: u8 = 5;
+pub const MSG_IOURING: u8 = 6;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;

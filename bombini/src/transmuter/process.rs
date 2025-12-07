@@ -34,6 +34,17 @@ pub struct ProcessExec {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+/// Process exec event
+pub struct ProcessClone {
+    /// Process information
+    process: Arc<Process>,
+    /// Event's date and time
+    timestamp: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 /// Process exit event
 pub struct ProcessExit {
     /// Process information
@@ -46,8 +57,10 @@ pub struct ProcessExit {
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Process {
-    /// Exec start
+    /// last exec or clone time
     pub start_time: String,
+    /// is process cloned without exec
+    pub cloned: bool,
     /// PID
     pub pid: u32,
     /// TID
@@ -280,6 +293,7 @@ impl Process {
         let args = String::from_utf8_lossy(&args).trim_end().to_string();
         Self {
             start_time: transmute_ktime(proc.start),
+            cloned: proc.cloned,
             pid: proc.pid,
             tid: proc.tid,
             ppid: proc.ppid,
@@ -321,7 +335,23 @@ impl Transmuter for ProcessExecTransmuter {
         ktime: u64,
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        if let Event::ProcExec(event) = event {
+        if let Event::ProcessExec(event) = event {
+            // Remove previous Process record
+            let prev_key = ProcessKey {
+                pid: event.pid,
+                start: event.prev_start,
+            };
+            if let Some(cached_process) = process_cache.get_mut(&prev_key) {
+                cached_process.exited = true;
+            } else {
+                log::debug!(
+                    "ProcessExec: No previous Process record (pid: {}, start: {}) found in cache",
+                    event.pid,
+                    transmute_ktime(event.prev_start)
+                );
+            }
+
+            // Add new one after exec
             let process = Arc::new(Process::new(event));
             let key = ProcessKey {
                 pid: event.pid,
@@ -333,6 +363,45 @@ impl Transmuter for ProcessExecTransmuter {
             };
             process_cache.insert(key, cached_process);
             let high_level_event = ProcessExec::new(process, ktime);
+            Ok(serde_json::to_vec(&high_level_event)?)
+        } else {
+            Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}
+
+impl ProcessClone {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(process: Arc<Process>, ktime: u64) -> Self {
+        Self {
+            timestamp: transmute_ktime(ktime),
+            process,
+        }
+    }
+}
+
+pub struct ProcessCloneTransmuter;
+
+#[async_trait]
+impl Transmuter for ProcessCloneTransmuter {
+    async fn transmute(
+        &self,
+        event: &Event,
+        ktime: u64,
+        process_cache: &mut ProcessCache,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        if let Event::ProcessClone(event) = event {
+            let process = Arc::new(Process::new(event));
+            let key = ProcessKey {
+                pid: event.pid,
+                start: event.start,
+            };
+            let cached_process = CachedProcess {
+                process: process.clone(),
+                exited: false,
+            };
+            process_cache.insert(key, cached_process);
+            let high_level_event = ProcessClone::new(process.clone(), ktime);
             Ok(serde_json::to_vec(&high_level_event)?)
         } else {
             Err(anyhow!("Unexpected event variant"))
@@ -360,7 +429,7 @@ impl Transmuter for ProcessExitTransmuter {
         ktime: u64,
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        if let Event::ProcExit(event) = event {
+        if let Event::ProcessExit(event) = event {
             if let Some(cached_process) = process_cache.get_mut(event) {
                 cached_process.exited = true;
                 let high_level_event = ProcessExit::new(cached_process.process.clone(), ktime);

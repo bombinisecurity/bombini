@@ -229,8 +229,8 @@ fn test_6_8_gtfobins_detector() {
     let events = fs::read_to_string(&event_log).expect("can't read events");
     print_example_events!(&events);
     assert_eq!(events.matches("\"type\":\"GTFOBinsEvent\"").count(), 1);
-    assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 3);
-    assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 3);
+    assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 5);
+    assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 5);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }

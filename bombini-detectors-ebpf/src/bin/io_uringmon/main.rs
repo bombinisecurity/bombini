@@ -78,12 +78,7 @@ fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     // Filter event by process
-
     unsafe {
         let req: *const io_kiocb = ctx.arg(0);
         event.opcode = core::mem::transmute::<u8, IOUringOp>((*req).opcode);

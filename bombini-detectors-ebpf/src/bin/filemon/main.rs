@@ -126,10 +126,6 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     event.hook = HOOK_FILE_OPEN;
@@ -210,10 +206,6 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     event.hook = HOOK_PATH_TRUNCATE;
@@ -283,10 +275,6 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     filter_by_process(config, proc)?;
 
@@ -367,10 +355,6 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     event.hook = HOOK_PATH_CHMOD;
@@ -442,10 +426,6 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     event.hook = HOOK_PATH_CHOWN;
@@ -506,10 +486,6 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         return Err(0);
     };
 
-    if proc.start == 0 {
-        return Err(0);
-    }
-
     filter_by_process(config, proc)?;
 
     event.hook = HOOK_SB_MOUNT;
@@ -561,10 +537,6 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     filter_by_process(config, proc)?;
 
@@ -638,10 +610,6 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
     let Some(proc) = proc else {
         return Err(0);
     };
-
-    if proc.start == 0 {
-        return Err(0);
-    }
 
     filter_by_process(config, proc)?;
 
