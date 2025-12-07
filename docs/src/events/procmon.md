@@ -2,7 +2,7 @@
 
 ## ProcessExec
 
-ProcessExec event represents a new executed process.
+ProcessExec event represents a new executed binary (execve).
 
 ```json
 {
@@ -13,6 +13,7 @@ ProcessExec event represents a new executed process.
     "cap_effective": "",
     "cap_inheritable": "",
     "cap_permitted": "",
+    "cloned": false,
     "egid": 1000,
     "euid": 1000,
     "filename": "sed",
@@ -43,6 +44,7 @@ Process information can be enriched with binary hashes collected from IMA.
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
+    "cloned": false,
     "egid": 0,
     "euid": 0,
     "filename": "ls",
@@ -72,6 +74,7 @@ Event has information if no file used for process execution (memfd_create).
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
+    "cloned": false,
     "egid": 0,
     "euid": 0,
     "filename": "memfd:fileless-exec-test",
@@ -88,6 +91,36 @@ Event has information if no file used for process execution (memfd_create).
 }
 ```
 
+## ProcessClone
+
+ProcessClone represents a process creation with fork() or clone() syscall types.
+
+```json
+{
+  "process": {
+    "args": "/usr/share/code/resources/app/out/vs/base/node/cpuUsage.sh 1802086 3678127 3678789 3678790 3678791 3679600 3679602",
+    "auid": 0,
+    "binary_path": "/usr/bin/bash",
+    "cap_effective": "",
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cloned": true,
+    "egid": 1000,
+    "euid": 1000,
+    "filename": "bash",
+    "gid": 1000,
+    "pid": 3679814,
+    "ppid": 3679771,
+    "secureexec": "",
+    "start_time": "2025-12-07T14:52:41.632Z",
+    "tid": 3679814,
+    "uid": 1000
+  },
+  "timestamp": "2025-12-07T14:52:41.632Z",
+  "type": "ProcessClone"
+}
+```
+
 ## ProcessExit
 
 ProcessExit event represents an exited process.
@@ -101,6 +134,7 @@ ProcessExit event represents an exited process.
     "cap_effective": "",
     "cap_inheritable": "",
     "cap_permitted": "",
+    "cloned": false,
     "egid": 1000,
     "euid": 1000,
     "filename": "vim.basic",
@@ -132,6 +166,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
+    "cloned": false,
     "egid": 0,
     "euid": 0,
     "filename": "sudo",
@@ -166,6 +201,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
+    "cloned": false,
     "egid": 0,
     "euid": 0,
     "filename": "capsh",
@@ -199,6 +235,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
+    "cloned": false,
     "egid": 0,
     "euid": 0,
     "filename": "capsh",
@@ -232,6 +269,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
+    "cloned": false,
     "egid": 0,
     "euid": 0,
     "filename": "unshare",
@@ -269,6 +307,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "cap_inheritable": "",
     "cap_permitted": "",
     "cap_effective": "",
+    "cloned": false,
     "secureexec": "",
     "filename": "gdb",
     "binary_path": "/usr/bin/gdb",

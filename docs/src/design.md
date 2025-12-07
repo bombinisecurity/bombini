@@ -22,6 +22,7 @@ flowchart TB
     G["Monitor"] -- use --> E
     G["Monitor"] -- use --> F
     G["Monitor"] -- read --> H["RingBuffer"]
+    E -- manage --> I["Process cache"]
     C -- send --> H
 
     A@{ shape: docs}
@@ -30,6 +31,7 @@ flowchart TB
     D@{ shape: cyl}
     E@{ shape: processes}
     H@{ shape: das}
+    I@{ shape: cyl}
 ```
 
 ### Detector
@@ -82,6 +84,7 @@ flowchart LR
     D --enrich & transform --> E["Transmuters"]
     E -- serialize --> F["Transmitter"]
     F -- send --> G["Collector"]
+    E <-- store/update --> I["Process cache"]
 
     A@{ shape: docs}
     B@{ shape: processes}
@@ -89,9 +92,31 @@ flowchart LR
     D@{ shape: das}
     E@{ shape: processes}
     G@{ shape: cyl}
+    I@{ shape: cyl}
 ```
 
 ### Filters
 
 Filters are applied to eBPF events inside eBPF probes in order to decide will be event exposed to user space or not.
 A detailed description of the filtering can be found directly in the description of the corresponding detector.
+
+## Process Execution Detection
+
+### eBPF
+
+Process information (ProcInfo) is stored in `PROCMON_PROC_MAP` which is shared across all detectors.
+Map entries are updated with tracepoints: `sched_process_exec`, `sched_process_fork`, `sched_process_exit`, and
+`security_bprm_comitting_creds` LSM BPF hook. This hook is used to collect binary_path with `bpf_d_path` helper and IMA binary
+hash collection. `sched_process_fork` - creates an entry and sends `ProcessClone` event, entries are created only for thread leaders (pid == tgid).
+It means that Bombini doesn't track thread creation, but in tracks events (e.g. file open, etc.) in threads. In this case, event will hold
+process information about its thread leader.
+`sched_process_exec` - updates entries and sends `ProcessExec`.
+`sched_process_exit` - mark entry as "exited" for the garbage collector and sends `ProcessExit` event.
+
+### User Space
+
+In Bombini there are three event types related to process execution: `ProcessExec`, `ProcessClone`, and `ProcessExit`.
+These events are provided by corresponding Transmuters. Also, they maintain a `ProcessCache` to hold serializable `Process`
+structures that are used in all event types. `ProcessClone` event creates an entry in ProcessCache. `ProcessExit` event marks
+entry as "exited" for cache garbage collection. `ProcessExec` event marks as "exited" Process cache entry, related to previous
+clone() or exec() calls and puts new Process entry in cache.

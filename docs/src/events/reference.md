@@ -338,6 +338,10 @@ JSON schema for all events.
         "cap_permitted": {
           "type": "string"
         },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
         "container_id": {
           "description": "skip for host",
           "type": [
@@ -384,7 +388,7 @@ JSON schema for all events.
           "type": "string"
         },
         "start_time": {
-          "description": "Exec start",
+          "description": "last exec or clone time",
           "type": "string"
         },
         "tid": {
@@ -402,6 +406,7 @@ JSON schema for all events.
       },
       "required": [
         "start_time",
+        "cloned",
         "pid",
         "tid",
         "ppid",
@@ -480,6 +485,10 @@ JSON schema for all events.
         "cap_permitted": {
           "type": "string"
         },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
         "container_id": {
           "description": "skip for host",
           "type": [
@@ -526,7 +535,7 @@ JSON schema for all events.
           "type": "string"
         },
         "start_time": {
-          "description": "Exec start",
+          "description": "last exec or clone time",
           "type": "string"
         },
         "tid": {
@@ -544,6 +553,7 @@ JSON schema for all events.
       },
       "required": [
         "start_time",
+        "cloned",
         "pid",
         "tid",
         "ppid",
@@ -698,6 +708,10 @@ JSON schema for all events.
         "cap_permitted": {
           "type": "string"
         },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
         "container_id": {
           "description": "skip for host",
           "type": [
@@ -744,7 +758,7 @@ JSON schema for all events.
           "type": "string"
         },
         "start_time": {
-          "description": "Exec start",
+          "description": "last exec or clone time",
           "type": "string"
         },
         "tid": {
@@ -762,6 +776,7 @@ JSON schema for all events.
       },
       "required": [
         "start_time",
+        "cloned",
         "pid",
         "tid",
         "ppid",
@@ -888,6 +903,10 @@ JSON schema for all events.
         "cap_permitted": {
           "type": "string"
         },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
         "container_id": {
           "description": "skip for host",
           "type": [
@@ -934,7 +953,7 @@ JSON schema for all events.
           "type": "string"
         },
         "start_time": {
-          "description": "Exec start",
+          "description": "last exec or clone time",
           "type": "string"
         },
         "tid": {
@@ -952,6 +971,7 @@ JSON schema for all events.
       },
       "required": [
         "start_time",
+        "cloned",
         "pid",
         "tid",
         "ppid",
@@ -1071,6 +1091,10 @@ JSON schema for all events.
         "cap_permitted": {
           "type": "string"
         },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
         "container_id": {
           "description": "skip for host",
           "type": [
@@ -1117,7 +1141,7 @@ JSON schema for all events.
           "type": "string"
         },
         "start_time": {
-          "description": "Exec start",
+          "description": "last exec or clone time",
           "type": "string"
         },
         "tid": {
@@ -1135,6 +1159,149 @@ JSON schema for all events.
       },
       "required": [
         "start_time",
+        "cloned",
+        "pid",
+        "tid",
+        "ppid",
+        "uid",
+        "euid",
+        "gid",
+        "egid",
+        "auid",
+        "cap_inheritable",
+        "cap_permitted",
+        "cap_effective",
+        "secureexec",
+        "filename",
+        "binary_path",
+        "args"
+      ]
+    }
+  }
+}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProcessClone",
+  "description": "Process exec event",
+  "type": "object",
+  "properties": {
+    "process": {
+      "description": "Process information",
+      "$ref": "#/$defs/Process"
+    },
+    "timestamp": {
+      "description": "Event's date and time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "process",
+    "timestamp"
+  ],
+  "$defs": {
+    "Process": {
+      "description": "Process information",
+      "type": "object",
+      "properties": {
+        "args": {
+          "description": "current work directory",
+          "type": "string"
+        },
+        "auid": {
+          "description": "login UID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "binary_ima_hash": {
+          "description": "IMA binary hash",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "binary_path": {
+          "description": "full binary path",
+          "type": "string"
+        },
+        "cap_effective": {
+          "type": "string"
+        },
+        "cap_inheritable": {
+          "type": "string"
+        },
+        "cap_permitted": {
+          "type": "string"
+        },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
+        "container_id": {
+          "description": "skip for host",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "egid": {
+          "description": "EGID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "euid": {
+          "description": "EUID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "filename": {
+          "description": "executable name",
+          "type": "string"
+        },
+        "gid": {
+          "description": "GID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "pid": {
+          "description": "PID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ppid": {
+          "description": "Parent PID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "secureexec": {
+          "description": "SETUID, SETGID, FILECAPS, FILELESS_EXEC",
+          "type": "string"
+        },
+        "start_time": {
+          "description": "last exec or clone time",
+          "type": "string"
+        },
+        "tid": {
+          "description": "TID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "uid": {
+          "description": "UID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "start_time",
+        "cloned",
         "pid",
         "tid",
         "ppid",
@@ -1208,6 +1375,10 @@ JSON schema for all events.
         "cap_permitted": {
           "type": "string"
         },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
         "container_id": {
           "description": "skip for host",
           "type": [
@@ -1254,7 +1425,7 @@ JSON schema for all events.
           "type": "string"
         },
         "start_time": {
-          "description": "Exec start",
+          "description": "last exec or clone time",
           "type": "string"
         },
         "tid": {
@@ -1272,6 +1443,7 @@ JSON schema for all events.
       },
       "required": [
         "start_time",
+        "cloned",
         "pid",
         "tid",
         "ppid",
@@ -1434,6 +1606,10 @@ JSON schema for all events.
         "cap_permitted": {
           "type": "string"
         },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
         "container_id": {
           "description": "skip for host",
           "type": [
@@ -1480,7 +1656,7 @@ JSON schema for all events.
           "type": "string"
         },
         "start_time": {
-          "description": "Exec start",
+          "description": "last exec or clone time",
           "type": "string"
         },
         "tid": {
@@ -1498,6 +1674,7 @@ JSON schema for all events.
       },
       "required": [
         "start_time",
+        "cloned",
         "pid",
         "tid",
         "ppid",

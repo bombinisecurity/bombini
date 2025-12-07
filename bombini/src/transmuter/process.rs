@@ -588,7 +588,7 @@ impl Transmuter for ProcessEventTransmuter {
 
 #[cfg(all(test, feature = "schema"))]
 mod schema {
-    use super::{ProcessEvent, ProcessExec, ProcessExit};
+    use super::{ProcessClone, ProcessEvent, ProcessExec, ProcessExit};
     use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
 
     #[test]
@@ -602,6 +602,8 @@ mod schema {
             .unwrap();
         let _ = writeln!(file, "## ProcMon\n\n```json");
         let schema = schemars::schema_for!(ProcessExec);
+        let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
+        let schema = schemars::schema_for!(ProcessClone);
         let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
         let schema = schemars::schema_for!(ProcessExit);
         let _ = writeln!(file, "{}", serde_json::to_string_pretty(&schema).unwrap());
