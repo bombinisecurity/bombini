@@ -31,6 +31,9 @@ event_channel_size: 64
 # Procmon process map size
 procmon_proc_map_size: 8192
 
+# Retain Transmuters caches every <gc_period> sec
+gc_period: 30
+
 # List of the detectors to load
 detectors:
    - procmon

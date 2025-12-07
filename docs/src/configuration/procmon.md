@@ -1,8 +1,8 @@
 # ProcMon
 
 ProcMon is the main detector that collects information about process being spawned and detached.
-Information about living process is stored shared map and other detectors are using it. Every other
-detector needs ProcMon that monitors process execs and exits. So, this detector can not be disabled.
+Information about living process is stored in shared eBPF map and in Process cache in user space.
+Every other detector needs ProcMon that monitors process execs and exits. This detector can not be disabled.
 
 ## Required Linux Kernel Version
 
@@ -15,6 +15,13 @@ To enable put this to config (false by default):
 
 ```yaml
 ima_hash: true
+```
+
+It is possible to set garbage collection period in seconds for `PROCMON_PROC_MAP` (process info in eBPF).
+Default value is 30 sec.
+
+```yaml
+gc_period: 30
 ```
 
 ## Process Hooks
@@ -91,7 +98,6 @@ create_user_ns:
       effective:
       - "CAP_SYS_ADMIN"
       deny_list: true
-
 process_filter:
   uid:
     - 0

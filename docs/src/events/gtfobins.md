@@ -11,6 +11,7 @@ GTFOBins event represents a process information about GTFO binary that tries to 
     "cap_effective": "ALL_CAPS",
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
+    "cloned": false,
     "egid": 0,
     "euid": 0,
     "filename": "xargs",
