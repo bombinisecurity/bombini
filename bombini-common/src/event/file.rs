@@ -8,6 +8,7 @@ use crate::event::process::ProcessKey;
 #[repr(C)]
 pub struct FileMsg {
     pub process: ProcessKey,
+    pub parent: ProcessKey,
     pub hook: u8,
     /// full path or full dir path for unlink
     /// or mount path

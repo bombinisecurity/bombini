@@ -19,10 +19,13 @@ pub struct GenericEvent {
 #[derive(Clone, Debug)]
 #[repr(u8)]
 pub enum Event {
-    /// 0 - 31 reserved for common events
-    ProcessExec(process::ProcInfo) = 0,
-    ProcessClone(process::ProcInfo) = 1,
-    ProcessExit(process::ProcessKey) = 2,
+    // 0 - 31 reserved for common events
+    /// Exec info (process, parent)
+    ProcessExec((process::ProcInfo, process::ProcessKey)) = 0,
+    /// Clone info (process, parent)
+    ProcessClone((process::ProcInfo, process::ProcessKey)) = 1,
+    /// Exit info (process, parent)
+    ProcessExit((process::ProcessKey, process::ProcessKey)) = 2,
     Process(process::ProcessMsg) = 3,
     File(file::FileMsg) = 4,
     Network(network::NetworkMsg) = 5,

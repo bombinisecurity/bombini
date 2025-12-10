@@ -30,6 +30,8 @@ use super::{
 pub struct IOUringEvent {
     /// Process information
     process: Arc<Process>,
+    /// Parent process information
+    parent: Option<Arc<Process>>,
     /// io_uring_ops
     #[cfg_attr(feature = "schema", schemars(with = "String"))]
     opcode: IOUringOp,
@@ -73,7 +75,12 @@ fn no_iouring_extra_info(info: &IOUringOpInfo) -> bool {
 
 impl IOUringEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(process: Arc<Process>, event: &IOUringMsg, ktime: u64) -> Self {
+    pub fn new(
+        process: Arc<Process>,
+        parent: Option<Arc<Process>>,
+        event: &IOUringMsg,
+        ktime: u64,
+    ) -> Self {
         let op_info = match event.opcode {
             IOUringOp::IORING_OP_OPENAT | IOUringOp::IORING_OP_OPENAT2 => IOUringOpInfo::FileOpen {
                 path: str_from_bytes(&event.path),
@@ -103,6 +110,7 @@ impl IOUringEvent {
         };
         Self {
             process,
+            parent,
             opcode: event.opcode.clone(),
             op_info,
             timestamp: transmute_ktime(ktime),
@@ -121,13 +129,23 @@ impl Transmuter for IOUringEventTransmuter {
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::IOUring(event) = event {
+            let parent = if let Some(cached_process) = process_cache.get(&event.parent) {
+                Some(cached_process.process.clone())
+            } else {
+                log::debug!(
+                    "IOUringEvent: No parent Process record (pid: {}, start: {}) found in cache",
+                    event.parent.pid,
+                    transmute_ktime(event.parent.start)
+                );
+                None
+            };
             if let Some(cached_process) = process_cache.get_mut(&event.process) {
                 let high_level_event =
-                    IOUringEvent::new(cached_process.process.clone(), event, ktime);
+                    IOUringEvent::new(cached_process.process.clone(), parent, event, ktime);
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(
-                    "IoUringMsg: No process pid: {}, start: {} found in cache",
+                    "IOUringMsg: No process pid: {}, start: {} found in cache",
                     event.process.pid,
                     transmute_ktime(event.process.start)
                 ))

@@ -392,6 +392,7 @@ bitflags! {
 #[repr(C)]
 pub struct ProcessMsg {
     pub process: ProcessKey,
+    pub parent: ProcessKey,
     pub event: ProcessEventVariant,
 }
 

@@ -58,5 +58,6 @@ pub enum NetworkEventVariant {
 #[repr(C)]
 pub struct NetworkMsg {
     pub process: ProcessKey,
+    pub parent: ProcessKey,
     pub event: NetworkEventVariant,
 }
