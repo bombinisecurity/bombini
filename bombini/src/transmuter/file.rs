@@ -184,6 +184,8 @@ impl From<u16> for Imode {
 pub struct FileEvent {
     /// Process Information
     process: Arc<Process>,
+    /// Parent Information
+    parent: Option<Arc<Process>>,
     /// LSM File hook info
     hook: LsmFileHook,
     /// Event's date and time
@@ -291,7 +293,12 @@ pub enum LsmFileHook {
 
 impl FileEvent {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(process: Arc<Process>, event: &FileMsg, ktime: u64) -> Self {
+    pub fn new(
+        process: Arc<Process>,
+        parent: Option<Arc<Process>>,
+        event: &FileMsg,
+        ktime: u64,
+    ) -> Self {
         match event.hook {
             HOOK_FILE_OPEN => {
                 let info = FileOpenInfo {
@@ -304,6 +311,7 @@ impl FileEvent {
                 };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::FileOpen(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -314,6 +322,7 @@ impl FileEvent {
                 };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::PathTruncate(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -323,6 +332,7 @@ impl FileEvent {
                 let info = PathInfo { path };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::PathUnlink(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -334,6 +344,7 @@ impl FileEvent {
                 };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::PathChmod(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -346,6 +357,7 @@ impl FileEvent {
                 };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::PathChown(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -358,6 +370,7 @@ impl FileEvent {
                 };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::SbMount(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -370,6 +383,7 @@ impl FileEvent {
                 };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::MmapFile(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -382,6 +396,7 @@ impl FileEvent {
                 };
                 Self {
                     process,
+                    parent,
                     hook: LsmFileHook::FileIoctl(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -404,8 +419,19 @@ impl Transmuter for FileEventTransmuter {
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::File(msg) = event {
+            let parent = if let Some(cached_process) = process_cache.get(&msg.parent) {
+                Some(cached_process.process.clone())
+            } else {
+                log::debug!(
+                    "FileEvent: No parent Process record (pid: {}, start: {}) found in cache",
+                    msg.parent.pid,
+                    transmute_ktime(msg.parent.start)
+                );
+                None
+            };
             if let Some(cached_process) = process_cache.get_mut(&msg.process) {
-                let high_level_event = FileEvent::new(cached_process.process.clone(), msg, ktime);
+                let high_level_event =
+                    FileEvent::new(cached_process.process.clone(), parent, msg, ktime);
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(

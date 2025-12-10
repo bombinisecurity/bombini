@@ -58,7 +58,7 @@ static IOURINGMON_FILTER_BINPREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
 
 #[btf_tracepoint(function = "io_uring_submit_req")]
 pub fn io_uring_submit_req_capture(ctx: BtfTracePointContext) -> u32 {
-    event_capture!(ctx, MSG_IOURING, false, try_submit_req) as u32
+    event_capture!(ctx, MSG_IOURING, true, try_submit_req) as u32
 }
 
 fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -155,6 +155,12 @@ fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -
         }
         return Err(0);
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }

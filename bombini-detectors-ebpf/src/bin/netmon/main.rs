@@ -121,7 +121,7 @@ static NETMON_FILTER_DST_IP4_EGRESS_MAP: LpmTrie<[u8; 4], u8> = LpmTrie::with_ma
 
 #[fexit(function = "tcp_v4_connect")]
 pub fn tcp_v4_connect_capture(ctx: FExitContext) -> u32 {
-    event_capture!(ctx, MSG_NETWORK, false, try_tcp_v4_connect)
+    event_capture!(ctx, MSG_NETWORK, true, try_tcp_v4_connect)
 }
 
 fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
@@ -199,6 +199,11 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
     }
 
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut msg.process, proc);
     let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
     Ok(0)
@@ -212,7 +217,7 @@ static NETMON_FILTER_DST_IP6_EGRESS_MAP: LpmTrie<[u8; 16], u8> = LpmTrie::with_m
 
 #[fexit(function = "tcp_v6_connect")]
 pub fn tcp_v6_connect_capture(ctx: FExitContext) -> u32 {
-    event_capture!(ctx, MSG_NETWORK, false, try_tcp_v6_connect)
+    event_capture!(ctx, MSG_NETWORK, true, try_tcp_v6_connect)
 }
 
 fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
@@ -290,6 +295,11 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
     }
 
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut msg.process, proc);
     let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
     Ok(0)
@@ -297,7 +307,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
 
 #[fexit(function = "tcp_close")]
 pub fn tcp_close_capture(ctx: FExitContext) -> u32 {
-    event_capture!(ctx, MSG_NETWORK, false, try_tcp_close)
+    event_capture!(ctx, MSG_NETWORK, true, try_tcp_close)
 }
 
 fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
@@ -378,6 +388,11 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     }
                 }
 
+                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                    msg.parent.pid = parent.pid;
+                    msg.parent.start = parent.start;
+                }
+
                 util::process_key_init(&mut msg.process, proc);
                 let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 Ok(0)
@@ -414,6 +429,11 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     }
                 }
 
+                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                    msg.parent.pid = parent.pid;
+                    msg.parent.start = parent.start;
+                }
+
                 util::process_key_init(&mut msg.process, proc);
                 let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 Ok(0)
@@ -437,7 +457,7 @@ static NETMON_FILTER_DST_IP6_INGRESS_MAP: LpmTrie<[u8; 16], u8> = LpmTrie::with_
 
 #[fexit(function = "inet_csk_accept")]
 pub fn inet_csk_accept_capture(ctx: FExitContext) -> u32 {
-    event_capture!(ctx, MSG_NETWORK, false, try_inet_csk_accept)
+    event_capture!(ctx, MSG_NETWORK, true, try_inet_csk_accept)
 }
 
 fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
@@ -515,6 +535,11 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     }
                 }
 
+                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                    msg.parent.pid = parent.pid;
+                    msg.parent.start = parent.start;
+                }
+
                 util::process_key_init(&mut msg.process, proc);
                 let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
                 Ok(0)
@@ -545,6 +570,11 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     if !ip_filter.filter(config.ip_filter_mask, &event.saddr, &event.daddr) {
                         return Err(0);
                     }
+                }
+
+                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                    msg.parent.pid = parent.pid;
+                    msg.parent.start = parent.start;
                 }
 
                 util::process_key_init(&mut msg.process, proc);

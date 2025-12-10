@@ -168,6 +168,12 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             }
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
@@ -238,6 +244,12 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             }
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
@@ -317,6 +329,12 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
             }
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
@@ -388,6 +406,12 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             }
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
@@ -460,6 +484,12 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             }
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
@@ -500,6 +530,12 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         );
         event.flags = ctx.arg(2);
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
@@ -574,6 +610,12 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             }
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }
@@ -646,6 +688,12 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
             }
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        event.parent.pid = parent.pid;
+        event.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut event.process, proc);
     Ok(0)
 }

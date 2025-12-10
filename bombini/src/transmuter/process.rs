@@ -27,6 +27,8 @@ use super::{
 pub struct ProcessExec {
     /// Process information
     process: Arc<Process>,
+    /// Parent Process information
+    parent: Option<Arc<Process>>,
     /// Event's date and time
     timestamp: String,
 }
@@ -38,6 +40,8 @@ pub struct ProcessExec {
 pub struct ProcessClone {
     /// Process information
     process: Arc<Process>,
+    /// Parent Process information
+    parent: Option<Arc<Process>>,
     /// Event's date and time
     timestamp: String,
 }
@@ -49,6 +53,8 @@ pub struct ProcessClone {
 pub struct ProcessExit {
     /// Process information
     process: Arc<Process>,
+    /// Parent Process information
+    parent: Option<Arc<Process>>,
     /// Event's date and time
     timestamp: String,
 }
@@ -317,10 +323,11 @@ impl Process {
 
 impl ProcessExec {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(process: Arc<Process>, ktime: u64) -> Self {
+    pub fn new(process: Arc<Process>, ktime: u64, parent: Option<Arc<Process>>) -> Self {
         Self {
             timestamp: transmute_ktime(ktime),
             process,
+            parent,
         }
     }
 }
@@ -335,34 +342,44 @@ impl Transmuter for ProcessExecTransmuter {
         ktime: u64,
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        if let Event::ProcessExec(event) = event {
+        if let Event::ProcessExec((event_proc, parent_key)) = event {
             // Remove previous Process record
             let prev_key = ProcessKey {
-                pid: event.pid,
-                start: event.prev_start,
+                pid: event_proc.pid,
+                start: event_proc.prev_start,
             };
             if let Some(cached_process) = process_cache.get_mut(&prev_key) {
                 cached_process.exited = true;
             } else {
                 log::debug!(
                     "ProcessExec: No previous Process record (pid: {}, start: {}) found in cache",
-                    event.pid,
-                    transmute_ktime(event.prev_start)
+                    event_proc.pid,
+                    transmute_ktime(event_proc.prev_start)
                 );
             }
 
             // Add new one after exec
-            let process = Arc::new(Process::new(event));
+            let process = Arc::new(Process::new(event_proc));
             let key = ProcessKey {
-                pid: event.pid,
-                start: event.start,
+                pid: event_proc.pid,
+                start: event_proc.start,
             };
             let cached_process = CachedProcess {
                 process: process.clone(),
                 exited: false,
             };
             process_cache.insert(key, cached_process);
-            let high_level_event = ProcessExec::new(process, ktime);
+            let parent = if let Some(cached_process) = process_cache.get(parent_key) {
+                Some(cached_process.process.clone())
+            } else {
+                log::debug!(
+                    "ProcessExec: No parent Process record (pid: {}, start: {}) found in cache",
+                    parent_key.pid,
+                    transmute_ktime(parent_key.start)
+                );
+                None
+            };
+            let high_level_event = ProcessExec::new(process, ktime, parent);
             Ok(serde_json::to_vec(&high_level_event)?)
         } else {
             Err(anyhow!("Unexpected event variant"))
@@ -372,10 +389,11 @@ impl Transmuter for ProcessExecTransmuter {
 
 impl ProcessClone {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(process: Arc<Process>, ktime: u64) -> Self {
+    pub fn new(process: Arc<Process>, ktime: u64, parent: Option<Arc<Process>>) -> Self {
         Self {
             timestamp: transmute_ktime(ktime),
             process,
+            parent,
         }
     }
 }
@@ -390,18 +408,28 @@ impl Transmuter for ProcessCloneTransmuter {
         ktime: u64,
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        if let Event::ProcessClone(event) = event {
-            let process = Arc::new(Process::new(event));
+        if let Event::ProcessClone((event_proc, parent_key)) = event {
+            let process = Arc::new(Process::new(event_proc));
             let key = ProcessKey {
-                pid: event.pid,
-                start: event.start,
+                pid: event_proc.pid,
+                start: event_proc.start,
             };
             let cached_process = CachedProcess {
                 process: process.clone(),
                 exited: false,
             };
             process_cache.insert(key, cached_process);
-            let high_level_event = ProcessClone::new(process.clone(), ktime);
+            let parent = if let Some(cached_process) = process_cache.get(parent_key) {
+                Some(cached_process.process.clone())
+            } else {
+                log::debug!(
+                    "ProcessClone: No parent Process record (pid: {}, start: {}) found in cache",
+                    parent_key.pid,
+                    transmute_ktime(parent_key.start)
+                );
+                None
+            };
+            let high_level_event = ProcessClone::new(process.clone(), ktime, parent);
             Ok(serde_json::to_vec(&high_level_event)?)
         } else {
             Err(anyhow!("Unexpected event variant"))
@@ -411,10 +439,11 @@ impl Transmuter for ProcessCloneTransmuter {
 
 impl ProcessExit {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(process: Arc<Process>, ktime: u64) -> Self {
+    pub fn new(process: Arc<Process>, ktime: u64, parent: Option<Arc<Process>>) -> Self {
         Self {
             timestamp: transmute_ktime(ktime),
             process,
+            parent,
         }
     }
 }
@@ -429,16 +458,27 @@ impl Transmuter for ProcessExitTransmuter {
         ktime: u64,
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        if let Event::ProcessExit(event) = event {
-            if let Some(cached_process) = process_cache.get_mut(event) {
+        if let Event::ProcessExit((event_key, parent_key)) = event {
+            let parent = if let Some(cached_process) = process_cache.get(parent_key) {
+                Some(cached_process.process.clone())
+            } else {
+                log::debug!(
+                    "ProcessExit: No parent Process record (pid: {}, start: {}) found in cache",
+                    parent_key.pid,
+                    transmute_ktime(parent_key.start)
+                );
+                None
+            };
+            if let Some(cached_process) = process_cache.get_mut(event_key) {
                 cached_process.exited = true;
-                let high_level_event = ProcessExit::new(cached_process.process.clone(), ktime);
+                let high_level_event =
+                    ProcessExit::new(cached_process.process.clone(), ktime, parent);
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(
                     "ProcessExit: No process (pid: {}, start: {}) found in cache",
-                    event.pid,
-                    transmute_ktime(event.start)
+                    event_key.pid,
+                    transmute_ktime(event_key.start)
                 ))
             }
         } else {
@@ -502,6 +542,8 @@ impl ProcessPtraceAccessCheck {
 pub struct ProcessEvent {
     /// Process information
     process: Arc<Process>,
+    /// Parent process information
+    parent: Option<Arc<Process>>,
     /// Process event
     process_event: ProcessEventType,
     /// Event's date and time
@@ -525,26 +567,35 @@ pub enum ProcessEventType {
 }
 
 impl ProcessEvent {
-    pub fn new(process: Arc<Process>, event: &ProcessEventVariant, ktime: u64) -> Self {
+    pub fn new(
+        process: Arc<Process>,
+        parent: Option<Arc<Process>>,
+        event: &ProcessEventVariant,
+        ktime: u64,
+    ) -> Self {
         match event {
             ProcessEventVariant::Setuid(proc) => Self {
                 process_event: ProcessEventType::Setuid(ProcessSetUid::new(proc)),
                 process,
+                parent,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Setcaps(proc) => Self {
                 process_event: ProcessEventType::Setcaps(ProcessCapset::new(proc)),
                 process,
+                parent,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Prctl(proc) => Self {
                 process_event: ProcessEventType::Prctl(ProcessPrctl::new(proc)),
                 process,
+                parent,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::CreateUserNs => Self {
                 process_event: ProcessEventType::CreateUserNs(ProcessCreateUserNs {}),
                 process,
+                parent,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::PtraceAccessCheck(proc) => Self {
@@ -552,6 +603,7 @@ impl ProcessEvent {
                     proc,
                 )),
                 process,
+                parent,
                 timestamp: transmute_ktime(ktime),
             },
         }
@@ -569,9 +621,19 @@ impl Transmuter for ProcessEventTransmuter {
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::Process(msg) = event {
+            let parent = if let Some(cached_process) = process_cache.get(&msg.parent) {
+                Some(cached_process.process.clone())
+            } else {
+                log::debug!(
+                    "ProcessEvent: No parent Process record (pid: {}, start: {}) found in cache",
+                    msg.parent.pid,
+                    transmute_ktime(msg.parent.start)
+                );
+                None
+            };
             if let Some(cached_process) = process_cache.get_mut(&msg.process) {
                 let high_level_event =
-                    ProcessEvent::new(cached_process.process.clone(), &msg.event, ktime);
+                    ProcessEvent::new(cached_process.process.clone(), parent, &msg.event, ktime);
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(

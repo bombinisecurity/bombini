@@ -150,12 +150,12 @@ fn get_cgroup_info(cgroup: &mut Cgroup, task: *const task_struct) -> Result<u32,
 
 #[btf_tracepoint(function = "sched_process_exec")]
 pub fn execve_capture(ctx: BtfTracePointContext) -> u32 {
-    event_capture!(ctx, MSG_PROCESS_EXEC, false, try_execve)
+    event_capture!(ctx, MSG_PROCESS_EXEC, true, try_execve)
 }
 
 fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
     let ktime = generic_event.ktime;
-    let Event::ProcessExec(ref mut event) = generic_event.event else {
+    let Event::ProcessExec((ref mut event_proc, ref mut event_parent)) = generic_event.event else {
         return Err(0);
     };
     let task = unsafe { bpf_get_current_task_btf() as *const task_struct };
@@ -174,6 +174,8 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     let parent_proc = execve_find_parent(task);
     if let Some(parent_proc) = parent_proc {
         proc.ppid = unsafe { (*parent_proc).pid };
+        event_parent.pid = proc.ppid;
+        event_parent.start = unsafe { (*parent_proc).start };
     } else {
         unsafe {
             if let Ok(parent) =
@@ -259,17 +261,17 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     }
 
     proc.cloned = false;
-    util::copy_proc(proc, event);
+    util::copy_proc(proc, event_proc);
     Ok(0)
 }
 
 #[btf_tracepoint(function = "sched_process_exit")]
 pub fn exit_capture(ctx: BtfTracePointContext) -> u32 {
-    event_capture!(ctx, MSG_PROCESS_EXIT, false, try_exit)
+    event_capture!(ctx, MSG_PROCESS_EXIT, true, try_exit)
 }
 
 fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, u32> {
-    let Event::ProcessExit(ref mut event) = generic_event.event else {
+    let Event::ProcessExit((ref mut event_proc, ref mut event_parent)) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -282,9 +284,16 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
         return Err(0);
     };
 
+    if let Some(parent_proc) = PROCMON_PROC_MAP.get_ptr(&proc.ppid) {
+        unsafe {
+            event_parent.pid = (*parent_proc).pid;
+            event_parent.start = (*parent_proc).start;
+        }
+    }
+
     // Mark exited for garbage collector
     proc.exited = true;
-    util::process_key_init(event, proc);
+    util::process_key_init(event_proc, proc);
     Ok(0)
 }
 
@@ -429,10 +438,15 @@ fn try_fork(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Resu
         get_creds(proc, task)?;
     }
     proc.cloned = true;
-    let Event::ProcessClone(ref mut event) = generic_event.event else {
+    let Event::ProcessClone((ref mut event_proc, ref mut event_parent)) = generic_event.event
+    else {
         return Err(0);
     };
-    util::copy_proc(proc, event);
+    unsafe {
+        event_parent.pid = (*parent_proc).pid;
+        event_parent.start = (*parent_proc).start;
+    }
+    util::copy_proc(proc, event_proc);
     Ok(0)
 }
 
@@ -513,7 +527,7 @@ static PROCMON_FILTER_SETUID_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entr
 
 #[lsm(hook = "task_fix_setuid")]
 pub fn setuid_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, false, try_setuid_capture)
+    event_capture!(ctx, MSG_PROCESS, true, try_setuid_capture)
 }
 
 fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -555,6 +569,12 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     if !config.cred_mask[0].is_empty() && !filter.filter(config.cred_mask[0], event.euid) {
         return Err(0);
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
@@ -563,7 +583,7 @@ static PROCMON_FILTER_CAPSET_ECAP_MAP: Array<u64> = Array::with_max_entries(1, 0
 
 #[lsm(hook = "capset")]
 pub fn capset_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, false, try_capset_capture)
+    event_capture!(ctx, MSG_PROCESS, true, try_capset_capture)
 }
 
 fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -607,13 +627,19 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     if !config.cred_mask[1].is_empty() && !filter.filter(config.cred_mask[1], &event.effective) {
         return Err(0);
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
 #[lsm(hook = "task_prctl")]
 pub fn task_prctl_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, false, try_task_prctl_capture)
+    event_capture!(ctx, MSG_PROCESS, true, try_task_prctl_capture)
 }
 
 fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -659,6 +685,12 @@ fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             _ => event.cmd = PrctlCmd::Opcode(cmd),
         }
     }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
@@ -671,7 +703,7 @@ static PROCMON_FILTER_USERNS_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entr
 
 #[lsm(hook = "create_user_ns")]
 pub fn create_user_ns_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, false, try_create_user_ns_capture)
+    event_capture!(ctx, MSG_PROCESS, true, try_create_user_ns_capture)
 }
 
 fn try_create_user_ns_capture(
@@ -729,7 +761,7 @@ fn try_create_user_ns_capture(
 
 #[lsm(hook = "ptrace_access_check")]
 pub fn ptrace_access_check_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, false, try_ptrace_access_check_capture)
+    event_capture!(ctx, MSG_PROCESS, true, try_ptrace_access_check_capture)
 }
 
 fn try_ptrace_access_check_capture(
@@ -773,6 +805,12 @@ fn try_ptrace_access_check_capture(
     let Some(proc_child) = proc_child else {
         return Err(0);
     };
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
     util::process_key_init(&mut msg.process, proc);
     util::copy_proc(proc_child, &mut event.child);
     Ok(0)

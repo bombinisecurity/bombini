@@ -84,6 +84,7 @@ pub enum IOUringOp {
 #[repr(C)]
 pub struct IOUringMsg {
     pub process: ProcessKey,
+    pub parent: ProcessKey,
     pub opcode: IOUringOp,
     pub flags: u64,
     /// path used in file operations
