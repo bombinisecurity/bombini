@@ -1,5 +1,7 @@
 # Introduction
 
+<img align="right" src="../img/bombini_logo.png" alt="Bombini logo" width="256" style="height: auto;">
+
 **Bombini** is an eBPF-based security agent written entirely in Rust using the [Aya](https://github.com/aya-rs/aya) library and built on LSM (Linux Security Module) BPF hooks. At its core, Bombini employs modular components called Detectors, each responsible for monitoring and reporting specific types of system events. 
 
 Detectors are organized by event class and kernel subsystem: 
