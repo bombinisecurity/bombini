@@ -16,44 +16,11 @@ For other event types only opcode is provided.
 {
   "type": "IOUringEvent",
   "process": {
-    "start_time": "2025-12-04T07:30:11.462Z",
-    "pid": 2230188,
-    "tid": 2230188,
-    "ppid": 2230022,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
-    "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
+    "start_time": "2025-12-11T12:37:46.235Z",
     "cloned": false,
-    "secureexec": "",
-    "filename": "agent",
-    "binary_path": "/home/fedotoff/RingReaper/agent",
-    "args": ""
-  },
-  "opcode": "IORING_OP_CONNECT",
-  "op_info": {
-    "addr": "127.0.0.1",
-    "port": 443
-  },
-  "timestamp": "2025-12-04T07:30:11.463Z"
-}
-```
-
-## IORING_OP_OPENAT
-
-```json
-
-{
-  "type": "IOUringEvent",
-  "process": {
-    "start_time": "2025-12-04T07:37:58.995Z",
-    "pid": 2238307,
-    "tid": 2238307,
-    "ppid": 2238306,
+    "pid": 53256,
+    "tid": 53256,
+    "ppid": 53255,
     "uid": 0,
     "euid": 0,
     "gid": 0,
@@ -62,11 +29,81 @@ For other event types only opcode is provided.
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
     "cap_effective": "ALL_CAPS",
-    "cloned": false,
     "secureexec": "",
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
     "args": ""
+  },
+  "parent": {
+    "start_time": "2025-12-11T12:37:46.221Z",
+    "cloned": true,
+    "pid": 53255,
+    "tid": 53255,
+    "ppid": 53226,
+    "uid": 1000,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
+    "auid": 0,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
+    "secureexec": "",
+    "filename": "sudo",
+    "binary_path": "/usr/bin/sudo",
+    "args": "./agent"
+  },
+  "opcode": "IORING_OP_CONNECT",
+  "op_info": {
+    "addr": "127.0.0.1",
+    "port": 443
+  },
+  "timestamp": "2025-12-11T12:37:46.238Z"
+}
+```
+
+## IORING_OP_OPENAT
+
+```json
+{
+  "type": "IOUringEvent",
+  "process": {
+    "start_time": "2025-12-11T12:37:46.235Z",
+    "cloned": false,
+    "pid": 53256,
+    "tid": 53256,
+    "ppid": 53255,
+    "uid": 0,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
+    "secureexec": "",
+    "filename": "agent",
+    "binary_path": "/home/fedotoff/RingReaper/agent",
+    "args": ""
+  },
+  "parent": {
+    "start_time": "2025-12-11T12:37:46.221Z",
+    "cloned": true,
+    "pid": 53255,
+    "tid": 53255,
+    "ppid": 53226,
+    "uid": 1000,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
+    "auid": 0,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
+    "secureexec": "",
+    "filename": "sudo",
+    "binary_path": "/usr/bin/sudo",
+    "args": "./agent"
   },
   "opcode": "IORING_OP_OPENAT",
   "op_info": {
@@ -74,9 +111,8 @@ For other event types only opcode is provided.
     "access_flags": "O_RDONLY",
     "creation_flags": "O_LARGEFILE"
   },
-  "timestamp": "2025-12-04T07:38:05.465Z"
+  "timestamp": "2025-12-11T12:38:25.972Z"
 }
-
 ```
 
 ## IORING_OP_STATX
@@ -85,10 +121,11 @@ For other event types only opcode is provided.
 {
   "type": "IOUringEvent",
   "process": {
-    "start_time": "2025-12-04T07:37:58.995Z",
-    "pid": 2238307,
-    "tid": 2238307,
-    "ppid": 2238306,
+    "start_time": "2025-12-11T12:37:46.235Z",
+    "cloned": false,
+    "pid": 53256,
+    "tid": 53256,
+    "ppid": 53255,
     "uid": 0,
     "euid": 0,
     "gid": 0,
@@ -97,17 +134,35 @@ For other event types only opcode is provided.
     "cap_inheritable": "",
     "cap_permitted": "ALL_CAPS",
     "cap_effective": "ALL_CAPS",
-    "cloned": false,
     "secureexec": "",
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
     "args": ""
   },
+  "parent": {
+    "start_time": "2025-12-11T12:37:46.221Z",
+    "cloned": true,
+    "pid": 53255,
+    "tid": 53255,
+    "ppid": 53226,
+    "uid": 1000,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
+    "auid": 0,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
+    "secureexec": "",
+    "filename": "sudo",
+    "binary_path": "/usr/bin/sudo",
+    "args": "./agent"
+  },
   "opcode": "IORING_OP_STATX",
   "op_info": {
-    "path": "/usr/bin/pkexec"
+    "path": "/usr/bin/."
   },
-  "timestamp": "2025-12-04T07:38:12.291Z"
+  "timestamp": "2025-12-11T12:38:48.557Z"
 }
 ```
 
@@ -117,28 +172,47 @@ For other event types only opcode is provided.
 {
   "type": "IOUringEvent",
   "process": {
-    "start_time": "2025-12-04T07:30:12.039Z",
-    "pid": 2230188,
-    "tid": 2230188,
-    "ppid": 2230022,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
+    "start_time": "2025-12-11T12:37:46.235Z",
+    "cloned": false,
+    "pid": 53256,
+    "tid": 53256,
+    "ppid": 53255,
+    "uid": 0,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
     "auid": 1000,
     "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "cloned": false,
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
     "secureexec": "",
     "filename": "agent",
     "binary_path": "/home/fedotoff/RingReaper/agent",
     "args": ""
   },
+  "parent": {
+    "start_time": "2025-12-11T12:37:46.221Z",
+    "cloned": true,
+    "pid": 53255,
+    "tid": 53255,
+    "ppid": 53226,
+    "uid": 1000,
+    "euid": 0,
+    "gid": 0,
+    "egid": 0,
+    "auid": 0,
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cap_effective": "ALL_CAPS",
+    "secureexec": "",
+    "filename": "sudo",
+    "binary_path": "/usr/bin/sudo",
+    "args": "./agent"
+  },
   "opcode": "IORING_OP_UNLINKAT",
   "op_info": {
     "path": "/home/fedotoff/RingReaper/agent"
   },
-  "timestamp": "2025-12-04T07:33:12.647Z"
+  "timestamp": "2025-12-11T12:39:29.061Z"
 }
 ```

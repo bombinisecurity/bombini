@@ -15,6 +15,17 @@ JSON schema for all events.
       "description": "LSM File hook info",
       "$ref": "#/$defs/LsmFileHook"
     },
+    "parent": {
+      "description": "Parent Information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "process": {
       "description": "Process Information",
       "$ref": "#/$defs/Process"
@@ -592,6 +603,17 @@ JSON schema for all events.
       "description": "io_uring_ops",
       "type": "string"
     },
+    "parent": {
+      "description": "Parent process information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "process": {
       "description": "Process information",
       "$ref": "#/$defs/Process"
@@ -810,6 +832,17 @@ JSON schema for all events.
     "network_event": {
       "description": "Network event",
       "$ref": "#/$defs/NetworkEventType"
+    },
+    "parent": {
+      "description": "Parent process information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "process": {
       "description": "Process information",
@@ -1043,6 +1076,17 @@ JSON schema for all events.
   "description": "Process exec event",
   "type": "object",
   "properties": {
+    "parent": {
+      "description": "Parent Process information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "process": {
       "description": "Process information",
       "$ref": "#/$defs/Process"
@@ -1182,9 +1226,20 @@ JSON schema for all events.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ProcessClone",
-  "description": "Process exec event",
+  "description": "Process clone event",
   "type": "object",
   "properties": {
+    "parent": {
+      "description": "Parent Process information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "process": {
       "description": "Process information",
       "$ref": "#/$defs/Process"
@@ -1327,6 +1382,17 @@ JSON schema for all events.
   "description": "Process exit event",
   "type": "object",
   "properties": {
+    "parent": {
+      "description": "Parent Process information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "process": {
       "description": "Process information",
       "$ref": "#/$defs/Process"
@@ -1469,6 +1535,17 @@ JSON schema for all events.
   "description": "Process Event",
   "type": "object",
   "properties": {
+    "parent": {
+      "description": "Parent process information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "process": {
       "description": "Process information",
       "$ref": "#/$defs/Process"

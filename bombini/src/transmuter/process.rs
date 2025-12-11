@@ -36,7 +36,7 @@ pub struct ProcessExec {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-/// Process exec event
+/// Process clone event
 pub struct ProcessClone {
     /// Process information
     process: Arc<Process>,
