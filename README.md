@@ -1,5 +1,7 @@
 # Bombini: eBPF-based Security Monitoring Agent
 
+<img align="right" src="./docs/img/bombini_logo.png" alt="Bombini logo" width="128" style="height: auto;;">
+
 ![License][license-badge]
 [![CI][ci-badge]][ci-url]
 [![Book][book-badge]][book-url]
