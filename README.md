@@ -44,3 +44,7 @@ docker run --pid=host --rm -it --privileged -v <your-config-dir>:/usr/local/lib/
 ## Build
 
 To build Bombini from source, please, follow build [guide](./docs/src/getting_started/build.md).
+
+## Contributing
+
+Please, check out [CONTRIBUTING.md](./CONTRIBUTING.md) for the contributing guideline.
