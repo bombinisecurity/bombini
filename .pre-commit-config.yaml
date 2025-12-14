@@ -1,0 +1,38 @@
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt-main
+        name: cargo fmt (main workspace)
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy-main
+        name: cargo clippy (main workspace)
+        entry: cargo clippy --workspace --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-fmt-ebpf
+        name: cargo fmt (bombini-detectors-ebpf)
+        entry: bash -c 'cd bombini-detectors-ebpf && cargo fmt --all -- --check'
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy-ebpf
+        name: cargo clippy (bombini-detectors-ebpf)
+        entry: bash -c 'cd bombini-detectors-ebpf && cargo clippy --workspace --all-features -- -D warnings'
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: dco-signed-off
+        name: check for Signed-off-by
+        language: pygrep
+        entry: 'Signed-off-by:'
+        args: [--negate]
+        stages: [commit-msg]
+        always_run: true
