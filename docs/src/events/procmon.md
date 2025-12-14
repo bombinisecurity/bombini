@@ -362,8 +362,27 @@ ProcessEvents represent a collection of events somehow related to privilege esca
 
 ```json
 {
+  "parent": {
+    "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
+    "auid": 1000,
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-539c5f7a878130ef",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "filename": "tests-539c5f7a878130ef",
+    "gid": 0,
+    "pid": 217149,
+    "ppid": 216910,
+    "secureexec": "",
+    "start_time": "2025-12-14T11:16:03.806Z",
+    "tid": 217149,
+    "uid": 0
+  },
   "process": {
-    "args": "--caps=cap_sys_admin=ep cap_net_raw=ep -- -c id",
+    "args": "--keep=1 -- -c echo KEEPCAPS enabled",
     "auid": 1000,
     "binary_path": "/usr/sbin/capsh",
     "cap_effective": "ALL_CAPS",
@@ -374,20 +393,20 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "euid": 0,
     "filename": "capsh",
     "gid": 0,
-    "pid": 2159214,
-    "ppid": 2159213,
+    "pid": 217438,
+    "ppid": 217149,
     "secureexec": "",
-    "start_time": "2025-12-03T21:56:09.614Z",
-    "tid": 2159214,
+    "start_time": "2025-12-14T11:16:36.901Z",
+    "tid": 217438,
     "uid": 0
   },
   "process_event": {
-    "effective": "CAP_NET_RAW | CAP_SYS_ADMIN",
-    "inheritable": "",
-    "permitted": "CAP_NET_RAW | CAP_SYS_ADMIN",
-    "type": "Setcaps"
+    "cmd": {
+      "PrSetKeepCaps": 1
+    },
+    "type": "Prctl"
   },
-  "timestamp": "2025-12-03T21:56:09.614Z",
+  "timestamp": "2025-12-14T11:16:36.903Z",
   "type": "ProcessEvent"
 }
 ```
@@ -396,6 +415,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
 
 ```json
 {
+  "parent": null,
   "process": {
     "args": "-U",
     "auid": 1000,
@@ -408,17 +428,17 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "euid": 0,
     "filename": "unshare",
     "gid": 0,
-    "pid": 2158895,
-    "ppid": 2158108,
+    "pid": 217376,
+    "ppid": 217149,
     "secureexec": "",
-    "start_time": "2025-12-03T21:55:56.452Z",
-    "tid": 2158895,
+    "start_time": "2025-12-14T11:16:29.111Z",
+    "tid": 217376,
     "uid": 0
   },
   "process_event": {
     "type": "CreateUserNs"
   },
-  "timestamp": "2025-12-03T21:55:56.453Z",
+  "timestamp": "2025-12-14T11:16:29.113Z",
   "type": "ProcessEvent"
 }
 ```
