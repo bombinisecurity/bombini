@@ -9,7 +9,7 @@ Detectors are organized by event class and kernel subsystem:
 * *ProcMon*: Tracks process creation and termination, as well as privilege escalation events.  
 * *FileMon*: Monitors file system activity and file-related operations.  
 * *NetMon*: Observes TCP connection establishment and teardown.  
-* *IOUringMon*: Inspects io_uring submission and completion queue activity.
+* *IOUringMon*: Inspects io_uring submission queue activity.
      
 
 All Detectors perform in-kernel event filtering directly within eBPF programs, minimizing overhead and reducing the volume of data sent to userspace. 

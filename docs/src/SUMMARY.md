@@ -4,7 +4,7 @@
 
 - [Getting Started](./getting_started/getting_started.md)
     - [Container](./getting_started/container.md)
-    - [Kubernetes]()
+    - [Kubernetes](./getting_started/k8s.md)
     - [Build](./getting_started/build.md)
 - [Configuration](./configuration/configuration.md)
     - [Filtering](./configuration/filtering.md)

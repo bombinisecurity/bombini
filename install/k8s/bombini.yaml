@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bombini
+  namespace: default
+data:
+  config.yaml: |
+    # Global parameters for bombini agent.
+    # All paths must be full canonical or
+    # relative to this config file.
+    ---
+    # Directory with bpf detector object files
+    bpf_objs: /usr/local/lib/bombini/bpf
+
+    # Path to pin bpf maps.
+    maps_pin_path: /sys/fs/bpf/bombini
+
+    # Event map size (ring buffer size in bytes)
+    event_map_size: 65536
+
+    # Raw event channel size (number of event messages)
+    event_channel_size: 64
+
+    # Procmon process map size
+    procmon_proc_map_size: 8192
+
+    # Retain Transmuters caches every <gc_period> sec
+    gc_period: 30
+
+    # List of the detectors to load
+    detectors:
+       - procmon
+       #- filemon
+       #- netmon
+       #- io_uringmon
+       #- gtfobins
+  filemon.yaml: |
+    file_open:
+      enabled: true
+    sb_mount:
+      enabled: true
+    mmap_file:
+      enabled: true
+    path_chmod:
+      enabled: true
+    path_chown:
+      enabled: true
+    file_ioctl:
+      enabled: true
+  netmon.yaml: |
+    egress:
+      enabled: true
+    ingress:
+      enabled: true
+  procmon.yaml: |
+    setuid:
+      enabled: false
+    capset:
+      enabled: false
+    create_user_ns:
+      enabled: false
+    prctl:
+      enabled: false
+  io_uringmon.yaml:
+  gtfobins.yaml:
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: bombini
+  namespace: default
+  labels:
+    app: bombini
+spec:
+  selector:
+    matchLabels:
+      app: bombini
+  template:
+    metadata:
+      labels:
+        app: bombini
+    spec:
+      hostPID: true
+      initContainers:
+        - name: bombini-builder
+          image: bombini-builder
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              cd /bombini
+              cargo xtask vmlinux-gen
+              cargo xtask build --release
+              mkdir -p ./target/bpf-objs
+              find ./target/bpfel-unknown-none/release -maxdepth 1 -exec file {} + | grep -i elf | awk -F: '{print $1}' | xargs -I {} cp {} ./target/bpf-objs/
+              cp -r ./target/release/bombini /usr/local/bin/
+              cp -r ./target/bpf-objs /usr/local/lib/bombini/bpf
+          volumeMounts:
+            - name: bombini-bins
+              mountPath: /usr/local/bin
+            - name: bombini-libs
+              mountPath: /usr/local/lib/bombini
+      containers:
+        - name: bombini
+          image: gcr.io/distroless/cc-debian12
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "info"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: bpf-fs
+              mountPath: /sys/fs/bpf
+            - name: config
+              mountPath: /usr/local/lib/bombini/config
+              readOnly: true
+            - name: bombini-bins
+              mountPath: /usr/local/bin
+            - name: bombini-libs
+              mountPath: /usr/local/lib/bombini
+          args:
+            - /usr/local/bin/bombini
+      volumes:
+        - name: bombini-bins
+          emptyDir: {}
+        - name: bombini-libs
+          emptyDir: {}
+        - name: bpf-fs
+          hostPath:
+            path: /sys/fs/bpf
+        - name: config
+          configMap:
+            name: bombini
