@@ -11,7 +11,8 @@ pub struct Config {
     /// 0 - task_fix_setuid
     /// 1 - capset
     /// 2 - create_user_ns
-    pub cred_mask: [CredFilterMask; 3],
+    /// 3 - task_fix_setgid
+    pub cred_mask: [CredFilterMask; 4],
 }
 
 bitflags! {
@@ -35,6 +36,7 @@ bitflags! {
         const EUID = 0x0000000000000001;
         const E_CAPS = 0x0000000000000002;
         const E_CAPS_DENY_LIST = 0x0000000000000004;
+        const EGID = 0x0000000000000008;
     }
 }
 

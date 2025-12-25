@@ -103,7 +103,7 @@ impl Detector for ProcMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
             filter_mask: ProcessFilterMask::empty(),
-            cred_mask: [CredFilterMask::empty(); 3],
+            cred_mask: [CredFilterMask::empty(); 4],
             deny_list: false,
             ima_hash: false,
         };
@@ -163,6 +163,17 @@ impl Detector for ProcMon {
                 .try_into()?;
             setuid.load("task_fix_setuid", &btf)?;
             setuid.attach()?;
+        }
+        if let Some(ref setgid_cfg) = self.config.setgid
+            && setgid_cfg.enabled
+        {
+            let setgid: &mut Lsm = self
+                .ebpf
+                .program_mut("setgid_capture")
+                .unwrap()
+                .try_into()?;
+            setgid.load("task_fix_setgid", &btf)?;
+            setgid.attach()?;
         }
         if let Some(ref capset_cfg) = self.config.capset
             && capset_cfg.enabled
@@ -346,6 +357,13 @@ fn resize_cred_filter_maps(config: &ProcMonConfig, loader: &mut EbpfLoader) {
     {
         loader.set_max_entries(FILTER_SETUID_EUID_MAP_NAME, uid_filter.euid.len() as u32);
     }
+    if let Some(ref setgid_cfg) = config.setgid
+        && let Some(ref cred_filter) = setgid_cfg.cred_filter
+        && let Some(ref gid_filter) = cred_filter.gid_filter
+        && gid_filter.egid.len() > 1
+    {
+        loader.set_max_entries(FILTER_SETGID_EGID_MAP_NAME, gid_filter.egid.len() as u32);
+    }
     if let Some(ref userns_cfg) = config.create_user_ns
         && let Some(ref cred_filter) = userns_cfg.cred_filter
     {
@@ -440,6 +458,14 @@ fn init_cred_filter_maps(
             }
         }
     }
+    if let Some(ref setgid_cfg) = config.setgid
+        && let Some(ref cred_filter) = setgid_cfg.cred_filter
+        && let Some(ref gid_filter) = cred_filter.gid_filter
+        && !gid_filter.egid.is_empty()
+    {
+        init_uid_filter_map!(&gid_filter.egid, ebpf, FILTER_SETGID_EGID_MAP_NAME);
+        ebpf_config.cred_mask[3] |= CredFilterMask::EGID;
+    }
     Ok(())
 }
 
@@ -458,6 +484,8 @@ const FILTER_BINPREFIX_MAP_NAME: &str = "PROCMON_FILTER_BINPREFIX_MAP";
 
 // Cred filter map names
 const FILTER_SETUID_EUID_MAP_NAME: &str = "PROCMON_FILTER_SETUID_EUID_MAP";
+
+const FILTER_SETGID_EGID_MAP_NAME: &str = "PROCMON_FILTER_SETGID_EGID_MAP";
 
 const FILTER_CAPSET_ECAP_MAP_NAME: &str = "PROCMON_FILTER_CAPSET_ECAP_MAP";
 

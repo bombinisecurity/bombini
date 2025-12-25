@@ -17,14 +17,17 @@ pub struct ProcMonConfig {
     /// ptrace_attach hook config.
     #[prost(message, optional, tag = "5")]
     pub ptrace_access_check: ::core::option::Option<ProcHookConfig>,
-    /// Process Filter Configuration.
+    /// setgid hook config.
     #[prost(message, optional, tag = "6")]
+    pub setgid: ::core::option::Option<ProcHookConfig>,
+    /// Process Filter Configuration.
+    #[prost(message, optional, tag = "7")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
     /// Collect IMA hashes for executed binaries.
-    #[prost(bool, optional, tag = "7")]
+    #[prost(bool, optional, tag = "8")]
     pub ima_hash: ::core::option::Option<bool>,
     /// GC period for PROCMON_PROC_MAP default 30 sec.
-    #[prost(uint64, optional, tag = "8")]
+    #[prost(uint64, optional, tag = "9")]
     pub gc_period: ::core::option::Option<u64>,
 }
 /// ProcMon hook configuration
@@ -69,9 +72,12 @@ pub struct CredFilter {
     /// Filter by uids (euid, TODO: uid, fsuid).
     #[prost(message, optional, tag = "1")]
     pub uid_filter: ::core::option::Option<UidFilter>,
-    /// Filter by  caps (effective, TODO: permited, inheritable).
+    /// Filter by  caps (effective, TODO: permitted, inheritable).
     #[prost(message, optional, tag = "2")]
     pub cap_filter: ::core::option::Option<CapFilter>,
+    /// Filter by gids (euid, TODO: gid, fsgid).
+    #[prost(message, optional, tag = "3")]
+    pub gid_filter: ::core::option::Option<GidFilter>,
 }
 /// Capabilities filter
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -89,6 +95,13 @@ pub struct UidFilter {
     /// effective UID
     #[prost(uint32, repeated, tag = "1")]
     pub euid: ::prost::alloc::vec::Vec<u32>,
+}
+/// GID filter
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GidFilter {
+    /// effective GID
+    #[prost(uint32, repeated, tag = "1")]
+    pub egid: ::prost::alloc::vec::Vec<u32>,
 }
 /// Path filtering args
 #[derive(serde::Deserialize)]

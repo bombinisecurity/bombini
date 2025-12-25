@@ -14,12 +14,14 @@ message ProcMonConfig {
     ProcHookConfig create_user_ns = 4;
     // ptrace_attach hook config.
     ProcHookConfig ptrace_access_check = 5;
+    // setgid hook config.
+    ProcHookConfig setgid = 6;
     // Process Filter Configuration.
-    ProcessFilter process_filter = 6;
+    ProcessFilter process_filter = 7;
     // Collect IMA hashes for executed binaries.
-    optional bool ima_hash = 7;
+    optional bool ima_hash = 8;
     // GC period for PROCMON_PROC_MAP default 30 sec.
-    optional uint64 gc_period = 8;
+    optional uint64 gc_period = 9;
 }
 
 // ProcMon hook configuration
@@ -51,8 +53,10 @@ message ProcessFilter {
 message CredFilter {
     // Filter by uids (euid, TODO: uid, fsuid).
     UidFilter uid_filter = 1;
-    // Filter by  caps (effective, TODO: permited, inheritable).
+    // Filter by  caps (effective, TODO: permitted, inheritable).
     CapFilter cap_filter = 2;
+    // Filter by gids (euid, TODO: gid, fsgid).
+    GidFilter gid_filter = 3;
 }
 
 // Capabilities filter
@@ -67,6 +71,12 @@ message CapFilter {
 message UidFilter {
     // effective UID
     repeated uint32 euid = 1;
+}
+
+// GID filter
+message GidFilter {
+    // effective GID
+    repeated uint32 egid = 1;
 }
 
 // Path filtering args
