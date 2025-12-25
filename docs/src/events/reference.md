@@ -1814,6 +1814,19 @@ JSON schema for all events.
           "properties": {
             "type": {
               "type": "string",
+              "const": "Setgid"
+            }
+          },
+          "$ref": "#/$defs/ProcessSetGid",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "Setcaps"
             }
           },
@@ -1889,6 +1902,37 @@ JSON schema for all events.
       "required": [
         "child",
         "mode"
+      ]
+    },
+    "ProcessSetGid": {
+      "description": "Setgid event",
+      "type": "object",
+      "properties": {
+        "egid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "flags": {
+          "description": "LSM_SETID_* flag values",
+          "type": "string"
+        },
+        "fsgid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "egid",
+        "gid",
+        "fsgid",
+        "flags"
       ]
     },
     "ProcessSetUid": {

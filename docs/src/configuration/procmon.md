@@ -29,6 +29,7 @@ gc_period: 30
 ProcMon helps to monitor privilege escalation during process execution. It uses LSM hooks for this:
 
 * security_task_fix_setuid
+* security_task_fix_setgid
 * security_capset
 * security_task_prctl
 * security_create_user_ns
@@ -37,6 +38,13 @@ To enable `setuid` events put this to config:
 
 ```yaml
 setuid:
+  enabled: true
+```
+
+Enabling `setgid` events:
+
+```yaml
+setgid:
   enabled: true
 ```
 
@@ -84,6 +92,12 @@ setuid:
   cred_filter:
     uid_filter:
       euid:
+      - 0
+setgid:
+  enabled: true
+  cred_filter:
+    gid_filter:
+      egid:
       - 0
 capset:
   enabled: true

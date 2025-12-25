@@ -10,6 +10,7 @@
     - [FileHookConfig](#config-FileHookConfig)
     - [FileMonConfig](#config-FileMonConfig)
     - [GTFOBinsConfig](#config-GTFOBinsConfig)
+    - [GidFilter](#config-GidFilter)
     - [IOUringMonConfig](#config-IOUringMonConfig)
     - [IpFilter](#config-IpFilter)
     - [NetMonConfig](#config-NetMonConfig)
@@ -72,7 +73,8 @@ Filter Events using Cred information. Pattern uid_filter || cap_filter.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | uid_filter | [UidFilter](#config-UidFilter) |  | Filter by uids (euid, TODO: uid, fsuid). |
-| cap_filter | [CapFilter](#config-CapFilter) |  | Filter by caps (effective, TODO: permited, inheritable). |
+| cap_filter | [CapFilter](#config-CapFilter) |  | Filter by caps (effective, TODO: permitted, inheritable). |
+| gid_filter | [GidFilter](#config-GidFilter) |  | Filter by gids (euid, TODO: gid, fsgid). |
 
 
 
@@ -128,6 +130,21 @@ Configuration file for GTFOBinsDetector.
 | ----- | ---- | ----- | ----------- |
 | enforce | [bool](#bool) |  | Block execution of GTFOBins binaries. |
 | gtfobins | [string](#string) | repeated | GTFOBins executables names. |
+
+
+
+
+
+
+<a name="config-GidFilter"></a>
+
+### GidFilter
+GID filter
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| egid | [uint32](#uint32) | repeated | effective GID |
 
 
 
@@ -229,6 +246,7 @@ Configuration file for ProcMon detector
 | prctl | [ProcHookConfig](#config-ProcHookConfig) |  | prctl hook config. |
 | create_user_ns | [ProcHookConfig](#config-ProcHookConfig) |  | create_user_ns hook config. |
 | ptrace_access_check | [ProcHookConfig](#config-ProcHookConfig) |  | ptrace_attach hook config. |
+| setgid | [ProcHookConfig](#config-ProcHookConfig) |  | setgid hook config. |
 | process_filter | [ProcessFilter](#config-ProcessFilter) |  | Process Filter Configuration. |
 | ima_hash | [bool](#bool) | optional | Collect IMA hashes for executed binaries. |
 | gc_period | [uint64](#uint64) | optional | GC period for PROCMON_PROC_MAP default 30 sec. |

@@ -102,25 +102,28 @@ Example:
 
 ## Cred  Filter
 
-`cred_filter` supports filtering by euid and effective capabilities. They are combined with OR logic operator.
+`cred_filter` supports filtering by euid, egid and effective capabilities. They are combined with OR logic operator.
 `cap_filter` supports `deny_list` that acts like NOT operator. `cap_filter` supports `ANY` key word  that equal
 the check if any capability is set (not equal 0).
 
 Filter explanation with boolean logic:
 ```
-cap_filter || uid_filter // filters united with OR condition
+cap_filter || uid_filter || gid_filter // filters united with OR condition
 NOT cap_filter // deny_list
-euid || effective // cap_filter has only effective caps, uid_filter only euid
+euid || egid || effective // cap_filter has only effective caps, uid_filter only euid, gid_filter only egid
 ```
 
 Example:
 
 ```yaml
 cred_filter:
-uid_filter:
+  uid_filter:
     euid:
     - 0
-cap_filter:
+  gid_filter:
+    egid:
+    - 0
+  cap_filter:
     effective:
     - "CAP_SYS_ADMIN"
     deny_list: true

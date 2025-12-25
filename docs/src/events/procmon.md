@@ -305,6 +305,60 @@ ProcessEvents represent a collection of events somehow related to privilege esca
 }
 ```
 
+### Setgid
+
+```json
+{
+  "parent": {
+    "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
+    "auid": 1000,
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-e80e3549db660238",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "filename": "tests-e80e3549db660238",
+    "gid": 0,
+    "pid": 1175516,
+    "ppid": 1174657,
+    "secureexec": "",
+    "start_time": "2025-12-25T18:46:55.692Z",
+    "tid": 1175516,
+    "uid": 0
+  },
+  "process": {
+    "args": "-u nobody true",
+    "auid": 1000,
+    "binary_path": "/usr/bin/sudo",
+    "cap_effective": "ALL_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ALL_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "filename": "sudo",
+    "gid": 0,
+    "pid": 1176620,
+    "ppid": 1175516,
+    "secureexec": "",
+    "start_time": "2025-12-25T18:47:36.348Z",
+    "tid": 1176620,
+    "uid": 0
+  },
+  "process_event": {
+    "egid": 0,
+    "flags": "LSM_SETID_RES",
+    "fsgid": 0,
+    "gid": 0,
+    "type": "Setgid"
+  },
+  "timestamp": "2025-12-25T18:47:36.355Z",
+  "type": "ProcessEvent"
+}
+```
+
 ### Setcaps
 
 ```json
