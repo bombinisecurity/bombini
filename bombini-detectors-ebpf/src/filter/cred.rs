@@ -21,6 +21,22 @@ impl<'a> UidFilter<'a> {
         false
     }
 }
+pub struct GidFilter<'a> {
+    egid_map: &'a HashMap<u32, u8>,
+}
+
+impl<'a> GidFilter<'a> {
+    pub fn new(egid_map: &'a HashMap<u32, u8>) -> Self {
+        GidFilter { egid_map }
+    }
+
+    pub fn filter(&self, mask: CredFilterMask, egid: u32) -> bool {
+        if mask.contains(CredFilterMask::EGID) && self.egid_map.get_ptr(&egid).is_some() {
+            return true;
+        }
+        false
+    }
+}
 
 pub struct CapFilter<'a> {
     e_cap_map: &'a Array<u64>,

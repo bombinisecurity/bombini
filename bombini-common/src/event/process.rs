@@ -211,7 +211,17 @@ pub struct ProcSetUid {
     pub euid: u32,
     pub uid: u32,
     pub fsuid: u32,
-    pub flags: LsmSetUidFlags,
+    pub flags: LsmSetIdFlags,
+}
+
+/// Set GID info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcSetGid {
+    pub egid: u32,
+    pub gid: u32,
+    pub fsgid: u32,
+    pub flags: LsmSetIdFlags,
 }
 
 /// Capset info
@@ -235,7 +245,7 @@ bitflags! {
     #[derive(Clone, Debug, PartialEq)]
     #[cfg_attr(feature = "user", derive(Serialize))]
     #[repr(C)]
-    pub struct LsmSetUidFlags: u32 {
+    pub struct LsmSetIdFlags: u32 {
         const LSM_SETID_ID = 0b00000001;
         const LSM_SETID_RE = 0b00000010;
         const LSM_SETID_RES = 0b00000100;
@@ -411,4 +421,6 @@ pub enum ProcessEventVariant {
     CreateUserNs = 3,
     /// Ptrace access check
     PtraceAccessCheck(ProcPtraceAccessCheck) = 4,
+    /// Set gid/egid for process
+    Setgid(ProcSetGid) = 5,
 }

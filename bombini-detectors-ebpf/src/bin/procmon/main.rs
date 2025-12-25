@@ -24,7 +24,7 @@ use bombini_common::{
     event::{
         Event, GenericEvent, MSG_PROCESS, MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
         process::{
-            Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
+            Capabilities, Cgroup, ImaHash, LsmSetIdFlags, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
             PR_SET_NAME, PR_SET_SECUREBITS, PrctlCmd, ProcInfo, ProcessEventVariant, PtraceMode,
             SecureExec,
         },
@@ -35,7 +35,7 @@ use bombini_detectors_ebpf::{
     event_capture,
     event_map::rb_event_init,
     filter::{
-        cred::{CapFilter, UidFilter},
+        cred::{CapFilter, GidFilter, UidFilter},
         process::ProcessFilter,
     },
     util,
@@ -560,13 +560,70 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
     unsafe {
         let creds: *const cred = ctx.arg(0);
-        event.flags = LsmSetUidFlags::from_bits_truncate(ctx.arg(2));
+        event.flags = LsmSetIdFlags::from_bits_truncate(ctx.arg(2));
         event.uid = (*creds).uid.val;
         event.euid = (*creds).euid.val;
         event.fsuid = (*creds).fsuid.val;
     }
     let filter = UidFilter::new(&PROCMON_FILTER_SETUID_EUID_MAP);
     if !config.cred_mask[0].is_empty() && !filter.filter(config.cred_mask[0], event.euid) {
+        return Err(0);
+    }
+
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
+    util::process_key_init(&mut msg.process, proc);
+    Ok(0)
+}
+
+#[map]
+static PROCMON_FILTER_SETGID_EGID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+
+#[lsm(hook = "task_fix_setgid")]
+pub fn setgid_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_PROCESS, true, try_setgid_capture)
+}
+
+fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::Process(ref mut msg) = generic_event.event else {
+        return Err(0);
+    };
+    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+        return Err(0);
+    };
+    let config = unsafe { config_ptr.as_ref() };
+    let Some(config) = config else {
+        return Err(0);
+    };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    filter_by_process(config, proc)?;
+
+    unsafe {
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
+        // Setgid
+        *p = 5;
+    }
+    let ProcessEventVariant::Setgid(ref mut event) = msg.event else {
+        return Err(0);
+    };
+
+    unsafe {
+        let creds: *const cred = ctx.arg(0);
+        event.flags = LsmSetIdFlags::from_bits_truncate(ctx.arg(2));
+        event.gid = (*creds).gid.val;
+        event.egid = (*creds).egid.val;
+        event.fsgid = (*creds).fsgid.val;
+    }
+    let filter = GidFilter::new(&PROCMON_FILTER_SETGID_EGID_MAP);
+    if !config.cred_mask[3].is_empty() && !filter.filter(config.cred_mask[3], event.egid) {
         return Err(0);
     }
 

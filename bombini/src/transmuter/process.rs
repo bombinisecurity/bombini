@@ -7,8 +7,9 @@ use std::sync::Arc;
 use bombini_common::event::{
     Event,
     process::{
-        Capabilities, Cgroup, ImaHash, LsmSetUidFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl,
-        ProcPtraceAccessCheck, ProcSetUid, ProcessEventVariant, ProcessKey, PtraceMode, SecureExec,
+        Capabilities, Cgroup, ImaHash, LsmSetIdFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl,
+        ProcPtraceAccessCheck, ProcSetGid, ProcSetUid, ProcessEventVariant, ProcessKey, PtraceMode,
+        SecureExec,
     },
 };
 
@@ -121,7 +122,19 @@ pub struct ProcessSetUid {
     fsuid: u32,
     /// LSM_SETID_* flag values
     #[cfg_attr(feature = "schema", schemars(with = "String"))]
-    flags: LsmSetUidFlags,
+    flags: LsmSetIdFlags,
+}
+
+/// Setgid event
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct ProcessSetGid {
+    egid: u32,
+    gid: u32,
+    fsgid: u32,
+    /// LSM_SETID_* flag values
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    flags: LsmSetIdFlags,
 }
 
 /// Capset event
@@ -499,6 +512,18 @@ impl ProcessSetUid {
     }
 }
 
+impl ProcessSetGid {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(event: &ProcSetGid) -> Self {
+        Self {
+            gid: event.gid,
+            egid: event.egid,
+            fsgid: event.fsgid,
+            flags: event.flags.clone(),
+        }
+    }
+}
+
 impl ProcessCapset {
     /// Constructs High level event representation from low eBPF message
     pub fn new(event: &ProcCapset) -> Self {
@@ -560,6 +585,7 @@ pub struct ProcessEvent {
 /// Process event types
 pub enum ProcessEventType {
     Setuid(ProcessSetUid),
+    Setgid(ProcessSetGid),
     Setcaps(ProcessCapset),
     Prctl(ProcessPrctl),
     CreateUserNs(ProcessCreateUserNs),
@@ -576,6 +602,12 @@ impl ProcessEvent {
         match event {
             ProcessEventVariant::Setuid(proc) => Self {
                 process_event: ProcessEventType::Setuid(ProcessSetUid::new(proc)),
+                process,
+                parent,
+                timestamp: transmute_ktime(ktime),
+            },
+            ProcessEventVariant::Setgid(proc) => Self {
+                process_event: ProcessEventType::Setgid(ProcessSetGid::new(proc)),
                 process,
                 parent,
                 timestamp: transmute_ktime(ktime),
