@@ -4,13 +4,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use bombini_common::event::{
-    Event,
-    file::{
-        FileMsg, HOOK_FILE_IOCTL, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN,
-        HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
-    },
-};
+use bombini_common::event::{Event, file::FileEventVariant};
 
 use bitflags::bitflags;
 use serde::{Serialize, Serializer};
@@ -296,18 +290,18 @@ impl FileEvent {
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
-        event: &FileMsg,
+        event: &FileEventVariant,
         ktime: u64,
     ) -> Self {
-        match event.hook {
-            HOOK_FILE_OPEN => {
+        match event {
+            FileEventVariant::FileOpen(info) => {
                 let info = FileOpenInfo {
-                    path: str_from_bytes(&event.path),
-                    access_mode: AccessMode::from_bits_truncate(1 << (event.flags & 3)),
-                    creation_flags: CreationFlags::from_bits_truncate(event.flags),
-                    uid: event.uid,
-                    gid: event.gid,
-                    i_mode: event.i_mode.into(),
+                    path: str_from_bytes(&info.path),
+                    access_mode: AccessMode::from_bits_truncate(1 << (info.flags & 3)),
+                    creation_flags: CreationFlags::from_bits_truncate(info.flags),
+                    uid: info.uid,
+                    gid: info.gid,
+                    i_mode: info.i_mode.into(),
                 };
                 Self {
                     process,
@@ -316,9 +310,9 @@ impl FileEvent {
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            HOOK_PATH_TRUNCATE => {
+            FileEventVariant::PathTruncate(path) => {
                 let info = PathInfo {
-                    path: str_from_bytes(&event.path),
+                    path: str_from_bytes(path),
                 };
                 Self {
                     process,
@@ -327,8 +321,8 @@ impl FileEvent {
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            HOOK_PATH_UNLINK => {
-                let path = str_from_bytes(&event.path);
+            FileEventVariant::PathUnlink(path) => {
+                let path = str_from_bytes(path);
                 let info = PathInfo { path };
                 Self {
                     process,
@@ -337,10 +331,10 @@ impl FileEvent {
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            HOOK_PATH_CHMOD => {
+            FileEventVariant::PathChmod(info) => {
                 let info = ChmodInfo {
-                    path: str_from_bytes(&event.path),
-                    i_mode: event.i_mode.into(),
+                    path: str_from_bytes(&info.path),
+                    i_mode: info.i_mode.into(),
                 };
                 Self {
                     process,
@@ -349,11 +343,11 @@ impl FileEvent {
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            HOOK_PATH_CHOWN => {
+            FileEventVariant::PathChown(info) => {
                 let info = ChownInfo {
-                    path: str_from_bytes(&event.path),
-                    uid: event.uid,
-                    gid: event.gid,
+                    path: str_from_bytes(&info.path),
+                    uid: info.uid,
+                    gid: info.gid,
                 };
                 Self {
                     process,
@@ -362,11 +356,11 @@ impl FileEvent {
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            HOOK_SB_MOUNT => {
+            FileEventVariant::SbMount(info) => {
                 let info = MountInfo {
-                    dev: str_from_bytes(&event.name),
-                    mnt: str_from_bytes(&event.path),
-                    flags: event.flags,
+                    dev: str_from_bytes(&info.name),
+                    mnt: str_from_bytes(&info.path),
+                    flags: info.flags,
                 };
                 Self {
                     process,
@@ -375,11 +369,11 @@ impl FileEvent {
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            HOOK_MMAP_FILE => {
+            FileEventVariant::MmapFile(info) => {
                 let info = MmapInfo {
-                    path: str_from_bytes(&event.path),
-                    prot: ProtMode::from_bits_truncate(event.prot),
-                    flags: SharingType::from_bits_truncate(event.flags),
+                    path: str_from_bytes(&info.path),
+                    prot: ProtMode::from_bits_truncate(info.prot),
+                    flags: SharingType::from_bits_truncate(info.flags),
                 };
                 Self {
                     process,
@@ -388,11 +382,11 @@ impl FileEvent {
                     timestamp: transmute_ktime(ktime),
                 }
             }
-            HOOK_FILE_IOCTL => {
+            FileEventVariant::FileIoctl(info) => {
                 let info = IoctlInfo {
-                    path: str_from_bytes(&event.path),
-                    i_mode: event.i_mode.into(),
-                    cmd: event.flags,
+                    path: str_from_bytes(&info.path),
+                    i_mode: info.i_mode.into(),
+                    cmd: info.cmd,
                 };
                 Self {
                     process,
@@ -400,9 +394,6 @@ impl FileEvent {
                     hook: LsmFileHook::FileIoctl(info),
                     timestamp: transmute_ktime(ktime),
                 }
-            }
-            _ => {
-                panic!("unsupported LSM BPF File hook");
             }
         }
     }
@@ -431,7 +422,7 @@ impl Transmuter for FileEventTransmuter {
             };
             if let Some(cached_process) = process_cache.get_mut(&msg.process) {
                 let high_level_event =
-                    FileEvent::new(cached_process.process.clone(), parent, msg, ktime);
+                    FileEvent::new(cached_process.process.clone(), parent, &msg.event, ktime);
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(

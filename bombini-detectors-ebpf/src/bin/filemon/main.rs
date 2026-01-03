@@ -16,10 +16,7 @@ use aya_ebpf::{
 use bombini_common::config::filemon::Config;
 
 use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
-use bombini_common::event::file::{
-    HOOK_FILE_IOCTL, HOOK_FILE_OPEN, HOOK_MMAP_FILE, HOOK_PATH_CHMOD, HOOK_PATH_CHOWN,
-    HOOK_PATH_TRUNCATE, HOOK_PATH_UNLINK, HOOK_SB_MOUNT,
-};
+use bombini_common::event::file::FileEventVariant;
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, GenericEvent, MSG_FILE};
 use bombini_detectors_ebpf::vmlinux::{dentry, file, kgid_t, kuid_t, path, qstr};
@@ -37,6 +34,9 @@ static FILEMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
 
 #[map]
 static PATH_HEAP: PerCpuArray<[u8; MAX_FILE_PATH]> = PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static FILENAME_HEAP: PerCpuArray<[u8; MAX_FILENAME_SIZE]> = PerCpuArray::with_max_entries(1, 0);
 
 // Filter maps
 
@@ -117,7 +117,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -128,7 +128,14 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_FILE_OPEN;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // FileOpen
+        *p = 0;
+    }
+    let FileEventVariant::FileOpen(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
@@ -161,20 +168,27 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
 
             let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
                 .map_err(|_| 0i32)?;
-
-            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-            if !path_filter.filter(config.path_mask[0], &event.path, &event.name) {
+            let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            let name = name_ptr.as_mut();
+            let Some(name) = name else {
+                return Err(0);
+            };
+            aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+            bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+            if !path_filter.filter(config.path_mask[0], &event.path, name) {
                 return Err(0);
             }
         }
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -203,7 +217,7 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -214,7 +228,14 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_PATH_TRUNCATE;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // PathTruncate
+        *p = 1;
+    }
+    let FileEventVariant::PathTruncate(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
@@ -225,7 +246,7 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
-        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, event).map_err(|_| 0i32)?;
         // Filter event by path
         if !config.path_mask[1].is_empty() {
             let path_filter: PathFilter = PathFilter::new(
@@ -238,19 +259,27 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
                 .map_err(|_| 0i32)?;
 
-            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-            if !path_filter.filter(config.path_mask[1], &event.path, &event.name) {
+            let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            let name = name_ptr.as_mut();
+            let Some(name) = name else {
+                return Err(0);
+            };
+            aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+            bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+            if !path_filter.filter(config.path_mask[1], event, name) {
                 return Err(0);
             }
         }
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -279,7 +308,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -290,7 +319,14 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_PATH_UNLINK;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // PathUnlink
+        *p = 2;
+    }
+    let FileEventVariant::PathUnlink(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
@@ -313,9 +349,17 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
         let entry: *const dentry = ctx.arg(1);
         let d_name =
             bpf_probe_read_kernel::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0i32)?;
-        bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
-        bpf_probe_read_kernel_str_bytes(event.name.as_ptr(), &mut event.path[len as usize..])
+        let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        let name = name_ptr.as_mut();
+        let Some(name) = name else {
+            return Err(0);
+        };
+        aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+        bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, event).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes(name.as_ptr(), &mut event[len as usize..])
             .map_err(|_| 0i32)?;
         // Filter event by path
         if !config.path_mask[2].is_empty() {
@@ -324,18 +368,18 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                 &FILEMON_FILTER_UNLINK_PATH_MAP,
                 &FILEMON_FILTER_UNLINK_PREFIX_MAP,
             );
-            if !path_filter.filter(config.path_mask[2], &event.path, &event.name) {
+            if !path_filter.filter(config.path_mask[2], event, name) {
                 return Err(0);
             }
         }
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -364,7 +408,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -375,7 +419,14 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_PATH_CHMOD;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // PathChmod
+        *p = 3;
+    }
+    let FileEventVariant::PathChmod(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
@@ -400,19 +451,27 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
                 .map_err(|_| 0i32)?;
 
-            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-            if !path_filter.filter(config.path_mask[3], &event.path, &event.name) {
+            let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            let name = name_ptr.as_mut();
+            let Some(name) = name else {
+                return Err(0);
+            };
+            aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+            bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+            if !path_filter.filter(config.path_mask[3], &event.path, name) {
                 return Err(0);
             }
         }
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -441,7 +500,7 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -452,7 +511,14 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_PATH_CHOWN;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // PathChown
+        *p = 4;
+    }
+    let FileEventVariant::PathChown(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
@@ -478,19 +544,27 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
                 .map_err(|_| 0i32)?;
 
-            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-            if !path_filter.filter(config.path_mask[4], &event.path, &event.name) {
+            let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            let name = name_ptr.as_mut();
+            let Some(name) = name else {
+                return Err(0);
+            };
+            aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+            bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+            if !path_filter.filter(config.path_mask[4], &event.path, name) {
                 return Err(0);
             }
         }
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -507,7 +581,7 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -518,7 +592,14 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_SB_MOUNT;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // SbMount
+        *p = 5;
+    }
+    let FileEventVariant::SbMount(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let dev: *const u8 = ctx.arg(0);
         let mnt: *const path = ctx.arg(1);
@@ -532,11 +613,11 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
@@ -565,7 +646,7 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -576,7 +657,14 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_MMAP_FILE;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // Mmap
+        *p = 6;
+    }
+    let FileEventVariant::MmapFile(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
@@ -603,20 +691,27 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
 
             let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
                 .map_err(|_| 0i32)?;
-
-            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-            if !path_filter.filter(config.path_mask[6], &event.path, &event.name) {
+            let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            let name = name_ptr.as_mut();
+            let Some(name) = name else {
+                return Err(0);
+            };
+            aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+            bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+            if !path_filter.filter(config.path_mask[6], &event.path, name) {
                 return Err(0);
             }
         }
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 #[map]
@@ -644,7 +739,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
     let Some(config) = config else {
         return Err(0);
     };
-    let Event::File(ref mut event) = generic_event.event else {
+    let Event::File(ref mut msg) = generic_event.event else {
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
@@ -655,14 +750,21 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
 
     filter_by_process(config, proc)?;
 
-    event.hook = HOOK_FILE_IOCTL;
+    unsafe {
+        let p = &mut msg.event as *mut FileEventVariant as *mut u8;
+        // FileIoctl
+        *p = 7;
+    }
+    let FileEventVariant::FileIoctl(ref mut event) = msg.event else {
+        return Err(0);
+    };
     unsafe {
         let fp: *const file = ctx.arg(0);
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
         event.i_mode = (*(*fp).f_inode).i_mode;
-        event.flags = ctx.arg(1);
+        event.cmd = ctx.arg(1);
         let _ = bpf_d_path(
             &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
@@ -681,20 +783,27 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
 
             let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
                 .map_err(|_| 0i32)?;
-
-            bpf_probe_read_kernel_str_bytes(d_name.name, &mut event.name).map_err(|_| 0i32)?;
-            if !path_filter.filter(config.path_mask[7], &event.path, &event.name) {
+            let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            let name = name_ptr.as_mut();
+            let Some(name) = name else {
+                return Err(0);
+            };
+            aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
+            bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+            if !path_filter.filter(config.path_mask[7], &event.path, name) {
                 return Err(0);
             }
         }
     }
 
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        event.parent.pid = parent.pid;
-        event.parent.start = parent.start;
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
     }
 
-    util::process_key_init(&mut event.process, proc);
+    util::process_key_init(&mut msg.process, proc);
     Ok(0)
 }
 
