@@ -9,18 +9,17 @@ use crate::event::process::ProcessKey;
 pub struct FileMsg {
     pub process: ProcessKey,
     pub parent: ProcessKey,
-    pub hook: u8,
-    /// full path or full dir path for unlink
-    /// or mount path
+    pub event: FileEventVariant,
+}
+
+/// FileOpen info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct FileOpen {
+    /// full path
     pub path: [u8; MAX_FILE_PATH],
-    /// file/device name
-    pub name: [u8; MAX_FILENAME_SIZE],
     /// flags passed to open()
-    /// or mount flags from sb_mount()
-    /// mmap flags, or ioctl cmd
     pub flags: u32,
-    /// mmap protection flags
-    pub prot: u32,
     /// File owner UID
     pub uid: u32,
     /// Group owner GID
@@ -29,18 +28,74 @@ pub struct FileMsg {
     pub i_mode: u16,
 }
 
-pub const HOOK_FILE_OPEN: u8 = 0;
+/// PathChmod info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct PathChmod {
+    /// full path
+    pub path: [u8; MAX_FILE_PATH],
+    /// i_mode
+    pub i_mode: u16,
+}
 
-pub const HOOK_PATH_TRUNCATE: u8 = 1;
+/// PathChown info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct PathChown {
+    /// full path
+    pub path: [u8; MAX_FILE_PATH],
+    /// File owner UID
+    pub uid: u32,
+    /// Group owner GID
+    pub gid: u32,
+}
 
-pub const HOOK_PATH_UNLINK: u8 = 2;
+/// SbMount info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct SbMount {
+    /// full mnt path
+    pub path: [u8; MAX_FILE_PATH],
+    pub flags: u32,
+    /// device name
+    pub name: [u8; MAX_FILENAME_SIZE],
+}
 
-pub const HOOK_PATH_CHMOD: u8 = 3;
+/// Mmap info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct MmapFile {
+    /// full path
+    pub path: [u8; MAX_FILE_PATH],
+    /// mmap flags
+    pub flags: u32,
+    /// protection flags
+    pub prot: u32,
+}
 
-pub const HOOK_PATH_CHOWN: u8 = 4;
+/// FileIoctl info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct FileIoctl {
+    /// full path
+    pub path: [u8; MAX_FILE_PATH],
+    /// ioctl cmd
+    pub cmd: u32,
+    /// i_mode
+    pub i_mode: u16,
+}
 
-pub const HOOK_SB_MOUNT: u8 = 5;
-
-pub const HOOK_MMAP_FILE: u8 = 6;
-
-pub const HOOK_FILE_IOCTL: u8 = 7;
+/// Raw File event messages
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+#[repr(u8)]
+pub enum FileEventVariant {
+    FileOpen(FileOpen) = 0,
+    PathTruncate([u8; MAX_FILE_PATH]) = 1,
+    PathUnlink([u8; MAX_FILE_PATH]) = 2,
+    PathChmod(PathChmod) = 3,
+    PathChown(PathChown) = 4,
+    SbMount(SbMount) = 5,
+    MmapFile(MmapFile) = 6,
+    FileIoctl(FileIoctl) = 7,
+}
