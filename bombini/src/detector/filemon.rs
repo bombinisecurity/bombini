@@ -16,6 +16,7 @@ use procfs::sys::kernel::Version;
 use bombini_common::{
     config::{filemon::Config, filemon::PathFilterMask, procmon::ProcessFilterMask},
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
+    event::file::FileEventNumber,
 };
 
 use crate::{init_process_filter_maps, proto::config::FileMonConfig, resize_process_filter_maps};
@@ -54,7 +55,7 @@ impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         let mut config = Config {
             filter_mask: ProcessFilterMask::empty(),
-            path_mask: [PathFilterMask::empty(); 8],
+            path_mask: [PathFilterMask::empty(); FileEventNumber::TotalFileEvents as usize],
             deny_list: false,
         };
         if let Some(filter) = &self.config.process_filter {
@@ -118,6 +119,24 @@ impl Detector for FileMon {
             } else {
                 warn!(
                     "Unlink hook needs 6.8+ kernel version. Current kernel {:?}",
+                    &kernel_ver
+                );
+            }
+        }
+        if let Some(ref symlink_cfg) = self.config.path_symlink
+            && symlink_cfg.enabled
+        {
+            if kernel_ver >= ver_6_8 {
+                let symlink: &mut Lsm = self
+                    .ebpf
+                    .program_mut("path_symlink_capture")
+                    .unwrap()
+                    .try_into()?;
+                symlink.load("path_symlink", &btf)?;
+                symlink.attach()?;
+            } else {
+                warn!(
+                    "Symlink hook needs 6.8+ kernel version. Current kernel {:?}",
                     &kernel_ver
                 );
             }
@@ -251,6 +270,18 @@ fn resize_all_path_filter_maps(
             FILTER_UNLINK_PREFIX_MAP
         );
     }
+    if let Some(ref symlink_cfg) = config.path_symlink
+        && let Some(ref filter) = symlink_cfg.path_filter
+        && kernel_ver >= ver_6_8
+    {
+        resize_path_filter_maps!(
+            filter,
+            loader,
+            FILTER_SYMLINK_NAME_MAP,
+            FILTER_SYMLINK_PATH_MAP,
+            FILTER_SYMLINK_PREFIX_MAP
+        );
+    }
     if let Some(ref chmod_cfg) = config.path_chmod
         && let Some(ref filter) = chmod_cfg.path_filter
     {
@@ -367,7 +398,7 @@ fn init_all_path_filter_maps(
     if let Some(ref file_open_cfg) = config.file_open
         && let Some(ref filter) = file_open_cfg.path_filter
     {
-        ebpf_config.path_mask[0] = init_path_filter_maps!(
+        ebpf_config.path_mask[FileEventNumber::FileOpen as usize] = init_path_filter_maps!(
             filter,
             ebpf,
             FILTER_OPEN_NAME_MAP,
@@ -379,7 +410,7 @@ fn init_all_path_filter_maps(
         && let Some(ref filter) = truncate_cfg.path_filter
         && kernel_ver >= ver_6_8
     {
-        ebpf_config.path_mask[1] = init_path_filter_maps!(
+        ebpf_config.path_mask[FileEventNumber::PathTruncate as usize] = init_path_filter_maps!(
             filter,
             ebpf,
             FILTER_TRUNC_NAME_MAP,
@@ -391,7 +422,7 @@ fn init_all_path_filter_maps(
         && let Some(ref filter) = unlink_cfg.path_filter
         && kernel_ver >= ver_6_8
     {
-        ebpf_config.path_mask[2] = init_path_filter_maps!(
+        ebpf_config.path_mask[FileEventNumber::PathUnlink as usize] = init_path_filter_maps!(
             filter,
             ebpf,
             FILTER_UNLINK_NAME_MAP,
@@ -399,11 +430,23 @@ fn init_all_path_filter_maps(
             FILTER_UNLINK_PREFIX_MAP
         );
     }
+    if let Some(ref symlink_cfg) = config.path_symlink
+        && let Some(ref filter) = symlink_cfg.path_filter
+        && kernel_ver >= ver_6_8
+    {
+        ebpf_config.path_mask[FileEventNumber::PathSymlink as usize] = init_path_filter_maps!(
+            filter,
+            ebpf,
+            FILTER_SYMLINK_NAME_MAP,
+            FILTER_SYMLINK_PATH_MAP,
+            FILTER_SYMLINK_PREFIX_MAP
+        );
+    }
     if let Some(ref chmod_cfg) = config.path_chmod
         && let Some(ref filter) = chmod_cfg.path_filter
         && kernel_ver >= ver_6_8
     {
-        ebpf_config.path_mask[3] = init_path_filter_maps!(
+        ebpf_config.path_mask[FileEventNumber::PathChmod as usize] = init_path_filter_maps!(
             filter,
             ebpf,
             FILTER_CHMOD_NAME_MAP,
@@ -415,7 +458,7 @@ fn init_all_path_filter_maps(
         && let Some(ref filter) = chown_cfg.path_filter
         && kernel_ver >= ver_6_8
     {
-        ebpf_config.path_mask[4] = init_path_filter_maps!(
+        ebpf_config.path_mask[FileEventNumber::PathChown as usize] = init_path_filter_maps!(
             filter,
             ebpf,
             FILTER_CHOWN_NAME_MAP,
@@ -426,7 +469,7 @@ fn init_all_path_filter_maps(
     if let Some(ref mmap_cfg) = config.mmap_file
         && let Some(ref filter) = mmap_cfg.path_filter
     {
-        ebpf_config.path_mask[6] = init_path_filter_maps!(
+        ebpf_config.path_mask[FileEventNumber::MmapFile as usize] = init_path_filter_maps!(
             filter,
             ebpf,
             FILTER_MMAP_NAME_MAP,
@@ -437,7 +480,7 @@ fn init_all_path_filter_maps(
     if let Some(ref ioctl_cfg) = config.file_ioctl
         && let Some(ref filter) = ioctl_cfg.path_filter
     {
-        ebpf_config.path_mask[7] = init_path_filter_maps!(
+        ebpf_config.path_mask[FileEventNumber::FileIoctl as usize] = init_path_filter_maps!(
             filter,
             ebpf,
             FILTER_IOCTL_NAME_MAP,
@@ -481,6 +524,13 @@ const FILTER_UNLINK_PATH_MAP: &str = "FILEMON_FILTER_UNLINK_PATH_MAP";
 const FILTER_UNLINK_NAME_MAP: &str = "FILEMON_FILTER_UNLINK_NAME_MAP";
 
 const FILTER_UNLINK_PREFIX_MAP: &str = "FILEMON_FILTER_UNLINK_PREFIX_MAP";
+
+// Path symlink filter maps
+const FILTER_SYMLINK_PATH_MAP: &str = "FILEMON_FILTER_SYMLINK_PATH_MAP";
+
+const FILTER_SYMLINK_NAME_MAP: &str = "FILEMON_FILTER_SYMLINK_NAME_MAP";
+
+const FILTER_SYMLINK_PREFIX_MAP: &str = "FILEMON_FILTER_SYMLINK_PREFIX_MAP";
 
 // Path chmod filter maps
 const FILTER_CHMOD_PATH_MAP: &str = "FILEMON_FILTER_CHMOD_PATH_MAP";

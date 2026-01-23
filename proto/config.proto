@@ -97,18 +97,20 @@ message FileMonConfig {
     FileHookConfig path_truncate = 2;
     // security_path_unlink config.
     FileHookConfig path_unlink = 3;
+    // security_path_symlink config.
+    FileHookConfig path_symlink = 4;
     // security_path_chmod config.
-    FileHookConfig path_chmod = 4;
+    FileHookConfig path_chmod = 5;
     // security_path_chown config.
-    FileHookConfig path_chown = 5;
+    FileHookConfig path_chown = 6;
     // security_sb_mount config.
-    FileHookConfig sb_mount = 6;
+    FileHookConfig sb_mount = 7;
     // security_mmap_file config.
-    FileHookConfig mmap_file = 7;
+    FileHookConfig mmap_file = 8;
     // security_file_ioctl config.
-    FileHookConfig file_ioctl = 8;
+    FileHookConfig file_ioctl = 9;
     // Filter File events by Process information.
-    ProcessFilter process_filter = 9;
+    ProcessFilter process_filter = 10;
 }
 
 // FileMon hook configuration

@@ -4,6 +4,8 @@ path_truncate:
   enabled: true
 path_unlink:
   enabled: true
+path_symlink:
+  enabled: true
 path_chmod:
   enabled: true
 path_chown:

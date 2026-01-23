@@ -85,17 +85,43 @@ pub struct FileIoctl {
     pub i_mode: u16,
 }
 
+/// FileIoctl info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct PathSymlink {
+    /// path to symlink
+    pub link_path: [u8; MAX_FILE_PATH],
+    /// path to target
+    pub old_path: [u8; MAX_FILE_PATH],
+}
+
 /// Raw File event messages
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 #[repr(u8)]
 pub enum FileEventVariant {
-    FileOpen(FileOpen) = 0,
-    PathTruncate([u8; MAX_FILE_PATH]) = 1,
-    PathUnlink([u8; MAX_FILE_PATH]) = 2,
-    PathChmod(PathChmod) = 3,
-    PathChown(PathChown) = 4,
-    SbMount(SbMount) = 5,
-    MmapFile(MmapFile) = 6,
-    FileIoctl(FileIoctl) = 7,
+    FileOpen(FileOpen) = FileEventNumber::FileOpen as u8,
+    PathTruncate([u8; MAX_FILE_PATH]) = FileEventNumber::PathTruncate as u8,
+    PathUnlink([u8; MAX_FILE_PATH]) = FileEventNumber::PathUnlink as u8,
+    PathSymlink(PathSymlink) = FileEventNumber::PathSymlink as u8,
+    PathChmod(PathChmod) = FileEventNumber::PathChmod as u8,
+    PathChown(PathChown) = FileEventNumber::PathChown as u8,
+    SbMount(SbMount) = FileEventNumber::SbMount as u8,
+    MmapFile(MmapFile) = FileEventNumber::MmapFile as u8,
+    FileIoctl(FileIoctl) = FileEventNumber::FileIoctl as u8,
+}
+
+#[repr(C)]
+pub enum FileEventNumber {
+    FileOpen,
+    PathTruncate,
+    PathUnlink,
+    PathSymlink,
+    PathChmod,
+    PathChown,
+    SbMount,
+    MmapFile,
+    FileIoctl,
+
+    TotalFileEvents,
 }
