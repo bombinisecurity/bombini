@@ -5,7 +5,7 @@ use libc::{MAP_FAILED, MAP_SHARED, PROT_READ, PROT_WRITE, memfd_create, mmap, tr
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::{thread, time::Duration};
 
 use procfs::sys::kernel::Version;
@@ -312,6 +312,112 @@ path_unlink:
     ma::assert_ge!(events.matches("\"type\":\"PathUnlink\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
     assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 4); // FileEvent + ProcInfo
+
+    let _ = fs::remove_dir_all(bombini_temp_dir);
+}
+
+#[test]
+fn test_6_8_filemon_symlink() {
+    let (temp_dir, mut config, bpf_objs) = init_test_env();
+    let bombini_temp_dir = temp_dir.path();
+    let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
+    let _ = fs::create_dir(bombini_temp_dir.join("config"));
+    let _ = fs::copy(&config, &tmp_config);
+    tmp_config.pop();
+    config.pop();
+    let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
+    let filemon_config = tmp_config.join("filemon.yaml");
+    let config_contents = r#"
+path_symlink:
+  enabled: true
+  path_filter:
+    prefix:
+    - /tmp/bombini-test-symlink-
+    name:
+    - bombini_hardlink_test_file_2
+"#;
+    let _ = fs::write(&filemon_config, config_contents);
+    let bombini_log =
+        File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
+    let event_log = temp_dir.path().join("events.log");
+
+    let bombini = Command::new(EXE_BOMBINI)
+        .args([
+            "--config-dir",
+            tmp_config.to_str().unwrap(),
+            "--bpf-objs",
+            bpf_objs.to_str().unwrap(),
+            "--event-log",
+            event_log.to_str().unwrap(),
+            "--detector",
+            "procmon",
+            "--detector",
+            "filemon",
+        ])
+        .env("RUST_LOG", "debug")
+        .stderr(bombini_log.try_clone().unwrap())
+        .spawn();
+
+    if bombini.is_err() {
+        panic!("{:?}", bombini.err().unwrap());
+    }
+    let mut bombini = bombini.expect("failed to start bombini");
+    // Wait for detectors being loaded
+    thread::sleep(Duration::from_millis(2000));
+
+    // Create tmp files
+    let tmp_file_prefix = Builder::new()
+        .prefix("bombini-test-symlink-")
+        .rand_bytes(5)
+        .tempfile()
+        .expect("can't create temp file");
+    let tmp_symlink_prefix = bombini_temp_dir.join("bombini_test_symlink_1");
+
+    let tmp_file_name = bombini_temp_dir.join("bombini_hardlink_test_file_2");
+    let tmp_symlink_name = bombini_temp_dir.join("bombini_test_symlink_2");
+    let _ = File::create(&tmp_file_name).expect("can't create test file");
+
+    let tmp_file_not_match = bombini_temp_dir.join("bombini_hardlink_test_file_3");
+    let tmp_symlink_not_match = bombini_temp_dir.join("bombini_test_symlink_3");
+    let _ = File::create(&tmp_file_not_match).expect("can't create test file");
+
+    fn create_symlink(src: &Path, dst: &Path) -> ExitStatus {
+        let ln_status = Command::new("ln")
+            .args(["-s", src.to_str().unwrap(), dst.to_str().unwrap()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .stdin(Stdio::null())
+            .status()
+            .expect("can't start ln");
+
+        ln_status
+    }
+
+    assert!(create_symlink(&tmp_file_prefix.path(), &tmp_symlink_prefix).success());
+    assert!(create_symlink(&tmp_file_name, &tmp_symlink_name).success());
+    assert!(create_symlink(&tmp_file_not_match, &tmp_symlink_not_match).success());
+
+    // Wait Events being processed
+    thread::sleep(Duration::from_millis(500));
+
+    let _ = signal::kill(Pid::from_raw(bombini.id() as i32), Signal::SIGINT);
+
+    let _ = bombini.wait().unwrap();
+
+    let events = fs::read_to_string(&event_log).expect("can't read events");
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 2);
+    ma::assert_ge!(events.matches("\"type\":\"PathSymlink\"").count(), 2);
+    ma::assert_ge!(events.matches("\"filename\":\"ln\"").count(), 2);
+    let mut file_path = String::from("\"old_path\":\"");
+    file_path.push_str(&tmp_file_prefix.path().to_str().unwrap());
+    assert_eq!(events.matches(&file_path).count(), 1);
+    let mut file_path = String::from("\"old_path\":\"");
+    file_path.push_str(&tmp_file_name.to_str().unwrap());
+    assert_eq!(events.matches(&file_path).count(), 1);
+    let mut file_path = String::from("\"old_path\":\"");
+    file_path.push_str(&tmp_file_not_match.to_str().unwrap());
+    assert_ne!(events.matches(&file_path).count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
