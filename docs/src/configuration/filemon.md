@@ -7,6 +7,7 @@ Supported LSM hooks:
 * `mmap_file` hook provides info about mmaped file: path, protection flags.
 * `path_truncate` hook provides info about path truncated by truncate syscall.
 * `path_unlink` provides info about path being deleted.
+* `path_symlink` provides info about symlink creation.
 * `path_chmod` provides info about changing file permissions.
 * `path_chown` provides info about changing file owner.
 * `sb_mount` provides info about mounted devices.
@@ -20,6 +21,7 @@ Supported LSM hooks:
 * `file_ioctl`: 6.2 or greater
 * `path_truncate`: 6.8 or greater
 * `path_unlink`: 6.8 or greater
+* `path_symlink`: 6.8 or greater
 * `path_chmod`: 6.8 or greater
 * `path_chown`: 6.8 or greater
 
@@ -31,6 +33,7 @@ Config represents a dictionary with supported LSM BPF file hooks:
 * mmap_file
 * path_truncate
 * path_unlink
+* path_symlink
 * path_chmod
 * path_chown
 * sb_mount
@@ -49,10 +52,13 @@ FileMon also supports [path filtering](filtering.md/#path-filter) for hooks:
 * file_open
 * path_truncate
 * path_unlink
+* path_symlink
 * path_chmod
 * path_chown
 * mmap_file
 * file_ioctl
+
+Path filtering for the symlink hook is based on the target path, not the symlink file.
 
 Config example:
 
@@ -72,6 +78,8 @@ mmap_file:
 path_truncate:
   enabled: false
 path_unlink:
+  enabled: false
+path_symlink:
   enabled: false
 path_chmod:
   enabled: false

@@ -108,6 +108,7 @@ Configuration file for FileMon detector.
 | file_open | [FileHookConfig](#config-FileHookConfig) |  | security_file_open config. |
 | path_truncate | [FileHookConfig](#config-FileHookConfig) |  | security_path_truncate config. |
 | path_unlink | [FileHookConfig](#config-FileHookConfig) |  | security_path_unlink config. |
+| path_symlink | [FileHookConfig](#config-FileHookConfig) |  | security_path_symlink config. |
 | path_chmod | [FileHookConfig](#config-FileHookConfig) |  | security_path_chmod config. |
 | path_chown | [FileHookConfig](#config-FileHookConfig) |  | security_path_chown config. |
 | sb_mount | [FileHookConfig](#config-FileHookConfig) |  | security_sb_mount config. |

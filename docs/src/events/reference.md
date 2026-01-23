@@ -195,6 +195,19 @@ JSON schema for all events.
           "properties": {
             "type": {
               "type": "string",
+              "const": "PathSymlink"
+            }
+          },
+          "$ref": "#/$defs/PathSymlink",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "PathChmod"
             }
           },
@@ -313,6 +326,23 @@ JSON schema for all events.
       },
       "required": [
         "path"
+      ]
+    },
+    "PathSymlink": {
+      "type": "object",
+      "properties": {
+        "link_path": {
+          "description": "full path",
+          "type": "string"
+        },
+        "old_path": {
+          "description": "symlink target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "link_path",
+        "old_path"
       ]
     },
     "Process": {
