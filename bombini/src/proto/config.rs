@@ -130,23 +130,26 @@ pub struct FileMonConfig {
     /// security_path_unlink config.
     #[prost(message, optional, tag = "3")]
     pub path_unlink: ::core::option::Option<FileHookConfig>,
-    /// security_path_chmod config.
+    /// security_path_symlink config.
     #[prost(message, optional, tag = "4")]
+    pub path_symlink: ::core::option::Option<FileHookConfig>,
+    /// security_path_chmod config.
+    #[prost(message, optional, tag = "5")]
     pub path_chmod: ::core::option::Option<FileHookConfig>,
     /// security_path_chown config.
-    #[prost(message, optional, tag = "5")]
+    #[prost(message, optional, tag = "6")]
     pub path_chown: ::core::option::Option<FileHookConfig>,
     /// security_sb_mount config.
-    #[prost(message, optional, tag = "6")]
+    #[prost(message, optional, tag = "7")]
     pub sb_mount: ::core::option::Option<FileHookConfig>,
     /// security_mmap_file config.
-    #[prost(message, optional, tag = "7")]
+    #[prost(message, optional, tag = "8")]
     pub mmap_file: ::core::option::Option<FileHookConfig>,
     /// security_file_ioctl config.
-    #[prost(message, optional, tag = "8")]
+    #[prost(message, optional, tag = "9")]
     pub file_ioctl: ::core::option::Option<FileHookConfig>,
     /// Filter File events by Process information.
-    #[prost(message, optional, tag = "9")]
+    #[prost(message, optional, tag = "10")]
     pub process_filter: ::core::option::Option<ProcessFilter>,
 }
 /// FileMon hook configuration

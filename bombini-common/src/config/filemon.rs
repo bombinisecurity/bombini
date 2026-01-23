@@ -1,6 +1,8 @@
 //! Filemon config
 use bitflags::bitflags;
 
+use crate::event::file::FileEventNumber;
+
 use super::procmon::ProcessFilterMask;
 
 #[derive(Debug, Copy, Clone)]
@@ -11,15 +13,7 @@ pub struct Config {
     /// Use deny list for process filtering
     pub deny_list: bool,
     /// Path filters for hooks
-    /// 0 - file_open
-    /// 1 - path_truncate
-    /// 2 - path_unlink
-    /// 3 - path_chmod
-    /// 4 - path_chown
-    /// 5 - sb_mount
-    /// 6 - mmap_file
-    /// 7 - file_ioctl
-    pub path_mask: [PathFilterMask; 8],
+    pub path_mask: [PathFilterMask; FileEventNumber::TotalFileEvents as usize],
 }
 
 #[cfg(feature = "user")]

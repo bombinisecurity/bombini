@@ -214,6 +214,15 @@ pub struct PathInfo {
 
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PathSymlink {
+    /// full path
+    link_path: String,
+    /// symlink target
+    old_path: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChmodInfo {
     /// full path
     path: String,
@@ -278,6 +287,7 @@ pub enum LsmFileHook {
     FileOpen(FileOpenInfo),
     PathTruncate(PathInfo),
     PathUnlink(PathInfo),
+    PathSymlink(PathSymlink),
     PathChmod(ChmodInfo),
     PathChown(ChownInfo),
     SbMount(MountInfo),
@@ -328,6 +338,18 @@ impl FileEvent {
                     process,
                     parent,
                     hook: LsmFileHook::PathUnlink(info),
+                    timestamp: transmute_ktime(ktime),
+                }
+            }
+            FileEventVariant::PathSymlink(info) => {
+                let info = PathSymlink {
+                    link_path: str_from_bytes(&info.link_path),
+                    old_path: str_from_bytes(&info.old_path),
+                };
+                Self {
+                    process,
+                    parent,
+                    hook: LsmFileHook::PathSymlink(info),
                     timestamp: transmute_ktime(ktime),
                 }
             }
