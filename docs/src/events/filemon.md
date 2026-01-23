@@ -108,6 +108,60 @@ Event is triggered when file is deleted.
 }
 ```
 
+## PathSymlink
+
+Event is triggered when symbolic link is created.
+
+```json
+{
+  "type": "FileEvent",
+  "process": {
+    "start_time": "2026-01-23T08:15:16.135Z",
+    "cloned": false,
+    "pid": 1944,
+    "tid": 1944,
+    "ppid": 1806,
+    "uid": 535357931,
+    "euid": 535357931,
+    "gid": 1000,
+    "egid": 1000,
+    "auid": 535357931,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "ln",
+    "binary_path": "/usr/bin/ln",
+    "args": "-s /etc/passwd /home/lima.linux/not_a_passwrod"
+  },
+  "parent": {
+    "start_time": "2026-01-23T08:12:56.496Z",
+    "cloned": false,
+    "pid": 1806,
+    "tid": 1806,
+    "ppid": 1711,
+    "uid": 535357931,
+    "euid": 535357931,
+    "gid": 1000,
+    "egid": 1000,
+    "auid": 535357931,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "bash",
+    "binary_path": "/usr/bin/bash",
+    "args": "--login"
+  },
+  "hook": {
+    "type": "PathSymlink",
+    "link_path": "/home/lima.linux/not_a_passwrod",
+    "old_path": "/etc/passwd"
+  },
+  "timestamp": "2026-01-23T08:15:16.135Z"
+}
+```
+
 ## FileOpen
 
 ```json
