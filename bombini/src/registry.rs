@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::config::{Config, DetectorConfig};
+use crate::detector::filemon_new::FileMonNew;
 use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::io_uringmon::IOUringMon;
 
@@ -75,6 +76,11 @@ impl Registry {
         match config {
             DetectorConfig::FileMon(cfg) => {
                 let mut detector = FileMon::new(obj_path, maps_pin_path, cfg.clone())?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::FileMonNew(cfg) => {
+                let mut detector = FileMonNew::new(obj_path, maps_pin_path, cfg.clone())?;
                 detector.load()?;
                 self.detectors.insert(name.to_string(), Box::new(detector));
             }

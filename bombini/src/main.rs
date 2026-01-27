@@ -8,8 +8,11 @@ mod monitor;
 mod options;
 mod proto;
 mod registry;
+mod rule;
 mod transmitter;
 mod transmuter;
+
+use rule::ast;
 
 use config::Config;
 use monitor::Monitor;
