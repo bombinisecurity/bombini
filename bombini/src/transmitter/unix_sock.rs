@@ -7,8 +7,6 @@ use std::path::Path;
 
 use crate::transmitter::Transmitter;
 
-use log::info;
-
 pub struct USockTransmitter {
     stream: UnixStream,
 }

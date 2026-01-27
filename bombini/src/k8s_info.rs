@@ -95,7 +95,6 @@ impl K8sInfo {
                     let mut locked_pods = self.pods.write().unwrap();
                     locked_pods.clear();
 
-                    let mut processed_containers = 0;
                     for pod in pod_list {
                         if let Some(status) = pod.status {
                             if let Some(container_statuses) = status.container_statuses {
@@ -136,7 +135,6 @@ impl K8sInfo {
                                                 .unwrap_or_default(),
                                         };
                                         locked_pods.insert(trimmed_id.to_string(), pod_info);
-                                        processed_containers += 1;
                                     }
                                 }
                             }
