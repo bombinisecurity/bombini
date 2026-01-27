@@ -1,7 +1,6 @@
 //! Transmutes NetworkEvent to serialized format
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 use std::sync::Arc;
 
 use bombini_common::event::{
@@ -152,9 +151,8 @@ fn transmute_connection_v6(con: &TcpConnectionV6) -> TcpConnection {
 
 pub struct NetworkEventTransmuter;
 
-#[async_trait]
 impl Transmuter for NetworkEventTransmuter {
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,

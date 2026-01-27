@@ -5,7 +5,6 @@ use chrono::{DateTime, SecondsFormat};
 use nix::time::{ClockId, clock_gettime};
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 use std::{sync::Arc, time::Duration};
 
 use bombini_common::event::{
@@ -102,20 +101,14 @@ impl TransmuterRegistry {
         registry
     }
 
-    pub async fn transmute(
-        &mut self,
-        generic_event: &GenericEvent,
-    ) -> Result<Vec<u8>, anyhow::Error> {
+    pub fn transmute(&mut self, generic_event: &GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
         let event_type = generic_event.msg_code as usize;
         if let Some(handler) = self.handlers[event_type].as_ref() {
-            handler
-                .transmute(
-                    &generic_event.event,
-                    generic_event.ktime,
-                    &mut self.process_cache,
-                    &self.k8s_info,
-                )
-                .await
+            handler.transmute(
+                &generic_event.event,
+                generic_event.ktime,
+                &mut self.process_cache,
+            )
         } else {
             Err(anyhow!(
                 "No transmuter for event type {}",
@@ -129,10 +122,9 @@ impl TransmuterRegistry {
     }
 }
 
-#[async_trait]
 pub trait Transmuter: Send + Sync {
     /// Transmutes low-level event to high level and serialized representation
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,

@@ -1,7 +1,6 @@
 //! Transmutes IOUringEvent to serialized format
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
@@ -121,9 +120,8 @@ impl IOUringEvent {
 
 pub struct IOUringEventTransmuter;
 
-#[async_trait]
 impl Transmuter for IOUringEventTransmuter {
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,
