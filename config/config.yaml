@@ -24,6 +24,7 @@ gc_period: 30
 detectors:
    - procmon
    #- filemon
+   - filemon_new
    #- netmon
    #- io_uringmon
    #- gtfobins

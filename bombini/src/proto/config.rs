@@ -239,7 +239,6 @@ pub struct Rule {
     pub event: ::prost::alloc::string::String,
 }
 /// Configuration file for FileMonNew detector.
-#[allow(unused)]
 #[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct FileMonNewConfig {
     /// security_file_open config.
@@ -271,7 +270,6 @@ pub struct FileMonNewConfig {
     pub file_ioctl: ::core::option::Option<HookConfig>,
 }
 /// FileMon hook configuration
-#[allow(unused)]
 #[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct HookConfig {
     /// Load eBPF programs
@@ -279,5 +277,6 @@ pub struct HookConfig {
     pub enabled: bool,
     /// Filtering rules
     #[prost(message, repeated, tag = "2")]
+    #[serde(default)]
     pub rules: ::prost::alloc::vec::Vec<Rule>,
 }
