@@ -11,3 +11,7 @@ pub const MAX_FILE_PREFIX: usize = 256;
 pub const DOCKER_ID_LENGTH: usize = 128;
 
 pub const MAX_IMA_HASH_SIZE: usize = 64;
+
+pub const MAX_RULE_OPERATIONS: usize = 16;
+
+pub const MAX_RULES_COUNT: usize = 32;
