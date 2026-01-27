@@ -15,6 +15,7 @@ use std::convert::TryFrom;
 use bombini_common::event::GenericEvent;
 
 use crate::config::Config;
+use crate::k8s_info::K8sInfo;
 use crate::transmitter::Transmitter;
 use crate::transmuter::TransmuterRegistry;
 
@@ -32,6 +33,7 @@ impl Monitor {
         &self,
         config: &Config,
         mut transmitter: T,
+        k8s_info: K8sInfo,
     ) {
         let (tx, mut rx) = mpsc::channel::<Bytes>(config.options.event_channel_size.unwrap());
         let ring_buf = RingBuf::try_from(Map::RingBuf(
@@ -40,7 +42,7 @@ impl Monitor {
         .unwrap();
         let mut last_gc = Instant::now();
         let gc_period: Duration = Duration::from_secs(config.options.gc_period.unwrap());
-        let mut transmuters = TransmuterRegistry::new(config);
+        let mut transmuters = TransmuterRegistry::new(config, k8s_info);
 
         tokio::spawn(async move {
             let mut poll = AsyncFd::new(ring_buf).unwrap();
@@ -60,7 +62,7 @@ impl Monitor {
                 if let Ok(data) = transmuted {
                     let _ = transmitter.transmit(data).await;
                 } else {
-                    log::debug!("{}", transmuted.err().unwrap());
+                    println!("{}", transmuted.err().unwrap());
                 }
 
                 if last_gc.elapsed() >= gc_period {

@@ -7,8 +7,6 @@ use std::path::Path;
 
 use crate::transmitter::Transmitter;
 
-use log::debug;
-
 pub struct USockTransmitter {
     stream: UnixStream,
 }
@@ -19,7 +17,7 @@ impl USockTransmitter {
         let transmitter = USockTransmitter {
             stream: UnixStream::connect(path.as_ref()).await?,
         };
-        debug!("Connected to {}", path.as_ref().display());
+        log::debug!("Connected to {}", path.as_ref().display());
         Ok(transmitter)
     }
 }

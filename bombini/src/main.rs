@@ -4,6 +4,7 @@ use tokio::signal;
 
 mod config;
 mod detector;
+mod k8s_info;
 mod monitor;
 mod options;
 mod proto;
@@ -12,6 +13,7 @@ mod transmitter;
 mod transmuter;
 
 use config::Config;
+use k8s_info::K8sInfo;
 use monitor::Monitor;
 use options::Options;
 use registry::Registry;
@@ -40,6 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
         );
     }
 
+    let k8s_info = K8sInfo::new().await;
     let _ = std::fs::create_dir(config.options.maps_pin_path.as_ref().unwrap());
     defer! {
         let _ = std::fs::remove_dir_all(config.options.maps_pin_path.as_ref().unwrap());
@@ -48,7 +51,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut registry = Registry::new();
     registry.load_detectors(&config)?;
     let monitor = Monitor;
-    start_monitor(&config, &monitor).await?;
+    start_monitor(&config, &monitor, k8s_info).await?;
 
     tokio::select! {
         _ = sigint.recv() => {
@@ -62,20 +65,23 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn start_monitor(config: &Config, monitor: &Monitor) -> Result<(), anyhow::Error> {
+async fn start_monitor(
+    config: &Config,
+    monitor: &Monitor,
+    k8s_info: K8sInfo,
+) -> Result<(), anyhow::Error> {
     if let Some(file) = &config.options.transmit_opts.event_log {
         monitor
-            .monitor(config, FileTransmitter::new(file).await?)
+            .monitor(config, FileTransmitter::new(file).await?, k8s_info)
             .await;
         Ok(())
     } else if let Some(file) = &config.options.transmit_opts.event_socket {
         monitor
-            .monitor(config, USockTransmitter::new(file).await?)
+            .monitor(config, USockTransmitter::new(file).await?, k8s_info)
             .await;
         Ok(())
     } else {
-        // default: send events to stdout
-        monitor.monitor(config, StdoutTransmitter).await;
+        monitor.monitor(config, StdoutTransmitter, k8s_info).await;
         Ok(())
     }
 }

@@ -1,5 +1,4 @@
-//! Transmutes FileEvent to serialized format
-
+use crate::k8s_info::K8sInfo;
 use anyhow::anyhow;
 use std::sync::Arc;
 
@@ -428,12 +427,13 @@ impl Transmuter for FileEventTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        _k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::File(msg) = event {
             let parent = if let Some(cached_process) = process_cache.get(&msg.parent) {
                 Some(cached_process.process.clone())
             } else {
-                log::debug!(
+                log::info!(
                     "FileEvent: No parent Process record (pid: {}, start: {}) found in cache",
                     msg.parent.pid,
                     transmute_ktime(msg.parent.start)
