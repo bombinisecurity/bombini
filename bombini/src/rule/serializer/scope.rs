@@ -14,8 +14,9 @@ use bombini_common::{
 use std::collections::HashMap;
 
 use super::PredicateSerializer;
-use crate::ast::Literal;
+use crate::rule::ast::Literal;
 
+#[derive(Debug)]
 pub struct ScopePredicate {
     pub predicate: Predicate,
     pub binary_path_map: HashMap<String, u8>,

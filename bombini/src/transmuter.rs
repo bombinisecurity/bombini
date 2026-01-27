@@ -78,7 +78,7 @@ impl TransmuterRegistry {
                     registry.handlers[MSG_PROCESS as usize] =
                         Some(Arc::new(ProcessEventTransmuter));
                 }
-                DetectorConfig::FileMon(_) => {
+                DetectorConfig::FileMon(_) | DetectorConfig::FileMonNew(_) => {
                     registry.handlers[MSG_FILE as usize] = Some(Arc::new(FileEventTransmuter));
                 }
                 DetectorConfig::NetMon(_) => {

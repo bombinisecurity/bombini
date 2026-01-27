@@ -1,0 +1,10 @@
+file_open:
+  enabled: true
+  rules:
+  - rule: First
+    scope: binary_name == "tail"
+    event: name == "passwd" OR name == "shadow"
+
+  - rule: Second
+    scope: binary_prefix == "/usr/bin"
+    event: path == "/etc/hosts"

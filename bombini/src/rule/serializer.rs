@@ -110,6 +110,7 @@ impl RpnConverter {
     }
 }
 
+#[derive(Debug)]
 struct SerializedRule<T>
 where
     T: PredicateSerializer,
@@ -143,6 +144,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct SerializedRules<T>
 where
     T: PredicateSerializer,
@@ -152,9 +154,16 @@ where
 
 impl<T> SerializedRules<T>
 where
-    T: PredicateSerializer + Default,
+    T: PredicateSerializer,
 {
-    pub fn serialize_rules(&mut self, rules: &[Rule]) -> Result<(), anyhow::Error> {
+    pub fn new() -> Self {
+        Self { rules: Vec::new() }
+    }
+
+    pub fn serialize_rules(&mut self, rules: &[Rule]) -> Result<(), anyhow::Error>
+    where
+        T: Default,
+    {
         self.rules.clear();
 
         if rules.len() > MAX_RULES_COUNT {
@@ -216,20 +225,20 @@ where
         let mut map: HashMap<String, u32> = HashMap::new();
         map.insert(
             format!("{}_RULE_MAP", map_name_prefix),
-            self.rules.len() as u32,
+            self.rules.len().max(1) as u32,
         );
         for rule in self.rules.iter().take(MAX_RULES_COUNT) {
             rule.scope_predicate
                 .attribute_map_sizes(map_name_prefix)
                 .iter()
                 .for_each(|(k, v)| {
-                    *map.entry(k.to_string()).or_insert(0) += v;
+                    *map.entry(k.to_string()).or_insert(1) += v;
                 });
             rule.event_predicate
                 .attribute_map_sizes(map_name_prefix)
                 .iter()
                 .for_each(|(k, v)| {
-                    *map.entry(k.to_string()).or_insert(0) += v;
+                    *map.entry(k.to_string()).or_insert(1) += v;
                 });
         }
         map
@@ -257,7 +266,7 @@ mod tests {
             },
         ];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let _ = serialized.serialize_rules(&rules).unwrap();
         assert_eq!(serialized.rules.len(), 2);
@@ -308,7 +317,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::filemon::FileOpenAttributes::Path as u8
+                    bombini_common::config::filemon::PathAttributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -349,7 +358,7 @@ mod tests {
             event: "path == \"/tmp\"".to_string(),
         }];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let result = serialized.serialize_rules(&rules);
         assert!(result.is_err());
@@ -369,7 +378,7 @@ mod tests {
             event: "path == \"/tmp\"".to_string(),
         }];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let result = serialized.serialize_rules(&rules);
         assert!(result.is_err());
@@ -389,7 +398,7 @@ mod tests {
             event: "invalid_attr == \"value\"".to_string(),
         }];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let result = serialized.serialize_rules(&rules);
         assert!(result.is_err());
@@ -409,7 +418,7 @@ mod tests {
             event: "path == \"/tmp\"".to_string(),
         }];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let result = serialized.serialize_rules(&rules);
         assert!(result.is_err());
@@ -429,7 +438,7 @@ mod tests {
             event: "".to_string(),
         }];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let result = serialized.serialize_rules(&rules);
         assert!(result.is_ok());
@@ -450,7 +459,7 @@ mod tests {
             event: "name == \"important.log\"".to_string(),
         }];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let result = serialized.serialize_rules(&rules);
         assert!(result.is_ok());
@@ -473,7 +482,7 @@ mod tests {
             event: "path == \"/secret\" OR name == \"key\"".to_string(),
         }];
 
-        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
 
         let result = serialized.serialize_rules(&rules);
         assert!(result.is_ok());
@@ -532,7 +541,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::filemon::FileOpenAttributes::Path as u8
+                    bombini_common::config::filemon::PathAttributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -545,7 +554,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::filemon::FileOpenAttributes::Name as u8
+                    bombini_common::config::filemon::PathAttributes::Name as u8
                 );
                 assert_eq!(in_op_idx, 1);
             }

@@ -229,13 +229,13 @@ mod __parse__Expr {
         }).collect()
     }
     struct __StateMachine<'input>
-    where 
+    where
     {
         input: &'input str,
         __phantom: core::marker::PhantomData<(&'input ())>,
     }
     impl<'input> __state_machine::ParserDefinition for __StateMachine<'input>
-    where 
+    where
     {
         type Location = usize;
         type Error = &'static str;

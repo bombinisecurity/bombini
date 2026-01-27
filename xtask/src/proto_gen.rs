@@ -17,6 +17,7 @@ pub fn proto_gen(_opts: Options) -> Result<(), anyhow::Error> {
         .type_attribute("config.PathFilter", "#[serde(default)]")
         .type_attribute("config.CredFilter", "#[serde(default)]")
         .type_attribute("config.Rule", "#[serde(default)]")
+        .field_attribute("config.HookConfig.rules", "#[serde(default)]")
         .field_attribute("config.Rule.name", r#"#[serde(rename = "rule")]"#)
         .field_attribute("config.Rule.scope", "#[serde(default)]")
         .field_attribute("config.Rule.event", "#[serde(default)]")
