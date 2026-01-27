@@ -1,7 +1,6 @@
 //! Transmutes FileEvent to serialized format
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 use std::sync::Arc;
 
 use bombini_common::event::{Event, file::FileEventVariant};
@@ -423,9 +422,8 @@ impl FileEvent {
 
 pub struct FileEventTransmuter;
 
-#[async_trait]
 impl Transmuter for FileEventTransmuter {
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,

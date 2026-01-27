@@ -27,7 +27,7 @@ impl Registry {
         }
     }
 
-    pub async fn load_detectors(&mut self, config: &Config) -> Result<(), anyhow::Error> {
+    pub fn load_detectors(&mut self, config: &Config) -> Result<(), anyhow::Error> {
         let mut obj_path = PathBuf::from(config.options.bpf_objs.as_ref().unwrap());
         let mut config_path = PathBuf::from(&config.options.config_dir);
         let maps_pin_path = PathBuf::from(config.options.maps_pin_path.as_ref().unwrap());
