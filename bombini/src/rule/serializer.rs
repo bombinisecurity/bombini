@@ -154,6 +154,10 @@ impl<T> SerializedRules<T>
 where
     T: PredicateSerializer + Default,
 {
+    pub fn new() -> Self {
+        Self { rules: Vec::new() }
+    }
+
     pub fn serialize_rules(&mut self, rules: &[Rule]) -> Result<(), anyhow::Error> {
         self.rules.clear();
 
@@ -223,13 +227,13 @@ where
                 .attribute_map_sizes(map_name_prefix)
                 .iter()
                 .for_each(|(k, v)| {
-                    *map.entry(k.to_string()).or_insert(0) += v;
+                    *map.entry(k.to_string()).or_insert(1) += v;
                 });
             rule.event_predicate
                 .attribute_map_sizes(map_name_prefix)
                 .iter()
                 .for_each(|(k, v)| {
-                    *map.entry(k.to_string()).or_insert(0) += v;
+                    *map.entry(k.to_string()).or_insert(1) += v;
                 });
         }
         map

@@ -7,6 +7,7 @@ use procfs::sys::kernel::Version;
 use anyhow::anyhow;
 
 pub mod filemon;
+pub mod filemon_new;
 pub mod gtfobins;
 pub mod io_uringmon;
 pub mod netmon;

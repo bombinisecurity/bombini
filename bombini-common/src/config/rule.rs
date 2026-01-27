@@ -1,6 +1,5 @@
-use crate::constants::{
-    MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_RULE_OPERATIONS, MAX_RULES_COUNT,
-};
+use crate::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
+use crate::constants::{MAX_RULE_OPERATIONS, MAX_RULES_COUNT};
 
 #[derive(Clone, Debug, Copy)]
 #[repr(C)]
@@ -31,6 +30,7 @@ pub enum ScopeAttributes {
     BinaryPrefix,
     BinaryName,
 }
+
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct FileNameMapKey {

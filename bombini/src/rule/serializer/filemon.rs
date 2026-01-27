@@ -15,7 +15,7 @@ use bombini_common::{
 use std::collections::HashMap;
 
 use super::PredicateSerializer;
-use crate::ast::Literal;
+use crate::rule::ast::Literal;
 
 pub struct FileOpenPredicate {
     pub predicate: Predicate,
@@ -185,10 +185,10 @@ impl PredicateSerializer for FileOpenPredicate {
 }
 
 // For now we have the same set of attributes for all hooks in FileMon. Let's use type aliasing.
-pub type PathUnlinkPredicate = FileOpenPredicate;
-pub type PathTruncatePredicate = FileOpenPredicate;
-pub type PathSymlinkPredicate = FileOpenPredicate;
-pub type PathChmodPredicate = FileOpenPredicate;
-pub type PathChownPredicate = FileOpenPredicate;
-pub type MmapFilePredicate = FileOpenPredicate;
-pub type FileIoctlPredicate = FileOpenPredicate;
+//pub type PathUnlinkPredicate = FileOpenPredicate;
+//pub type PathTruncatePredicate = FileOpenPredicate;
+//pub type PathSymlinkPredicate = FileOpenPredicate;
+//pub type PathChmodPredicate = FileOpenPredicate;
+//pub type PathChownPredicate = FileOpenPredicate;
+//pub type MmapFilePredicate = FileOpenPredicate;
+//pub type FileIoctlPredicate = FileOpenPredicate;
