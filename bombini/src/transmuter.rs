@@ -108,6 +108,7 @@ impl TransmuterRegistry {
                 &generic_event.event,
                 generic_event.ktime,
                 &mut self.process_cache,
+                &self.k8s_info,
             )
         } else {
             Err(anyhow!(
