@@ -26,6 +26,10 @@ scopeguard = "1.2.0"
 nix = { version = "0.31.1", features = ["time"] }
 chrono = { version = "0.4.43", features = ["alloc"] }
 schemars = {version = "1.2.0", optional = true }
+kube = "3.0.0"
+kube-runtime = "3.0.0"
+k8s-openapi = { version = "0.27.0", features = ["v1_31"] }
+thiserror = "2.0.18"
 
 [dev-dependencies]
 nix = { version = "0.31.1", features = ["signal"] }

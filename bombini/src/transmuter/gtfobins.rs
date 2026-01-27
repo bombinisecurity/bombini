@@ -1,5 +1,6 @@
 //! Transmutes GTFOBinsEvent to serialized format
 
+use crate::k8s_info::K8sInfo;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -40,6 +41,7 @@ impl Transmuter for GTFOBinsEventTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        _k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::GTFOBins(event) = event {
             if let Some(cached_process) = process_cache.get_mut(&event.process) {

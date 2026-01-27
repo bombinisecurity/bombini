@@ -13,6 +13,7 @@ use serde::Serialize;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use super::{Transmuter, cache::process::ProcessCache, process::Process, transmute_ktime};
+use crate::k8s_info::K8sInfo;
 
 /// Network event
 #[derive(Clone, Debug, Serialize)]
@@ -158,12 +159,13 @@ impl Transmuter for NetworkEventTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        _k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::Network(msg) = event {
             let parent = if let Some(cached_process) = process_cache.get(&msg.parent) {
                 Some(cached_process.process.clone())
             } else {
-                log::debug!(
+                log::info!(
                     "NetworkEvent: No parent Process record (pid: {}, start: {}) found in cache",
                     msg.parent.pid,
                     transmute_ktime(msg.parent.start)

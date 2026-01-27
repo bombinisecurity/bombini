@@ -23,6 +23,7 @@ mod process;
 
 use crate::{
     config::{Config, DetectorConfig},
+    k8s_info::K8sInfo,
     transmuter::cache::process::{CachedProcess, ProcessCache},
 };
 
@@ -38,14 +39,16 @@ use process::{
 pub struct TransmuterRegistry {
     handlers: [Option<Arc<dyn Transmuter>>; 256],
     process_cache: ProcessCache,
+    k8s_info: K8sInfo,
 }
 impl TransmuterRegistry {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &Config, k8s_info: K8sInfo) -> Self {
         let mut registry = Self {
             handlers: std::array::from_fn(|_| None),
             process_cache: ProcessCache::with_capacity(
                 config.options.procmon_proc_map_size.unwrap() as usize,
             ),
+            k8s_info: k8s_info.clone(),
         };
 
         // Init Process cache
@@ -60,7 +63,7 @@ impl TransmuterRegistry {
                     start: p.start,
                 };
                 let process = CachedProcess {
-                    process: Arc::new(Process::new(&p)),
+                    process: Arc::new(Process::new(&p, &k8s_info)),
                     exited: false,
                 };
                 let _ = registry.process_cache.insert(key, process);
@@ -110,6 +113,7 @@ impl TransmuterRegistry {
                     &generic_event.event,
                     generic_event.ktime,
                     &mut self.process_cache,
+                    &self.k8s_info,
                 )
                 .await
         } else {
@@ -133,6 +137,7 @@ pub trait Transmuter: Send + Sync {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error>;
 }
 

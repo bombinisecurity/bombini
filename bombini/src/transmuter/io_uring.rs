@@ -22,6 +22,7 @@ use super::{
     process::Process,
     str_from_bytes, transmute_ktime,
 };
+use crate::k8s_info::K8sInfo;
 
 /// io_uring events
 #[derive(Clone, Debug, Serialize)]
@@ -127,12 +128,13 @@ impl Transmuter for IOUringEventTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        _k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::IOUring(event) = event {
             let parent = if let Some(cached_process) = process_cache.get(&event.parent) {
                 Some(cached_process.process.clone())
             } else {
-                log::debug!(
+                log::info!(
                     "IOUringEvent: No parent Process record (pid: {}, start: {}) found in cache",
                     event.parent.pid,
                     transmute_ktime(event.parent.start)

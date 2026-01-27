@@ -4,13 +4,16 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use bombini_common::event::{
-    Event,
-    process::{
-        Capabilities, Cgroup, ImaHash, LsmSetIdFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl,
-        ProcPtraceAccessCheck, ProcSetGid, ProcSetUid, ProcessEventVariant, ProcessKey, PtraceMode,
-        SecureExec,
+use bombini_common::{
+    event::{
+        Event,
+        process::{
+            Capabilities, Cgroup, ImaHash, LsmSetIdFlags, PrctlCmd, ProcCapset, ProcInfo,
+            ProcPrctl, ProcPtraceAccessCheck, ProcSetGid, ProcSetUid, ProcessEventVariant,
+            ProcessKey, PtraceMode, SecureExec,
+        },
     },
+    k8s::PodInfo,
 };
 
 use serde::{Serialize, Serializer};
@@ -20,6 +23,7 @@ use super::{
     cache::process::{CachedProcess, ProcessCache},
     str_from_bytes, transmute_ktime,
 };
+use crate::k8s_info::K8sInfo;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -111,6 +115,8 @@ pub struct Process {
     #[serde(serialize_with = "serialize_ima")]
     #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub binary_ima_hash: ImaHash,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pod: Option<PodInfo>,
 }
 
 /// Setuid event
@@ -265,7 +271,9 @@ fn is_invalid_ima(ima: &ImaHash) -> bool {
 }
 
 fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
-    let container = str_from_bytes(&cgroup.cgroup_name)
+    let cgroup_str = str_from_bytes(&cgroup.cgroup_name);
+
+    let container = cgroup_str
         .split(':')
         .next_back()
         .unwrap_or("")
@@ -279,8 +287,16 @@ fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
     }
 
     // Minimal container id length. It could be truncated in ebpf.
-    if container.len() >= 31 {
-        container[..31].to_string()
+    if container.len() >= 10 {
+        let result = if container.len() >= 64 {
+            container[..64].to_string()
+        } else if container.len() >= 31 {
+            container[..31].to_string()
+        } else {
+            container.to_string()
+        };
+
+        result
     } else {
         String::new()
     }
@@ -302,7 +318,7 @@ pub struct ProcessPtraceAccessCheck {
 
 impl Process {
     /// Constructs High level event representation from low eBPF
-    pub fn new(proc: &ProcInfo) -> Self {
+    pub fn new(proc: &ProcInfo, k8s_info: &K8sInfo) -> Self {
         let mut args = proc.args;
         args.iter_mut().for_each(|e| {
             if *e == 0x00 {
@@ -310,6 +326,13 @@ impl Process {
             }
         });
         let args = String::from_utf8_lossy(&args).trim_end().to_string();
+        let container_id = container_id_from_cgroup(&proc.cgroup);
+        let pod = if !container_id.is_empty() {
+            let pod_info = k8s_info.get_pod_info(&container_id);
+            pod_info
+        } else {
+            None
+        };
         Self {
             start_time: transmute_ktime(proc.start),
             cloned: proc.cloned,
@@ -328,8 +351,9 @@ impl Process {
             filename: str_from_bytes(&proc.filename),
             binary_path: str_from_bytes(&proc.binary_path),
             args,
-            container_id: container_id_from_cgroup(&proc.cgroup),
+            container_id,
             binary_ima_hash: proc.ima_hash,
+            pod,
         }
     }
 }
@@ -354,6 +378,7 @@ impl Transmuter for ProcessExecTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::ProcessExec((event_proc, parent_key)) = event {
             // Remove previous Process record
@@ -363,16 +388,11 @@ impl Transmuter for ProcessExecTransmuter {
             };
             if let Some(cached_process) = process_cache.get_mut(&prev_key) {
                 cached_process.exited = true;
-            } else {
-                log::debug!(
-                    "ProcessExec: No previous Process record (pid: {}, start: {}) found in cache",
-                    event_proc.pid,
-                    transmute_ktime(event_proc.prev_start)
-                );
             }
 
             // Add new one after exec
-            let process = Arc::new(Process::new(event_proc));
+            let process = Arc::new(Process::new(event_proc, k8s_info));
+
             let key = ProcessKey {
                 pid: event_proc.pid,
                 start: event_proc.start,
@@ -385,11 +405,6 @@ impl Transmuter for ProcessExecTransmuter {
             let parent = if let Some(cached_process) = process_cache.get(parent_key) {
                 Some(cached_process.process.clone())
             } else {
-                log::debug!(
-                    "ProcessExec: No parent Process record (pid: {}, start: {}) found in cache",
-                    parent_key.pid,
-                    transmute_ktime(parent_key.start)
-                );
                 None
             };
             let high_level_event = ProcessExec::new(process, ktime, parent);
@@ -420,9 +435,11 @@ impl Transmuter for ProcessCloneTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::ProcessClone((event_proc, parent_key)) = event {
-            let process = Arc::new(Process::new(event_proc));
+            let process = Arc::new(Process::new(event_proc, k8s_info));
+
             let key = ProcessKey {
                 pid: event_proc.pid,
                 start: event_proc.start,
@@ -435,11 +452,6 @@ impl Transmuter for ProcessCloneTransmuter {
             let parent = if let Some(cached_process) = process_cache.get(parent_key) {
                 Some(cached_process.process.clone())
             } else {
-                log::debug!(
-                    "ProcessClone: No parent Process record (pid: {}, start: {}) found in cache",
-                    parent_key.pid,
-                    transmute_ktime(parent_key.start)
-                );
                 None
             };
             let high_level_event = ProcessClone::new(process.clone(), ktime, parent);
@@ -470,16 +482,12 @@ impl Transmuter for ProcessExitTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        _k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::ProcessExit((event_key, parent_key)) = event {
             let parent = if let Some(cached_process) = process_cache.get(parent_key) {
                 Some(cached_process.process.clone())
             } else {
-                log::debug!(
-                    "ProcessExit: No parent Process record (pid: {}, start: {}) found in cache",
-                    parent_key.pid,
-                    transmute_ktime(parent_key.start)
-                );
                 None
             };
             if let Some(cached_process) = process_cache.get_mut(event_key) {
@@ -488,11 +496,7 @@ impl Transmuter for ProcessExitTransmuter {
                     ProcessExit::new(cached_process.process.clone(), ktime, parent);
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
-                Err(anyhow!(
-                    "ProcessExit: No process (pid: {}, start: {}) found in cache",
-                    event_key.pid,
-                    transmute_ktime(event_key.start)
-                ))
+                Err(anyhow!(""))
             }
         } else {
             Err(anyhow!("Unexpected event variant"))
@@ -552,9 +556,9 @@ impl ProcessPrctl {
 
 impl ProcessPtraceAccessCheck {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: &ProcPtraceAccessCheck) -> Self {
+    pub fn new(event: &ProcPtraceAccessCheck, k8s_info: &K8sInfo) -> Self {
         Self {
-            child: Process::new(&event.child),
+            child: Process::new(&event.child, k8s_info),
             mode: event.mode.clone(),
         }
     }
@@ -598,6 +602,7 @@ impl ProcessEvent {
         parent: Option<Arc<Process>>,
         event: &ProcessEventVariant,
         ktime: u64,
+        k8s_info: &K8sInfo,
     ) -> Self {
         match event {
             ProcessEventVariant::Setuid(proc) => Self {
@@ -632,7 +637,7 @@ impl ProcessEvent {
             },
             ProcessEventVariant::PtraceAccessCheck(proc) => Self {
                 process_event: ProcessEventType::PtraceAccessCheck(ProcessPtraceAccessCheck::new(
-                    proc,
+                    proc, k8s_info,
                 )),
                 process,
                 parent,
@@ -651,21 +656,22 @@ impl Transmuter for ProcessEventTransmuter {
         event: &Event,
         ktime: u64,
         process_cache: &mut ProcessCache,
+        k8s_info: &K8sInfo,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::Process(msg) = event {
             let parent = if let Some(cached_process) = process_cache.get(&msg.parent) {
                 Some(cached_process.process.clone())
             } else {
-                log::debug!(
-                    "ProcessEvent: No parent Process record (pid: {}, start: {}) found in cache",
-                    msg.parent.pid,
-                    transmute_ktime(msg.parent.start)
-                );
                 None
             };
             if let Some(cached_process) = process_cache.get_mut(&msg.process) {
-                let high_level_event =
-                    ProcessEvent::new(cached_process.process.clone(), parent, &msg.event, ktime);
+                let high_level_event = ProcessEvent::new(
+                    cached_process.process.clone(),
+                    parent,
+                    &msg.event,
+                    ktime,
+                    k8s_info,
+                );
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(
