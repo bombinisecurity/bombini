@@ -35,7 +35,7 @@ bitflags! {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
-pub enum FileOpenAttributes {
+pub enum PathAttributes {
     Path = 0,
     PathPrefix,
     Name,
