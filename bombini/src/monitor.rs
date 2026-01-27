@@ -56,7 +56,7 @@ impl Monitor {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
-                let transmuted = transmuters.transmute(event).await;
+                let transmuted = transmuters.transmute(event);
                 if let Ok(data) = transmuted {
                     let _ = transmitter.transmit(data).await;
                 } else {

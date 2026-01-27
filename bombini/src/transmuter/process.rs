@@ -1,7 +1,6 @@
 //! Transmutes Process to serializable struct
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 use std::sync::Arc;
 
 use bombini_common::event::{
@@ -347,9 +346,8 @@ impl ProcessExec {
 
 pub struct ProcessExecTransmuter;
 
-#[async_trait]
 impl Transmuter for ProcessExecTransmuter {
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,
@@ -413,9 +411,8 @@ impl ProcessClone {
 
 pub struct ProcessCloneTransmuter;
 
-#[async_trait]
 impl Transmuter for ProcessCloneTransmuter {
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,
@@ -463,9 +460,8 @@ impl ProcessExit {
 
 pub struct ProcessExitTransmuter;
 
-#[async_trait]
 impl Transmuter for ProcessExitTransmuter {
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,
@@ -644,9 +640,8 @@ impl ProcessEvent {
 
 pub struct ProcessEventTransmuter;
 
-#[async_trait]
 impl Transmuter for ProcessEventTransmuter {
-    async fn transmute(
+    fn transmute(
         &self,
         event: &Event,
         ktime: u64,

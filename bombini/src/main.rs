@@ -46,7 +46,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     let mut registry = Registry::new();
-    registry.load_detectors(&config).await?;
+    registry.load_detectors(&config)?;
     let monitor = Monitor;
     start_monitor(&config, &monitor).await?;
 
