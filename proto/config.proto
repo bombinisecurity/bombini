@@ -162,3 +162,13 @@ message GTFOBinsConfig {
     // GTFOBins executables names.
     repeated string gtfobins = 2;
 }
+
+// Rule definition. Scope and event predicates are used as logical conjunction.
+message Rule {
+    // Name of the rule.
+    string name = 1;
+    // Logical predicate describes scope this rule will be applied, e.g. process, container.
+    string scope = 2;
+    // Logical predicate for describes event rule will be applied
+    string event = 3;
+}

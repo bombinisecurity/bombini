@@ -32,3 +32,11 @@ bitflags! {
         const PATH_PREFIX = 0x0000000000000004;
     }
 }
+
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
+pub enum FileOpenAttributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+}
