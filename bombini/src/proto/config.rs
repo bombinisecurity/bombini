@@ -220,3 +220,19 @@ pub struct GtfoBinsConfig {
     #[prost(string, repeated, tag = "2")]
     pub gtfobins: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// Rule definition. Scope and event predicates are used as logical conjunction.
+#[allow(unused)]
+#[derive(serde::Deserialize)]
+#[serde(default)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct Rule {
+    /// Name of the rule.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    /// Logical predicate describes scope this rule will be applied, e.g. process, container.
+    #[prost(string, tag = "2")]
+    pub scope: ::prost::alloc::string::String,
+    /// Logical predicate for describes event rule will be applied
+    #[prost(string, tag = "3")]
+    pub event: ::prost::alloc::string::String,
+}

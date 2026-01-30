@@ -2,6 +2,7 @@ mod build;
 mod build_ebpf;
 mod docs_gen;
 mod proto_gen;
+mod rule_parser_gen;
 mod run;
 mod tarball;
 mod test;
@@ -27,6 +28,7 @@ enum Command {
     Tarball(tarball::Options),
     VmlinuxGen(vmlinux_gen::Options),
     DocsGen(docs_gen::Options),
+    RuleParserGen(rule_parser_gen::Options),
 }
 
 fn main() {
@@ -42,6 +44,7 @@ fn main() {
         Tarball(opts) => tarball::tarball(opts),
         VmlinuxGen(opts) => vmlinux_gen::vmlinux_gen(opts),
         DocsGen(opts) => docs_gen::docs_gen(opts),
+        RuleParserGen(opts) => rule_parser_gen::rule_parser_gen(opts),
     };
 
     if let Err(e) = ret {
