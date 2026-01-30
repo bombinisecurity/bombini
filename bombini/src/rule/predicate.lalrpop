@@ -1,0 +1,51 @@
+use crate::ast::{Expr, Literal};
+
+grammar;
+
+pub Expr: Expr = {
+    OrExpr => <>,
+};
+
+OrExpr: Expr = {
+    <l:OrExpr> "OR" <r:AndExpr> => Expr::Or(Box::new(l), Box::new(r)),
+    AndExpr => <>,
+};
+
+AndExpr: Expr = {
+    <l:AndExpr> "AND" <r:NotExpr> => Expr::And(Box::new(l), Box::new(r)),
+    NotExpr => <>,
+};
+
+NotExpr: Expr = {
+    "NOT" <e:NotExpr> => Expr::Not(Box::new(e)),
+    PrimaryExpr => <>,
+};
+
+PrimaryExpr: Expr = {
+    "(" <e:Expr> ")" => Expr::Group(Box::new(e)),
+    <attr:Ident> "==" <lit:Literal> => Expr::Eq(attr, lit),
+    <attr:Ident> "in" "[" <items:ListItems> "]" => Expr::In(attr, items),
+};
+
+Ident: String = {
+    r"[a-zA-Z_]+" => <>.to_string(),
+};
+
+Literal: Literal = {
+    r#""[^"]*""# => Literal::String((<>).trim_matches('"').to_string()),
+    r"0[xX][0-9a-fA-F]+" => {
+        let s = <>;
+        Literal::Uint(u64::from_str_radix(&s[2..], 16).unwrap())
+    },
+    r"[0-9]+" => Literal::Uint((<>).parse().unwrap()),
+};
+
+ListItems: Vec<Literal> = {
+    "" => vec![],
+    <v:Literal> => vec![v],
+    <head:Literal> "," <tail:ListItems> => {
+        let mut v = tail;
+        v.insert(0, head);
+        v
+    },
+};
