@@ -172,3 +172,33 @@ message Rule {
     // Logical predicate for describes event rule will be applied
     string event = 3;
 }
+
+// Configuration file for FileMonNew detector.
+message FileMonNewConfig {
+    // security_file_open config.
+    HookConfig file_open = 1;
+    // security_path_truncate config.
+    HookConfig path_truncate = 2;
+    // security_path_unlink config.
+    HookConfig path_unlink = 3;
+    // security_path_symlink config.
+    HookConfig path_symlink = 4;
+    // security_path_chmod config.
+    HookConfig path_chmod = 5;
+    // security_path_chown config.
+    HookConfig path_chown = 6;
+    // security_sb_mount config.
+    HookConfig sb_mount = 7;
+    // security_mmap_file config.
+    HookConfig mmap_file = 8;
+    // security_file_ioctl config.
+    HookConfig file_ioctl = 9;
+}
+
+// FileMon hook configuration
+message HookConfig {
+    // Load eBPF programs
+    bool enabled = 1;
+    // Filtering rules
+    repeated Rule rules = 2;
+}
