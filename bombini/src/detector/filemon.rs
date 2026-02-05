@@ -38,7 +38,7 @@ impl FileMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let mut ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let mut ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
@@ -217,13 +217,13 @@ impl Detector for FileMon {
 macro_rules! resize_path_filter_maps {
     ($filter_config:expr, $ebpf_loader_ref:expr, $name_map:expr, $path_map:expr, $prefix_map:expr) => {
         if $filter_config.name.len() > 1 {
-            $ebpf_loader_ref.set_max_entries($name_map, $filter_config.name.len() as u32);
+            $ebpf_loader_ref.map_max_entries($name_map, $filter_config.name.len() as u32);
         }
         if $filter_config.path.len() > 1 {
-            $ebpf_loader_ref.set_max_entries($path_map, $filter_config.path.len() as u32);
+            $ebpf_loader_ref.map_max_entries($path_map, $filter_config.path.len() as u32);
         }
         if $filter_config.prefix.len() > 1 {
-            $ebpf_loader_ref.set_max_entries($prefix_map, $filter_config.prefix.len() as u32);
+            $ebpf_loader_ref.map_max_entries($prefix_map, $filter_config.prefix.len() as u32);
         }
     };
 }

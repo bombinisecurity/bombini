@@ -61,7 +61,7 @@ impl<'a> PathFilter<'a> {
                 return false;
             };
             let _ = unsafe {
-                aya_ebpf::memset(
+                core::ptr::write_bytes(
                     prefix.data.as_mut_ptr(),
                     0,
                     core::mem::size_of_val(&prefix.data),

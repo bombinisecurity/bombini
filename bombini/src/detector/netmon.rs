@@ -42,7 +42,7 @@ impl NetMon {
             anyhow::bail!("Config for egress/ingress connections must be provided");
         }
         let mut ebpf_loader = EbpfLoader::new();
-        let mut ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let mut ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
@@ -120,13 +120,13 @@ fn resize_ip_filter_maps(config: &NetMonConfig, loader: &mut EbpfLoader) {
     if let Some(ref ingress) = config.ingress {
         if let Some(ref ipv4_filter) = ingress.ipv4_filter {
             if ipv4_filter.dst_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_DST_IP4_INGRESS_MAP_NAME,
                     ipv4_filter.dst_ip.len() as u32,
                 );
             }
             if ipv4_filter.src_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_SRC_IP4_INGRESS_MAP_NAME,
                     ipv4_filter.src_ip.len() as u32,
                 );
@@ -134,13 +134,13 @@ fn resize_ip_filter_maps(config: &NetMonConfig, loader: &mut EbpfLoader) {
         }
         if let Some(ref ipv6_filter) = ingress.ipv6_filter {
             if ipv6_filter.dst_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_DST_IP6_INGRESS_MAP_NAME,
                     ipv6_filter.dst_ip.len() as u32,
                 );
             }
             if ipv6_filter.src_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_SRC_IP6_INGRESS_MAP_NAME,
                     ipv6_filter.src_ip.len() as u32,
                 );
@@ -150,13 +150,13 @@ fn resize_ip_filter_maps(config: &NetMonConfig, loader: &mut EbpfLoader) {
     if let Some(ref egress) = config.egress {
         if let Some(ref ipv4_filter) = egress.ipv4_filter {
             if ipv4_filter.dst_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_DST_IP4_EGRESS_MAP_NAME,
                     ipv4_filter.dst_ip.len() as u32,
                 );
             }
             if ipv4_filter.src_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_SRC_IP4_EGRESS_MAP_NAME,
                     ipv4_filter.src_ip.len() as u32,
                 );
@@ -164,13 +164,13 @@ fn resize_ip_filter_maps(config: &NetMonConfig, loader: &mut EbpfLoader) {
         }
         if let Some(ref ipv6_filter) = egress.ipv6_filter {
             if ipv6_filter.dst_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_DST_IP6_EGRESS_MAP_NAME,
                     ipv6_filter.dst_ip.len() as u32,
                 );
             }
             if ipv6_filter.src_ip.len() > 1 {
-                loader.set_max_entries(
+                loader.map_max_entries(
                     FILTER_SRC_IP6_EGRESS_MAP_NAME,
                     ipv6_filter.src_ip.len() as u32,
                 );

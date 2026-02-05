@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-aya-ebpf = "0.1.1"
+aya-ebpf = { git = "https://github.com/aya-rs/aya.git", package ="aya-ebpf", rev = "519abffef7064ae8a79502e49b8187a363af3ad5" }
 bombini-common = { path = "../bombini-common" }
 bitflags = "2.10.0"
 

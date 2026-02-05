@@ -57,13 +57,13 @@ impl<'a> Ipv4Filter<'a> {
             prefix.prefix_len = 32_u32;
             if mask.intersects(
                 IpFilterMask::SOURCE_IP4_INGRESS_ALLOW | IpFilterMask::SOURCE_IP4_EGRESS_ALLOW,
-            ) && self.prefix_src_map_v4.get(prefix).is_some()
+            ) && self.prefix_src_map_v4.get(&mut *prefix).is_some()
             {
                 return true;
             }
             if mask.intersects(
                 IpFilterMask::SOURCE_IP4_INGRESS_DENY | IpFilterMask::SOURCE_IP4_EGRESS_DENY,
-            ) && self.prefix_src_map_v4.get(prefix).is_none()
+            ) && self.prefix_src_map_v4.get(&mut *prefix).is_none()
             {
                 return true;
             }
@@ -88,13 +88,13 @@ impl<'a> Ipv4Filter<'a> {
             prefix.prefix_len = 32_u32;
             if mask.intersects(
                 IpFilterMask::DEST_IP4_INGRESS_ALLOW | IpFilterMask::DEST_IP4_EGRESS_ALLOW,
-            ) && self.prefix_dst_map_v4.get(prefix).is_some()
+            ) && self.prefix_dst_map_v4.get(&mut *prefix).is_some()
             {
                 return true;
             }
             if mask.intersects(
                 IpFilterMask::DEST_IP4_INGRESS_DENY | IpFilterMask::DEST_IP4_EGRESS_DENY,
-            ) && self.prefix_dst_map_v4.get(prefix).is_none()
+            ) && self.prefix_dst_map_v4.get(&mut *prefix).is_none()
             {
                 return true;
             }
@@ -141,13 +141,13 @@ impl<'a> Ipv6Filter<'a> {
             prefix.prefix_len = 16 * 8_u32;
             if mask.intersects(
                 IpFilterMask::SOURCE_IP6_INGRESS_ALLOW | IpFilterMask::SOURCE_IP6_EGRESS_ALLOW,
-            ) && self.prefix_src_map_v6.get(prefix).is_some()
+            ) && self.prefix_src_map_v6.get(&mut *prefix).is_some()
             {
                 return true;
             }
             if mask.intersects(
                 IpFilterMask::SOURCE_IP6_INGRESS_DENY | IpFilterMask::SOURCE_IP6_EGRESS_DENY,
-            ) && self.prefix_src_map_v6.get(prefix).is_none()
+            ) && self.prefix_src_map_v6.get(&mut *prefix).is_none()
             {
                 return true;
             }
@@ -169,13 +169,13 @@ impl<'a> Ipv6Filter<'a> {
             prefix.prefix_len = 16 * 8_u32;
             if mask.intersects(
                 IpFilterMask::DEST_IP6_INGRESS_ALLOW | IpFilterMask::DEST_IP6_EGRESS_ALLOW,
-            ) && self.prefix_dst_map_v6.get(prefix).is_some()
+            ) && self.prefix_dst_map_v6.get(&mut *prefix).is_some()
             {
                 return true;
             }
             if mask.intersects(
                 IpFilterMask::DEST_IP6_INGRESS_DENY | IpFilterMask::DEST_IP6_EGRESS_DENY,
-            ) && self.prefix_dst_map_v6.get(prefix).is_none()
+            ) && self.prefix_dst_map_v6.get(&mut *prefix).is_none()
             {
                 return true;
             }

@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-aya = "0.13.1"
+aya = { git = "https://github.com/aya-rs/aya.git", package ="aya", rev = "519abffef7064ae8a79502e49b8187a363af3ad5" }
 bombini-common = { path = "../bombini-common", features = ["user"] }
 clap = { version = "4.5.56", features = ["derive"] }
 anyhow = "1"

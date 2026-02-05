@@ -15,7 +15,7 @@ impl<'a> UidFilter<'a> {
     }
 
     pub fn filter(&self, mask: CredFilterMask, euid: u32) -> bool {
-        if mask.contains(CredFilterMask::EUID) && self.euid_map.get_ptr(&euid).is_some() {
+        if mask.contains(CredFilterMask::EUID) && self.euid_map.get_ptr(euid).is_some() {
             return true;
         }
         false
@@ -31,7 +31,7 @@ impl<'a> GidFilter<'a> {
     }
 
     pub fn filter(&self, mask: CredFilterMask, egid: u32) -> bool {
-        if mask.contains(CredFilterMask::EGID) && self.egid_map.get_ptr(&egid).is_some() {
+        if mask.contains(CredFilterMask::EGID) && self.egid_map.get_ptr(egid).is_some() {
             return true;
         }
         false

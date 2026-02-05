@@ -73,7 +73,7 @@ fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -
         return Err(0);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
@@ -156,7 +156,7 @@ fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -
         return Err(0);
     }
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
         event.parent.pid = parent.pid;
         event.parent.start = parent.start;
     }

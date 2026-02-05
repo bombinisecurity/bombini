@@ -51,9 +51,9 @@ impl ProcMon {
     {
         let mut ebpf_loader = EbpfLoader::new();
         let mut ebpf_loader_ref = ebpf_loader
-            .map_pin_path(maps_pin_path.as_ref())
-            .set_max_entries(EVENT_MAP_NAME, event_map_size)
-            .set_max_entries(PROCMON_PROC_MAP_NAME, proc_map_size);
+            .default_map_pin_directory(maps_pin_path.as_ref())
+            .map_max_entries(EVENT_MAP_NAME, event_map_size)
+            .map_max_entries(PROCMON_PROC_MAP_NAME, proc_map_size);
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
@@ -228,28 +228,28 @@ macro_rules! resize_process_filter_maps {
     ($filter_config:expr, $ebpf_loader_ref:expr) => {
         if $filter_config.uid.len() > 1 {
             $ebpf_loader_ref = $ebpf_loader_ref
-                .set_max_entries(FILTER_UID_MAP_NAME, $filter_config.uid.len() as u32);
+                .map_max_entries(FILTER_UID_MAP_NAME, $filter_config.uid.len() as u32);
         }
         if $filter_config.euid.len() > 1 {
             $ebpf_loader_ref = $ebpf_loader_ref
-                .set_max_entries(FILTER_EUID_MAP_NAME, $filter_config.euid.len() as u32);
+                .map_max_entries(FILTER_EUID_MAP_NAME, $filter_config.euid.len() as u32);
         }
         if $filter_config.auid.len() > 1 {
             $ebpf_loader_ref = $ebpf_loader_ref
-                .set_max_entries(FILTER_AUID_MAP_NAME, $filter_config.auid.len() as u32);
+                .map_max_entries(FILTER_AUID_MAP_NAME, $filter_config.auid.len() as u32);
         }
         if let Some(binary) = $filter_config.binary.as_ref() {
             if binary.name.len() > 1 {
                 $ebpf_loader_ref = $ebpf_loader_ref
-                    .set_max_entries(FILTER_BINNAME_MAP_NAME, binary.name.len() as u32);
+                    .map_max_entries(FILTER_BINNAME_MAP_NAME, binary.name.len() as u32);
             }
             if binary.path.len() > 1 {
                 $ebpf_loader_ref = $ebpf_loader_ref
-                    .set_max_entries(FILTER_BINPATH_MAP_NAME, binary.path.len() as u32);
+                    .map_max_entries(FILTER_BINPATH_MAP_NAME, binary.path.len() as u32);
             }
             if binary.prefix.len() > 1 {
                 $ebpf_loader_ref = $ebpf_loader_ref
-                    .set_max_entries(FILTER_BINPREFIX_MAP_NAME, binary.prefix.len() as u32);
+                    .map_max_entries(FILTER_BINPREFIX_MAP_NAME, binary.prefix.len() as u32);
             }
         }
     };
@@ -345,7 +345,7 @@ fn resize_cred_filter_maps(config: &ProcMonConfig, loader: &mut EbpfLoader) {
         && let Some(ref cap_filter) = cred_filter.cap_filter
         && cap_filter.effective.len() > 1
     {
-        loader.set_max_entries(
+        loader.map_max_entries(
             FILTER_CAPSET_ECAP_MAP_NAME,
             cap_filter.effective.len() as u32,
         );
@@ -355,14 +355,14 @@ fn resize_cred_filter_maps(config: &ProcMonConfig, loader: &mut EbpfLoader) {
         && let Some(ref uid_filter) = cred_filter.uid_filter
         && uid_filter.euid.len() > 1
     {
-        loader.set_max_entries(FILTER_SETUID_EUID_MAP_NAME, uid_filter.euid.len() as u32);
+        loader.map_max_entries(FILTER_SETUID_EUID_MAP_NAME, uid_filter.euid.len() as u32);
     }
     if let Some(ref setgid_cfg) = config.setgid
         && let Some(ref cred_filter) = setgid_cfg.cred_filter
         && let Some(ref gid_filter) = cred_filter.gid_filter
         && gid_filter.egid.len() > 1
     {
-        loader.set_max_entries(FILTER_SETGID_EGID_MAP_NAME, gid_filter.egid.len() as u32);
+        loader.map_max_entries(FILTER_SETGID_EGID_MAP_NAME, gid_filter.egid.len() as u32);
     }
     if let Some(ref userns_cfg) = config.create_user_ns
         && let Some(ref cred_filter) = userns_cfg.cred_filter
@@ -370,12 +370,12 @@ fn resize_cred_filter_maps(config: &ProcMonConfig, loader: &mut EbpfLoader) {
         if let Some(ref uid_filter) = cred_filter.uid_filter
             && uid_filter.euid.len() > 1
         {
-            loader.set_max_entries(FILTER_USERNS_ECAP_MAP_NAME, uid_filter.euid.len() as u32);
+            loader.map_max_entries(FILTER_USERNS_ECAP_MAP_NAME, uid_filter.euid.len() as u32);
         }
         if let Some(ref cap_filter) = cred_filter.cap_filter
             && cap_filter.effective.len() > 1
         {
-            loader.set_max_entries(
+            loader.map_max_entries(
                 FILTER_USERNS_ECAP_MAP_NAME,
                 cap_filter.effective.len() as u32,
             );

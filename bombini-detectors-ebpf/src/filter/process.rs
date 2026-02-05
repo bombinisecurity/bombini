@@ -53,16 +53,15 @@ impl<'a> ProcessFilter<'a> {
     /// UID && EUID && AUID && (BIN_NAME || BIN_PATH || BIN_PREFIX).
     /// If deny_list is used return value must be inverted.
     pub fn filter(&self, mask: ProcessFilterMask, proc: &ProcInfo) -> bool {
-        if mask.contains(ProcessFilterMask::UID) && self.uid_map.get_ptr(&proc.creds.uid).is_none()
-        {
+        if mask.contains(ProcessFilterMask::UID) && self.uid_map.get_ptr(proc.creds.uid).is_none() {
             return false;
         }
         if mask.contains(ProcessFilterMask::EUID)
-            && self.euid_map.get_ptr(&proc.creds.euid).is_none()
+            && self.euid_map.get_ptr(proc.creds.euid).is_none()
         {
             return false;
         }
-        if mask.contains(ProcessFilterMask::AUID) && self.auid_map.get_ptr(&proc.auid).is_none() {
+        if mask.contains(ProcessFilterMask::AUID) && self.auid_map.get_ptr(proc.auid).is_none() {
             return false;
         }
         if mask
@@ -76,10 +75,11 @@ impl<'a> ProcessFilter<'a> {
             return true;
         }
         if mask.contains(ProcessFilterMask::BINARY_NAME)
-            && self.binary_name_map.get_ptr(&proc.filename).is_some()
+            && self.binary_name_map.get_ptr(proc.filename).is_some()
         {
             return true;
         }
+        #[allow(clippy::needless_borrows_for_generic_args)]
         if mask.contains(ProcessFilterMask::BINARY_PATH)
             && self.binary_path_map.get_ptr(&proc.binary_path).is_some()
         {
@@ -94,7 +94,7 @@ impl<'a> ProcessFilter<'a> {
                 return false;
             };
             let _ = unsafe {
-                aya_ebpf::memset(
+                core::ptr::write_bytes(
                     prefix.data.as_mut_ptr(),
                     0,
                     core::mem::size_of_val(&prefix.data),
