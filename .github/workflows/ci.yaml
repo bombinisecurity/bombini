@@ -22,6 +22,17 @@ jobs:
           cd bombini-detectors-ebpf
           cargo clippy --workspace --all-features -- -D warnings
           cargo fmt --all -- --check
+  unit-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+
+      - name: Unit tests
+        run: |
+          cargo test --lib
 
   test-ubuntu-kernel-6_8:
     runs-on: ubuntu-24.04
