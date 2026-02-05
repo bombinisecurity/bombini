@@ -83,7 +83,7 @@ fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                 let mut ppid = bpf_probe_read_kernel(&(*parent_task).tgid as *const pid_t)
                     .map_err(|_| 0i32)? as u32;
                 for _ in 0..MAX_PROC_DEPTH {
-                    let parent_proc = PROCMON_PROC_MAP.get(&ppid);
+                    let parent_proc = PROCMON_PROC_MAP.get(ppid);
                     let Some(parent_proc) = parent_proc else {
                         return Err(0);
                     };
@@ -93,7 +93,7 @@ fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                         return Err(0);
                     }
                     // Check if GTFO binary
-                    if let Some(enforce) = GTFOBINS_NAME_MAP.get_ptr(&parent_proc.filename) {
+                    if let Some(enforce) = GTFOBINS_NAME_MAP.get_ptr(parent_proc.filename) {
                         util::process_key_init(&mut event.process, parent_proc);
                         if *enforce != 0 {
                             return Ok(-1);

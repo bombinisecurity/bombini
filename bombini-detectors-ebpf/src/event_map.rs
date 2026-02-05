@@ -28,7 +28,7 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEve
     };
     unsafe {
         if zero {
-            aya_ebpf::memset(
+            core::ptr::write_bytes(
                 event_rb.as_mut_ptr() as *mut u8,
                 0,
                 core::mem::size_of_val(event_rb.assume_init_ref()),

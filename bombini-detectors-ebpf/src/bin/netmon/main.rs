@@ -136,7 +136,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(0);
     };
     let pid = ctx.pid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
@@ -174,10 +174,8 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(0);
     };
 
-    unsafe {
-        let s = ctx.arg::<*const sock>(0);
-        parse_v4_sock(event, s);
-    }
+    let s = ctx.arg::<*const sock>(0);
+    parse_v4_sock(event, s);
     if event.saddr == 0 || event.daddr == 0 || event.sport == 0 || event.dport == 0 {
         return Err(0);
     }
@@ -199,13 +197,13 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
     }
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;
     }
 
     util::process_key_init(&mut msg.process, proc);
-    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
+    let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 0, 0);
     Ok(0)
 }
 
@@ -232,7 +230,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(0);
     };
     let pid = ctx.pid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
@@ -271,10 +269,8 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(0);
     };
 
-    unsafe {
-        let s = ctx.arg::<*const sock>(0);
-        parse_v6_sock(event, s)?;
-    }
+    let s = ctx.arg::<*const sock>(0);
+    parse_v6_sock(event, s)?;
     if event.sport == 0 || event.dport == 0 {
         return Err(0);
     }
@@ -295,13 +291,13 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
     }
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;
     }
 
     util::process_key_init(&mut msg.process, proc);
-    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
+    let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 0, 0);
     Ok(0)
 }
 
@@ -322,7 +318,7 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
         return Err(0);
     };
     let pid = ctx.pid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
@@ -363,7 +359,7 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     return Err(0);
                 };
                 parse_v4_sock(event, s);
-                if NETMON_SOCK_COOKIE_MAP.get_ptr(&event.cookie).is_none() {
+                if NETMON_SOCK_COOKIE_MAP.get_ptr(event.cookie).is_none() {
                     return Err(0);
                 }
                 // Filter Ipv4 connections
@@ -388,13 +384,13 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     }
                 }
 
-                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                if let Some(parent) = PROCMON_PROC_MAP.get(proc.ppid) {
                     msg.parent.pid = parent.pid;
                     msg.parent.start = parent.start;
                 }
 
                 util::process_key_init(&mut msg.process, proc);
-                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(event.cookie);
                 Ok(0)
             }
             AF_INET6 => {
@@ -405,7 +401,7 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     return Err(0);
                 };
                 parse_v6_sock(event, s)?;
-                if NETMON_SOCK_COOKIE_MAP.get_ptr(&event.cookie).is_none() {
+                if NETMON_SOCK_COOKIE_MAP.get_ptr(event.cookie).is_none() {
                     return Err(0);
                 }
 
@@ -429,13 +425,13 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     }
                 }
 
-                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                if let Some(parent) = PROCMON_PROC_MAP.get(proc.ppid) {
                     msg.parent.pid = parent.pid;
                     msg.parent.start = parent.start;
                 }
 
                 util::process_key_init(&mut msg.process, proc);
-                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(event.cookie);
                 Ok(0)
             }
             _ => Err(0),
@@ -472,7 +468,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
         return Err(0);
     };
     let pid = ctx.pid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
@@ -535,13 +531,13 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     }
                 }
 
-                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                if let Some(parent) = PROCMON_PROC_MAP.get(proc.ppid) {
                     msg.parent.pid = parent.pid;
                     msg.parent.start = parent.start;
                 }
 
                 util::process_key_init(&mut msg.process, proc);
-                let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
+                let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 0, 0);
                 Ok(0)
             }
             AF_INET6 => {
@@ -572,13 +568,13 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     }
                 }
 
-                if let Some(parent) = PROCMON_PROC_MAP.get(&proc.ppid) {
+                if let Some(parent) = PROCMON_PROC_MAP.get(proc.ppid) {
                     msg.parent.pid = parent.pid;
                     msg.parent.start = parent.start;
                 }
 
                 util::process_key_init(&mut msg.process, proc);
-                let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &0, 0);
+                let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 0, 0);
                 Ok(0)
             }
             _ => Err(0),

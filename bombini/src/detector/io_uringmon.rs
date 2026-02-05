@@ -40,7 +40,7 @@ impl IOUringMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let mut ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let mut ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
         if let Some(filter) = &config.process_filter {
             resize_process_filter_maps!(filter, ebpf_loader_ref);
         }
