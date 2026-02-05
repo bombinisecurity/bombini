@@ -221,18 +221,63 @@ pub struct GtfoBinsConfig {
     pub gtfobins: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// Rule definition. Scope and event predicates are used as logical conjunction.
-#[allow(unused)]
 #[derive(serde::Deserialize)]
 #[serde(default)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Rule {
     /// Name of the rule.
     #[prost(string, tag = "1")]
+    #[serde(rename = "rule")]
     pub name: ::prost::alloc::string::String,
     /// Logical predicate describes scope this rule will be applied, e.g. process, container.
     #[prost(string, tag = "2")]
+    #[serde(default)]
     pub scope: ::prost::alloc::string::String,
     /// Logical predicate for describes event rule will be applied
     #[prost(string, tag = "3")]
+    #[serde(default)]
     pub event: ::prost::alloc::string::String,
+}
+/// Configuration file for FileMonNew detector.
+#[allow(unused)]
+#[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct FileMonNewConfig {
+    /// security_file_open config.
+    #[prost(message, optional, tag = "1")]
+    pub file_open: ::core::option::Option<HookConfig>,
+    /// security_path_truncate config.
+    #[prost(message, optional, tag = "2")]
+    pub path_truncate: ::core::option::Option<HookConfig>,
+    /// security_path_unlink config.
+    #[prost(message, optional, tag = "3")]
+    pub path_unlink: ::core::option::Option<HookConfig>,
+    /// security_path_symlink config.
+    #[prost(message, optional, tag = "4")]
+    pub path_symlink: ::core::option::Option<HookConfig>,
+    /// security_path_chmod config.
+    #[prost(message, optional, tag = "5")]
+    pub path_chmod: ::core::option::Option<HookConfig>,
+    /// security_path_chown config.
+    #[prost(message, optional, tag = "6")]
+    pub path_chown: ::core::option::Option<HookConfig>,
+    /// security_sb_mount config.
+    #[prost(message, optional, tag = "7")]
+    pub sb_mount: ::core::option::Option<HookConfig>,
+    /// security_mmap_file config.
+    #[prost(message, optional, tag = "8")]
+    pub mmap_file: ::core::option::Option<HookConfig>,
+    /// security_file_ioctl config.
+    #[prost(message, optional, tag = "9")]
+    pub file_ioctl: ::core::option::Option<HookConfig>,
+}
+/// FileMon hook configuration
+#[allow(unused)]
+#[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct HookConfig {
+    /// Load eBPF programs
+    #[prost(bool, tag = "1")]
+    pub enabled: bool,
+    /// Filtering rules
+    #[prost(message, repeated, tag = "2")]
+    pub rules: ::prost::alloc::vec::Vec<Rule>,
 }
