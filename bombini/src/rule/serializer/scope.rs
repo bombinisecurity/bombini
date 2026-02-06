@@ -12,10 +12,12 @@ use bombini_common::{
 };
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use super::PredicateSerializer;
 use crate::ast::Literal;
 
+#[derive(Debug)]
 pub struct ScopePredicate {
     pub predicate: Predicate,
     pub binary_path_map: HashMap<String, u8>,

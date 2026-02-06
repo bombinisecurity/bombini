@@ -13,10 +13,12 @@ use bombini_common::{
 };
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use super::PredicateSerializer;
 use crate::ast::Literal;
 
+#[derive(Debug)]
 pub struct FileOpenPredicate {
     pub predicate: Predicate,
     pub path_map: HashMap<String, u8>,
