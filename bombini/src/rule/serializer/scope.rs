@@ -12,6 +12,7 @@ use bombini_common::{
 };
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use super::PredicateSerializer;
 use crate::rule::ast::Literal;

@@ -13,12 +13,17 @@ use bombini_common::{
 };
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use super::PredicateSerializer;
 use crate::rule::ast::Literal;
 
 #[derive(Debug)]
+<<<<<<< HEAD
 pub struct PathPredicate {
+=======
+pub struct FileOpenPredicate {
+>>>>>>> 74272ac (feat: Add Rule Predicate AST optimization for OR operation)
     pub predicate: Predicate,
     pub path_map: HashMap<String, u8>,
     pub path_prefix_map: HashMap<String, u8>,

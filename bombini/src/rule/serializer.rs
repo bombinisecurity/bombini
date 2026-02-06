@@ -7,6 +7,7 @@ use bombini_common::{
 };
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crate::proto::config::Rule;
 use crate::rule::ast::{Expr, Literal};
@@ -113,7 +114,7 @@ impl RpnConverter {
 #[derive(Debug)]
 struct SerializedRule<T>
 where
-    T: PredicateSerializer,
+    T: PredicateSerializer + std::fmt::Debug,
 {
     scope_predicate: ScopePredicate,
     event_predicate: T,
@@ -121,13 +122,14 @@ where
 
 impl<T> SerializedRule<T>
 where
-    T: PredicateSerializer,
+    T: PredicateSerializer + std::fmt::Debug,
 {
     pub fn serialize_rule(&mut self, rule: &Rule) -> Result<(), anyhow::Error> {
         if !rule.scope.is_empty() {
             let Ok(ast) = predicate::ExprParser::new().parse(&rule.scope) else {
                 return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.scope));
             };
+            let ast = ast.optimize_ast();
             let mut converter = RpnConverter::new();
             converter.convert_expr(&mut self.scope_predicate, &ast)?;
         }
@@ -136,6 +138,7 @@ where
             let Ok(ast) = predicate::ExprParser::new().parse(&rule.event) else {
                 return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.event));
             };
+            let ast = ast.optimize_ast();
             let mut converter = RpnConverter::new();
             converter.convert_expr(&mut self.event_predicate, &ast)?;
         }
@@ -145,15 +148,17 @@ where
 }
 
 #[derive(Debug)]
+#[derive(Debug)]
 pub struct SerializedRules<T>
 where
-    T: PredicateSerializer,
+    T: PredicateSerializer + std::fmt::Debug,
 {
     rules: Vec<SerializedRule<T>>,
 }
 
 impl<T> SerializedRules<T>
 where
+    T: PredicateSerializer + Default + std::fmt::Debug,
     T: PredicateSerializer,
 {
     pub fn new() -> Self {
@@ -249,6 +254,40 @@ where
 mod tests {
     use super::*;
     use crate::proto::config::Rule;
+
+    #[test]
+    fn test_or_fold_ast_optimization() {
+        let rules = vec![Rule {
+            name: "".to_string(),
+            scope: "".to_string(),
+            event: r#"path == "/var" OR (path in ["/var", "/log"] OR path == "/tmp")"#.to_string(),
+        }];
+
+        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+
+        let _ = serialized.serialize_rules(&rules).unwrap();
+        let map_sizes = serialized.map_sizes("FILEMON_OPEN");
+        assert_eq!(map_sizes.get("FILEMON_OPEN_PATH_MAP"), Some(&3));
+
+        let rule0 = &serialized.rules[0];
+        // Optimized In
+        match rule0.event_predicate.predicate[0] {
+            RuleOp::In {
+                attribute_map_id,
+                in_op_idx,
+            } => {
+                assert_eq!(
+                    attribute_map_id,
+                    bombini_common::config::rule::ScopeAttributes::BinaryPath as u8
+                );
+                assert_eq!(in_op_idx, 0);
+            }
+            _ => panic!("Expected RuleOp::In in event predicate[0]"),
+        }
+        assert_eq!(*rule0.event_predicate.path_map.get("/var").unwrap(), 1 << 0);
+        assert_eq!(*rule0.event_predicate.path_map.get("/log").unwrap(), 1 << 0);
+        assert_eq!(*rule0.event_predicate.path_map.get("/tmp").unwrap(), 1 << 0);
+    }
 
     #[test]
     fn test_serialize_rules_success() {
