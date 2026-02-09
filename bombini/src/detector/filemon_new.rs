@@ -243,9 +243,12 @@ fn resize_all_filemon_maps<'a>(
             | FileMonHook::PathChown => kernel_ver >= ver_6_8,
         };
         if load {
-            hook.map_sizes().iter().for_each(|(name, size)| {
-                loader.set_max_entries(name, *size);
-            });
+            hook.map_sizes()
+                .iter()
+                .filter(|(_, size)| **size > 1)
+                .for_each(|(name, size)| {
+                    loader.set_max_entries(name, *size);
+                });
         }
     }
     Ok(())
