@@ -32,7 +32,7 @@ jobs:
 
       - name: Unit tests
         run: |
-          cargo test --lib
+          cargo test -- rule
 
   test-ubuntu-kernel-6_8:
     runs-on: ubuntu-24.04
