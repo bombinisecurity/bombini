@@ -1,10 +1,10 @@
+use std::fs;
 use std::os::fd::AsRawFd;
-use std::{env, fs};
 
 use libc::{MAP_FAILED, MAP_SHARED, PROT_READ, PROT_WRITE, memfd_create, mmap, truncate, write};
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 use std::{thread, time::Duration};
 
@@ -14,43 +14,11 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 
 use more_asserts as ma;
-use tempfile::{Builder, TempDir};
+use tempfile::Builder;
 
-static EXE_BOMBINI: &str = env!("CARGO_BIN_EXE_bombini");
-static PROJECT_DIR: &str = env!("CARGO_MANIFEST_DIR");
+mod common;
 
-#[macro_export]
-macro_rules! print_example_events {
-    ($events:expr) => {
-        #[cfg(feature = "examples")]
-        {
-            println!("{}", $events);
-        }
-    };
-}
-
-// Return Tmpdir, config, bpf_obj
-fn init_test_env() -> (TempDir, PathBuf, PathBuf) {
-    let mut project_dir = PathBuf::from(PROJECT_DIR);
-    project_dir.pop();
-    let mut config = project_dir.clone();
-    config.push("config/config.yaml");
-    let mut bpf_objs = project_dir.clone();
-    bpf_objs.push("target/bpfel-unknown-none");
-    if EXE_BOMBINI.contains("release") {
-        bpf_objs.push("release");
-    } else {
-        bpf_objs.push("debug");
-    }
-
-    let temp_dir = Builder::new()
-        .prefix("bombini-test-")
-        .rand_bytes(5)
-        .disable_cleanup(true)
-        .tempdir()
-        .expect("can't create temp dir");
-    (temp_dir, config, bpf_objs)
-}
+use common::*;
 
 #[test]
 fn test_6_2_detectors_load() {
