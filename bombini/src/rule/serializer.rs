@@ -114,7 +114,7 @@ impl RpnConverter {
 #[derive(Debug)]
 struct SerializedRule<T>
 where
-    T: PredicateSerializer + std::fmt::Debug,
+    T: PredicateSerializer,
 {
     scope_predicate: ScopePredicate,
     event_predicate: T,
@@ -122,14 +122,14 @@ where
 
 impl<T> SerializedRule<T>
 where
-    T: PredicateSerializer + std::fmt::Debug,
+    T: PredicateSerializer,
 {
     pub fn serialize_rule(&mut self, rule: &Rule) -> Result<(), anyhow::Error> {
         if !rule.scope.is_empty() {
             let Ok(ast) = predicate::ExprParser::new().parse(&rule.scope) else {
                 return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.scope));
             };
-            let ast = ast.optimize_ast();
+            let ast = ast.optimize_ast()?;
             let mut converter = RpnConverter::new();
             converter.convert_expr(&mut self.scope_predicate, &ast)?;
         }
@@ -138,7 +138,7 @@ where
             let Ok(ast) = predicate::ExprParser::new().parse(&rule.event) else {
                 return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.event));
             };
-            let ast = ast.optimize_ast();
+            let ast = ast.optimize_ast()?;
             let mut converter = RpnConverter::new();
             converter.convert_expr(&mut self.event_predicate, &ast)?;
         }
@@ -148,17 +148,15 @@ where
 }
 
 #[derive(Debug)]
-#[derive(Debug)]
 pub struct SerializedRules<T>
 where
-    T: PredicateSerializer + std::fmt::Debug,
+    T: PredicateSerializer,
 {
     rules: Vec<SerializedRule<T>>,
 }
 
 impl<T> SerializedRules<T>
 where
-    T: PredicateSerializer + Default + std::fmt::Debug,
     T: PredicateSerializer,
 {
     pub fn new() -> Self {
@@ -230,20 +228,20 @@ where
         let mut map: HashMap<String, u32> = HashMap::new();
         map.insert(
             format!("{}_RULE_MAP", map_name_prefix),
-            self.rules.len().max(1) as u32,
+            self.rules.len() as u32,
         );
         for rule in self.rules.iter().take(MAX_RULES_COUNT) {
             rule.scope_predicate
                 .attribute_map_sizes(map_name_prefix)
                 .iter()
                 .for_each(|(k, v)| {
-                    *map.entry(k.to_string()).or_insert(1) += v;
+                    *map.entry(k.to_string()).or_insert(0) += v;
                 });
             rule.event_predicate
                 .attribute_map_sizes(map_name_prefix)
                 .iter()
                 .for_each(|(k, v)| {
-                    *map.entry(k.to_string()).or_insert(1) += v;
+                    *map.entry(k.to_string()).or_insert(0) += v;
                 });
         }
         map
@@ -290,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn test_serialize_rules_success() {
+    fn test_serialize_rules_otimize_and() {
         let rules = vec![
             Rule {
                 name: "".to_string(),
@@ -313,7 +311,7 @@ mod tests {
         assert_eq!(map_sizes.get("FILEMON_OPEN_NAME_MAP"), Some(&2));
         assert_eq!(map_sizes.get("FILEMON_OPEN_BINPATH_MAP"), Some(&1));
         assert_eq!(map_sizes.get("FILEMON_OPEN_BINPREFIX_MAP"), Some(&0));
-        assert_eq!(map_sizes.get("FILEMON_OPEN_PATH_MAP"), Some(&2));
+        assert_eq!(map_sizes.get("FILEMON_OPEN_PATH_MAP"), Some(&1));
         assert_eq!(map_sizes.get("FILEMON_OPEN_RULE_MAP"), Some(&2));
         assert_eq!(map_sizes.get("FILEMON_OPEN_PREFIX_MAP"), Some(&0));
         assert_eq!(map_sizes.get("FILEMON_OPEN_BINNAME_MAP"), Some(&2));
@@ -344,10 +342,9 @@ mod tests {
             _ => panic!("Expected RuleOp::In in scope predicate[0]"),
         }
 
-        assert_eq!(rule0.event_predicate.path_map.len(), 2);
         assert_eq!(
             *rule0.event_predicate.path_map.get("/etc/passwd").unwrap(),
-            1 << 0 | 1 << 1
+            1 << 0
         );
         match rule0.event_predicate.predicate[0] {
             RuleOp::In {
@@ -387,6 +384,27 @@ mod tests {
 
         assert!(rule1.scope_predicate.binary_path_map.is_empty());
         assert!(rule1.event_predicate.path_map.is_empty());
+    }
+
+    #[test]
+    fn test_serialize_rules_otimize_and_fail() {
+        let rules = vec![Rule {
+            name: "".to_string(),
+            scope: "binary_path == \"/usr/bin/ls\"".to_string(),
+            event: "path == \"/var/log\" AND path in [\"/etc/passwd\", \"/etc/shadow\"]"
+                .to_string(),
+        }];
+
+        let mut serialized = SerializedRules::<filemon::FileOpenPredicate> { rules: Vec::new() };
+
+        if let Err(err) = serialized.serialize_rules(&rules) {
+            assert!(format!("{:?}", err).contains("is always false"));
+        } else {
+            panic!(
+                "Predicate {} is always false and coudn't be serialized",
+                &rules[0].event
+            );
+        }
     }
 
     #[test]
@@ -445,7 +463,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("invalid scope attribute name")
+                .contains("invalid event attribute name")
         );
     }
 

@@ -17,7 +17,7 @@ pub enum Literal {
 }
 
 impl Expr {
-    /// Recursively folds adjacent `Or` expressions with compatible `Eq`/`In`
+    /// Recursively folds adjacent `OR` expressions with compatible `Eq`/`In`
     /// conditions on the same field into a single `In` expression.
     pub fn fold_or(self) -> Self {
         match self {
@@ -61,7 +61,80 @@ impl Expr {
             _ => self,
         }
     }
-    pub fn optimize_ast(self) -> Self {
-        self.fold_or()
+
+    /// Recursively folds adjacent `AND` expressions with compatible `Eq`/`In`
+    /// conditions on the same field into a single `In` expression.
+    pub fn fold_and(self) -> Result<Self, anyhow::Error> {
+        match self {
+            Expr::And(left, right) => {
+                let left = Box::new(left.fold_and()?);
+                let right = Box::new(right.fold_and()?);
+
+                match (left.as_ref(), right.as_ref()) {
+                    // Eq + Eq
+                    (Expr::Eq(n1, l1), Expr::Eq(n2, l2)) if n1 == n2 => {
+                        if l1 != l2 {
+                            return Err(anyhow::anyhow!(
+                                "{:?} AND {:?} is always false",
+                                left.as_ref(),
+                                right.as_ref()
+                            ));
+                        }
+                        Ok(Expr::In(n1.clone(), [l1.clone()].to_vec()))
+                    }
+                    // Eq + In
+                    (Expr::Eq(n1, l1), Expr::In(n2, lits)) if n1 == n2 => {
+                        let set: HashSet<_> = lits.iter().cloned().collect();
+                        if !set.contains(l1) {
+                            return Err(anyhow::anyhow!(
+                                "{:?} AND {:?} is always false",
+                                left.as_ref(),
+                                right.as_ref()
+                            ));
+                        }
+                        Ok(Expr::In(n1.clone(), [l1.clone()].to_vec()))
+                    }
+                    // In + Eq
+                    (Expr::In(n1, lits), Expr::Eq(n2, l2)) if n1 == n2 => {
+                        let set: HashSet<_> = lits.iter().cloned().collect();
+                        if !set.contains(l2) {
+                            return Err(anyhow::anyhow!(
+                                "{:?} AND {:?} is always false",
+                                left.as_ref(),
+                                right.as_ref()
+                            ));
+                        }
+                        Ok(Expr::In(n2.clone(), [l2.clone()].to_vec()))
+                    }
+                    // In + In
+                    (Expr::In(n1, lits1), Expr::In(n2, lits2)) if n1 == n2 => {
+                        let set1: HashSet<_> = lits1.iter().cloned().collect();
+                        let set2: HashSet<_> = lits2.iter().cloned().collect();
+                        let intersection: Vec<_> = set1.intersection(&set2).cloned().collect();
+                        if intersection.is_empty() {
+                            return Err(anyhow::anyhow!(
+                                "{:?} AND {:?} is always false",
+                                left.as_ref(),
+                                right.as_ref()
+                            ));
+                        }
+                        Ok(Expr::In(n1.clone(), intersection.into_iter().collect()))
+                    }
+                    // Not compatible — keep as And
+                    _ => Ok(Expr::And(left, right)),
+                }
+            }
+            Expr::Or(left, right) => Ok(Expr::Or(
+                Box::new(left.fold_and()?),
+                Box::new(right.fold_and()?),
+            )),
+            Expr::Not(inner) => Ok(Expr::Not(Box::new(inner.fold_and()?))),
+            Expr::Group(inner) => Ok(inner.fold_and()?),
+            _ => Ok(self),
+        }
+    }
+    pub fn optimize_ast(self) -> Result<Self, anyhow::Error> {
+        let ast = self.fold_and()?;
+        Ok(ast.fold_or())
     }
 }
