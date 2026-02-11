@@ -13,6 +13,7 @@ use crate::detector::io_uringmon::IOUringMon;
 
 use crate::detector::Detector;
 use crate::detector::netmon::NetMon;
+use crate::detector::netmon_new::NetMonNew;
 use crate::detector::procmon::ProcMon;
 
 pub struct Registry {
@@ -80,6 +81,11 @@ impl Registry {
             }
             DetectorConfig::NetMon(cfg) => {
                 let mut detector = NetMon::new(obj_path, maps_pin_path, cfg.clone())?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::NetMonNew(cfg) => {
+                let mut detector = NetMonNew::new(obj_path, maps_pin_path, cfg.clone())?;
                 detector.load()?;
                 self.detectors.insert(name.to_string(), Box::new(detector));
             }

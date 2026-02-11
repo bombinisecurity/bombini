@@ -139,6 +139,14 @@ message NetMonConfig {
     ConnectionsControl egress = 3;
 }
 
+// Configuration file for NetMon detector.
+message NetMonConfigNew {
+    // Ingress traffic connections
+    HookConfig ingress = 1;
+    // Egress traffic connections
+    HookConfig egress = 2;
+}
+
 // Configuration file for IOUringMon detector.
 message IOUringMonConfig {
     // Filter io_uring events by Process information.
@@ -163,7 +171,7 @@ message Rule {
     string event = 3;
 }
 
-// FileMon hook configuration
+// Hook or group of hooks configuration
 message HookConfig {
     // Load eBPF programs
     bool enabled = 1;
