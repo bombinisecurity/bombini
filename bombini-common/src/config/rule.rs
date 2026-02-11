@@ -60,6 +60,20 @@ pub struct PathPrefixMapKey {
     pub path_prefix: [u8; MAX_FILE_PREFIX],
 }
 
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct Ipv4MapKey {
+    pub rule_idx: u8,
+    pub ip_addr: [u8; 4],
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct Ipv6MapKey {
+    pub rule_idx: u8,
+    pub ip_addr: [u8; 16],
+}
+
 #[cfg(feature = "user")]
 pub mod user {
     use super::*;
@@ -68,4 +82,6 @@ pub mod user {
     unsafe impl aya::Pod for FileNameMapKey {}
     unsafe impl aya::Pod for PathPrefixMapKey {}
     unsafe impl aya::Pod for PathMapKey {}
+    unsafe impl aya::Pod for Ipv4MapKey {}
+    unsafe impl aya::Pod for Ipv6MapKey {}
 }
