@@ -190,6 +190,16 @@ pub struct NetMonConfig {
     #[prost(message, optional, tag = "3")]
     pub egress: ::core::option::Option<ConnectionsControl>,
 }
+/// Configuration file for NetMon detector.
+#[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct NetMonConfigNew {
+    /// Ingress traffic connections
+    #[prost(message, optional, tag = "1")]
+    pub ingress: ::core::option::Option<HookConfig>,
+    /// Egress traffic connections
+    #[prost(message, optional, tag = "2")]
+    pub egress: ::core::option::Option<HookConfig>,
+}
 /// Configuration file for IOUringMon detector.
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct IoUringMonConfig {
@@ -225,7 +235,7 @@ pub struct Rule {
     #[serde(default)]
     pub event: ::prost::alloc::string::String,
 }
-/// FileMon hook configuration
+/// Hook or group of hooks configuration
 #[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct HookConfig {
     /// Load eBPF programs
