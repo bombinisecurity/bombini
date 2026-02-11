@@ -40,17 +40,29 @@ pub struct TcpConnectionV6 {
 #[repr(u8)]
 pub enum NetworkEventVariant {
     /// Establishing TCP connection for IPv4
-    TcpConV4Establish(TcpConnectionV4) = 0,
+    TcpConV4Establish(TcpConnectionV4) = NetworkEventNumber::TcpConV4Establish as u8,
     /// Establishing TCP connection for IPv6
-    TcpConV6Establish(TcpConnectionV6) = 1,
+    TcpConV6Establish(TcpConnectionV6) = NetworkEventNumber::TcpConV6Establish as u8,
     /// Closing TCP connection for IPv4
-    TcpConV4Close(TcpConnectionV4) = 2,
+    TcpConV4Close(TcpConnectionV4) = NetworkEventNumber::TcpConV4Close as u8,
     /// Closing TCP connection for IPv6
-    TcpConV6Close(TcpConnectionV6) = 3,
+    TcpConV6Close(TcpConnectionV6) = NetworkEventNumber::TcpConV6Close as u8,
     /// Accepting TCP connection for IPv4
-    TcpConV4Accept(TcpConnectionV4) = 4,
+    TcpConV4Accept(TcpConnectionV4) = NetworkEventNumber::TcpConV4Accept as u8,
     /// Accepting TCP connection for IPv6
-    TcpConV6Accept(TcpConnectionV6) = 5,
+    TcpConV6Accept(TcpConnectionV6) = NetworkEventNumber::TcpConV6Accept as u8,
+}
+
+#[repr(C)]
+pub enum NetworkEventNumber {
+    TcpConV4Establish,
+    TcpConV6Establish,
+    TcpConV4Close,
+    TcpConV6Close,
+    TcpConV4Accept,
+    TcpConV6Accept,
+
+    TotalNetworkEvents,
 }
 
 /// Network event message with process info
