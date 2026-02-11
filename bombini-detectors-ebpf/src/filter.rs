@@ -3,5 +3,6 @@
 pub mod cred;
 pub mod filemon;
 pub mod ip;
+pub mod netmon;
 pub mod process;
 pub mod scope;

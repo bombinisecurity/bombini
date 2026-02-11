@@ -38,7 +38,7 @@ impl<'a> PathFilter<'a> {
 }
 
 impl CheckIn for PathFilter<'_> {
-    fn chech_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
+    fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
             id if id == PathAttributes::Name as u8 => unsafe {
                 let Some(mask_name) = self.name_map.get(self.name) else {
