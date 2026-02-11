@@ -36,7 +36,7 @@ impl<'a> ScopeFilter<'a> {
 }
 
 impl CheckIn for ScopeFilter<'_> {
-    fn chech_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
+    fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
             id if id == ScopeAttributes::BinaryName as u8 => unsafe {
                 let Some(mask_name) = self.name_map.get(self.name) else {

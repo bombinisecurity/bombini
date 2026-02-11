@@ -11,7 +11,7 @@ pub mod rule;
 pub mod stack;
 
 pub trait CheckIn {
-    fn chech_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32>;
+    fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32>;
 }
 
 pub struct Interpreter<T> {
@@ -40,7 +40,7 @@ impl<T: CheckIn> Interpreter<T> {
             let op = &predicate[idx];
             match op {
                 RuleOp::Fin => {
-                    return self.stack.pop();
+                    idx = MAX_RULE_OPERATIONS;
                 }
                 RuleOp::And => {
                     let a = self.stack.pop()?;
@@ -62,12 +62,12 @@ impl<T: CheckIn> Interpreter<T> {
                 } => {
                     self.stack.push(
                         self.hook_attributes
-                            .chech_in_op(*attribute_map_id, *in_op_idx)?,
+                            .check_in_op(*attribute_map_id, *in_op_idx)?,
                     )?;
                 }
             }
             idx += 1;
         }
-        Err(0)
+        self.stack.pop()
     }
 }
