@@ -14,6 +14,7 @@ use crate::rule::ast::{Expr, Literal};
 use crate::rule::predicate;
 
 pub mod filemon;
+pub mod netmon;
 pub mod scope;
 
 use scope::ScopePredicate;

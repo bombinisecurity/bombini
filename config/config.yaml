@@ -25,5 +25,6 @@ detectors:
    - procmon
    #- filemon
    #- netmon
+   #- netmon_new
    #- io_uringmon
    #- gtfobins

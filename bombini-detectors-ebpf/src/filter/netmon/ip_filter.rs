@@ -1,8 +1,5 @@
 use aya_ebpf::maps::{LpmTrie, lpm_trie::Key};
-use bombini_common::config::{
-    network::ConnectionAttributes,
-    rule::{Ipv4MapKey, Ipv6MapKey},
-};
+use bombini_common::config::rule::{ConnectionAttributes, Ipv4MapKey, Ipv6MapKey};
 
 use crate::interpreter::CheckIn;
 
@@ -47,6 +44,12 @@ impl CheckIn for Ipv4Filter<'_> {
                     return Ok(false);
                 };
                 Ok(*mask_ip & (1 << in_op_idx) != 0)
+            }
+            id if id == ConnectionAttributes::Ipv6Src as u8
+                || id == ConnectionAttributes::Ipv6Dst as u8 =>
+            {
+                // lookups for IPv6 are not possible while processing IPv4
+                Ok(false)
             }
             _ => Err(0),
         }
@@ -94,6 +97,12 @@ impl CheckIn for Ipv6Filter<'_> {
                     return Ok(false);
                 };
                 Ok(*mask_ip & (1 << in_op_idx) != 0)
+            }
+            id if id == ConnectionAttributes::Ipv4Src as u8
+                || id == ConnectionAttributes::Ipv4Dst as u8 =>
+            {
+                // lookups for IPv4 are not possible while processing IPv6
+                Ok(false)
             }
             _ => Err(0),
         }
