@@ -40,6 +40,15 @@ pub enum PathAttributes {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(u8)]
+pub enum ConnectionAttributes {
+    Ipv4Src = 0,
+    Ipv6Src,
+    Ipv4Dst,
+    Ipv6Dst,
+}
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct FileNameMapKey {
     pub rule_idx: u8,

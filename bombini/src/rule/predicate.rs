@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.22.2"
-// sha3: 31533e2d82bad47eeee1741de5bacde21ede679dcb3d27f4a0803d0bec915d2d
+// sha3: f702fe9f840d75b3a193fa01ca8ef47a6ca5a37b282b60c3ff8e7d666be08217
 use crate::ast::{Expr, Literal};
 #[allow(unused_extern_crates)]
 extern crate lalrpop_util as __lalrpop_util;
@@ -190,7 +190,7 @@ mod __parse__Expr {
         r###"r#"\"[^\"]*\""#"###,
         r###"r#"0[xX][0-9a-fA-F]+"#"###,
         r###"r#"[0-9]+"#"###,
-        r###"r#"[a-zA-Z_]+"#"###,
+        r###"r#"[a-zA-Z][0-9a-zA-Z_]+"#"###,
         r###""""###,
         r###""(""###,
         r###"")""###,
@@ -229,13 +229,13 @@ mod __parse__Expr {
         }).collect()
     }
     struct __StateMachine<'input>
-    where
+    where 
     {
         input: &'input str,
         __phantom: core::marker::PhantomData<(&'input ())>,
     }
     impl<'input> __state_machine::ParserDefinition for __StateMachine<'input>
-    where
+    where 
     {
         type Location = usize;
         type Error = &'static str;
@@ -754,7 +754,7 @@ mod __parse__Expr {
         _: core::marker::PhantomData<(&'input ())>,
     ) -> (usize, usize)
     {
-        // Ident = r#"[a-zA-Z_]+"# => ActionFn(11);
+        // Ident = r#"[a-zA-Z][0-9a-zA-Z_]+"# => ActionFn(11);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0;
         let __end = __sym0.2;
@@ -1020,7 +1020,7 @@ mod __intern_token {
             ("(?:\"[\0-!\\#-\u{10ffff}]*\")", false),
             ("(?:0[Xx][0-9A-Fa-f]+)", false),
             ("[0-9]+", false),
-            ("[A-Z_a-z]+", false),
+            ("(?:[A-Za-z][0-9A-Z_a-z]+)", false),
             ("(?:)", false),
             ("\\(", false),
             ("\\)", false),
