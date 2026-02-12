@@ -2,9 +2,11 @@
 #![no_main]
 
 use aya_ebpf::{
+    bindings::bpf_dynptr,
     helpers::{
         bpf_d_path, bpf_get_current_pid_tgid, bpf_probe_read_kernel, bpf_probe_read_kernel_buf,
         bpf_probe_read_kernel_str_bytes,
+        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
     macros::{lsm, map},
     maps::{
@@ -35,6 +37,9 @@ use bombini_detectors_ebpf::filter::filemon::path::PathFilter;
 
 // Helpers
 #[map]
+static ZERO_PATH_MAP: Array<[u8; MAX_FILE_PATH]> = Array::with_max_entries(1, 0);
+
+#[map]
 static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
 #[map]
@@ -53,7 +58,23 @@ macro_rules! fill_name_map {
         let Some(name) = name else {
             return Err(0);
         };
-        core::ptr::write_bytes(&mut name.name as *mut u8, 0, MAX_FILENAME_SIZE);
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        bpf_dynptr_from_mem(
+            &mut name.name as *mut u8 as *mut _,
+            MAX_FILENAME_SIZE as u32,
+            0,
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(
+            &tmp as *const _,
+            0,
+            zero_ptr as *mut _,
+            MAX_FILENAME_SIZE as u32,
+            0,
+        );
         bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| 0i32)?;
         name
     }};
@@ -69,7 +90,23 @@ macro_rules! fill_path_map {
         let Some(path) = path else {
             return Err(0);
         };
-        core::ptr::write_bytes(&mut path.path as *mut u8, 0, MAX_FILE_PATH);
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        bpf_dynptr_from_mem(
+            &mut path.path as *mut u8 as *mut _,
+            MAX_FILE_PATH as u32,
+            0,
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(
+            &tmp as *const _,
+            0,
+            zero_ptr as *mut _,
+            MAX_FILE_PATH as u32,
+            0,
+        );
         bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| 0i32)?;
         path
     }};
@@ -84,10 +121,22 @@ macro_rules! fill_prefix_map {
         let Some(prefix) = prefix else {
             return Err(0);
         };
-        core::ptr::write_bytes(
-            prefix.data.path_prefix.as_mut_ptr(),
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        bpf_dynptr_from_mem(
+            prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
+            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
             0,
-            core::mem::size_of_val(&prefix.data.path_prefix),
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(
+            &tmp as *const _,
+            0,
+            zero_ptr as *mut _,
+            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+            0,
         );
         bpf_probe_read_kernel_buf($src as *const u8, &mut prefix.data.path_prefix)
             .map_err(|_| 0)?;
@@ -177,11 +226,6 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        let name = path_ptr.as_mut();
-        let Some(name) = name else {
-            return Err(0);
-        };
-        aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILE_PATH);
 
         let fp: *const file = ctx.arg(0);
         let _ = bpf_d_path(
@@ -204,7 +248,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
         let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
 
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, path_ptr);
+        let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
 
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
@@ -334,11 +378,6 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        let name = path_ptr.as_mut();
-        let Some(name) = name else {
-            return Err(0);
-        };
-        aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILE_PATH);
 
         let p: *const path = ctx.arg(0);
         let _ = bpf_d_path(
@@ -494,7 +533,6 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
         let Some(name) = name else {
             return Err(0);
         };
-        aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
         bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, event).map_err(|_| 0i32)?;
         bpf_probe_read_kernel_str_bytes(name.as_ptr(), &mut event[len as usize..])
@@ -642,7 +680,6 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
         let Some(name) = name else {
             return Err(0);
         };
-        aya_ebpf::memset(name.as_mut_ptr(), 0, MAX_FILENAME_SIZE);
         bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.link_path)
             .map_err(|_| 0i32)?;
