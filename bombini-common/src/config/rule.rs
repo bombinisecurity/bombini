@@ -32,6 +32,14 @@ pub enum ScopeAttributes {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(u8)]
+pub enum PathAttributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+}
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct FileNameMapKey {
     pub rule_idx: u8,

@@ -19,7 +19,7 @@ use nix::{
 };
 
 #[test]
-fn test_6_2_filemon_open_filter_new() {
+fn test_6_2_filemon_open_filter() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -28,14 +28,14 @@ fn test_6_2_filemon_open_filter_new() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let config_contents = r#"
 file_open:
   enabled: true
   rules:
   - rule: OpenTestRule
     scope: binary_name in ["ls", "tail"]
-    event: path in ["/etc"] OR name == "filemon_new.yaml"
+    event: path in ["/etc"] OR name == "filemon.yaml"
 "#;
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
@@ -52,7 +52,7 @@ file_open:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -107,7 +107,7 @@ file_open:
 }
 
 #[test]
-fn test_6_8_filemon_truncate_new() {
+fn test_6_8_filemon_truncate() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -116,7 +116,7 @@ fn test_6_8_filemon_truncate_new() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let config_contents = r#"
 path_truncate:
   enabled: true
@@ -140,7 +140,7 @@ path_truncate:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -183,7 +183,7 @@ path_truncate:
 }
 
 #[test]
-fn test_6_8_filemon_unlink_new() {
+fn test_6_8_filemon_unlink() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -192,7 +192,7 @@ fn test_6_8_filemon_unlink_new() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let config_contents = r#"
 path_unlink:
   enabled: true
@@ -216,7 +216,7 @@ path_unlink:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -264,7 +264,7 @@ path_unlink:
 }
 
 #[test]
-fn test_6_8_filemon_symlink_new() {
+fn test_6_8_filemon_symlink() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -273,7 +273,7 @@ fn test_6_8_filemon_symlink_new() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let config_contents = r#"
 path_symlink:
   enabled: true
@@ -297,7 +297,7 @@ path_symlink:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -360,7 +360,7 @@ path_symlink:
 }
 
 #[test]
-fn test_6_8_filemon_chmod_new() {
+fn test_6_8_filemon_chmod() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -369,13 +369,13 @@ fn test_6_8_filemon_chmod_new() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let config_contents = r#"
 path_chmod:
   enabled: true
   rules:
   - rule: ChmodTestRule
-    event: name == "filemon_new.yaml"
+    event: name == "filemon.yaml"
 "#;
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
@@ -393,7 +393,7 @@ path_chmod:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -436,7 +436,7 @@ path_chmod:
 }
 
 #[test]
-fn test_6_8_filemon_chown_new() {
+fn test_6_8_filemon_chown() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -445,13 +445,13 @@ fn test_6_8_filemon_chown_new() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let config_contents = r#"
 path_chown:
   enabled: true
   rules:
   - rule: ChownTestRule
-    event: name == "filemon_new.yaml"
+    event: name == "filemon.yaml"
 "#;
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
@@ -469,7 +469,7 @@ path_chown:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -512,7 +512,7 @@ path_chown:
 }
 
 #[test]
-fn test_6_2_filemon_mmap_file_new() {
+fn test_6_2_filemon_mmap_file() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -525,7 +525,7 @@ fn test_6_2_filemon_mmap_file_new() {
 mmap_file:
   enabled: true
 "#;
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
@@ -542,7 +542,7 @@ mmap_file:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
@@ -597,7 +597,7 @@ mmap_file:
 }
 
 #[test]
-fn test_6_2_filemon_ioctl_new() {
+fn test_6_2_filemon_ioctl() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -613,7 +613,7 @@ file_ioctl:
   - rule: IoctlTestRule
     event: path_prefix == "/dev"
 "#;
-    let filemon_config = tmp_config.join("filemon_new.yaml");
+    let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let bombini_log =
@@ -631,7 +631,7 @@ file_ioctl:
             "--detector",
             "procmon",
             "--detector",
-            "filemon_new",
+            "filemon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
