@@ -353,7 +353,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::filemon::PathAttributes::Path as u8
+                    bombini_common::config::rule::PathAttributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -598,7 +598,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::filemon::PathAttributes::Path as u8
+                    bombini_common::config::rule::PathAttributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -611,7 +611,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::filemon::PathAttributes::Name as u8
+                    bombini_common::config::rule::PathAttributes::Name as u8
                 );
                 assert_eq!(in_op_idx, 1);
             }

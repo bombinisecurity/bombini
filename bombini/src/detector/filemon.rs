@@ -1,31 +1,92 @@
-//! File monitor detector
+use std::{collections::HashMap, path::Path, sync::Arc};
 
-use aya::maps::{
-    Array,
-    hash_map::HashMap,
-    lpm_trie::{Key, LpmTrie},
+use crate::detector::{Detector, Version};
+use crate::rule::serializer::PredicateSerializer;
+use crate::rule::serializer::filemon::{
+    FileIoctlPredicate, FileOpenPredicate, MmapFilePredicate, PathChmodPredicate,
+    PathChownPredicate, PathSymlinkPredicate, PathTruncatePredicate, PathUnlinkPredicate,
+    SbMountPredicate,
 };
+use aya::maps::MapError;
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 
-use std::{path::Path, sync::Arc};
-
-use log::warn;
-use procfs::sys::kernel::Version;
-
-use bombini_common::{
-    config::{filemon::Config, filemon::PathFilterMask, procmon::ProcessFilterMask},
-    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
-    event::file::FileEventNumber,
-};
-
-use crate::{init_process_filter_maps, proto::config::FileMonConfig, resize_process_filter_maps};
-
-use super::Detector;
+use crate::proto::config::{FileMonConfig, Rule};
+use crate::rule::serializer::SerializedRules;
 
 pub struct FileMon {
     ebpf: Ebpf,
-    config: Arc<FileMonConfig>,
+    hooks: Vec<Box<dyn FileMonRuleContainer>>,
+}
+
+trait FileMonRuleContainer {
+    fn map_sizes(&self) -> &HashMap<String, u32>;
+    fn store_rules(&self, ebpf: &mut Ebpf, map_prefix: &'static str) -> Result<(), anyhow::Error>;
+    fn hook(&self) -> FileMonHook;
+}
+
+#[derive(Debug)]
+struct HookData<T: PredicateSerializer> {
+    hook: FileMonHook,
+    serialized_rules: SerializedRules<T>,
+    map_sizes: HashMap<String, u32>,
+}
+
+impl<T: PredicateSerializer + Default> HookData<T> {
+    fn new(hook: FileMonHook, rules: &[Rule]) -> Result<Self, anyhow::Error> {
+        let mut serialized_rules = SerializedRules::new();
+        serialized_rules.serialize_rules(rules)?;
+        let map_sizes = serialized_rules.map_sizes(hook.map_prefix());
+
+        Ok(HookData {
+            hook,
+            serialized_rules,
+            map_sizes,
+        })
+    }
+}
+
+impl<T: PredicateSerializer> FileMonRuleContainer for HookData<T> {
+    fn map_sizes(&self) -> &HashMap<String, u32> {
+        &self.map_sizes
+    }
+
+    fn store_rules(&self, ebpf: &mut Ebpf, map_prefix: &'static str) -> Result<(), anyhow::Error> {
+        self.serialized_rules.store_rules(ebpf, map_prefix)
+    }
+
+    fn hook(&self) -> FileMonHook {
+        self.hook
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+enum FileMonHook {
+    FileOpen,
+    PathTruncate,
+    PathUnlink,
+    PathSymlink,
+    PathChmod,
+    PathChown,
+    SbMount,
+    MmapFile,
+    FileIoctl,
+}
+
+impl FileMonHook {
+    fn map_prefix(&self) -> &'static str {
+        match self {
+            FileMonHook::FileOpen => "FILEMON_FILE_OPEN",
+            FileMonHook::PathTruncate => "FILEMON_PATH_TRUNCATE",
+            FileMonHook::PathUnlink => "FILEMON_PATH_UNLINK",
+            FileMonHook::PathSymlink => "FILEMON_PATH_SYMLINK",
+            FileMonHook::PathChmod => "FILEMON_PATH_CHMOD",
+            FileMonHook::PathChown => "FILEMON_PATH_CHOWN",
+            FileMonHook::SbMount => "FILEMON_SB_MOUNT",
+            FileMonHook::MmapFile => "FILEMON_MMAP_FILE",
+            FileMonHook::FileIoctl => "FILEMON_FILE_IOCTL",
+        }
+    }
 }
 
 impl FileMon {
@@ -38,524 +99,181 @@ impl FileMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let mut ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
-        if let Some(filter) = &config.process_filter {
-            resize_process_filter_maps!(filter, ebpf_loader_ref);
+        let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+
+        let mut hooks: Vec<Box<dyn FileMonRuleContainer>> = Vec::new();
+        if let Some(file_open) = &config.file_open
+            && file_open.enabled
+        {
+            hooks.push(Box::new(HookData::<FileOpenPredicate>::new(
+                FileMonHook::FileOpen,
+                &file_open.rules,
+            )?));
+        }
+        if let Some(path_truncate) = &config.path_truncate
+            && path_truncate.enabled
+        {
+            hooks.push(Box::new(HookData::<PathTruncatePredicate>::new(
+                FileMonHook::PathTruncate,
+                &path_truncate.rules,
+            )?));
+        }
+        if let Some(path_unlink) = &config.path_unlink
+            && path_unlink.enabled
+        {
+            hooks.push(Box::new(HookData::<PathUnlinkPredicate>::new(
+                FileMonHook::PathUnlink,
+                &path_unlink.rules,
+            )?));
+        }
+        if let Some(path_symlink) = &config.path_symlink
+            && path_symlink.enabled
+        {
+            hooks.push(Box::new(HookData::<PathSymlinkPredicate>::new(
+                FileMonHook::PathSymlink,
+                &path_symlink.rules,
+            )?));
+        }
+        if let Some(path_chmod) = &config.path_chmod
+            && path_chmod.enabled
+        {
+            hooks.push(Box::new(HookData::<PathChmodPredicate>::new(
+                FileMonHook::PathChmod,
+                &path_chmod.rules,
+            )?));
+        }
+        if let Some(path_chown) = &config.path_chown
+            && path_chown.enabled
+        {
+            hooks.push(Box::new(HookData::<PathChownPredicate>::new(
+                FileMonHook::PathChown,
+                &path_chown.rules,
+            )?));
+        }
+        if let Some(sb_mount) = &config.sb_mount
+            && sb_mount.enabled
+        {
+            hooks.push(Box::new(HookData::<SbMountPredicate>::new(
+                FileMonHook::SbMount,
+                &sb_mount.rules,
+            )?));
+        }
+        if let Some(mmap_file) = &config.mmap_file
+            && mmap_file.enabled
+        {
+            hooks.push(Box::new(HookData::<MmapFilePredicate>::new(
+                FileMonHook::MmapFile,
+                &mmap_file.rules,
+            )?));
+        }
+        if let Some(file_ioctl) = &config.file_ioctl
+            && file_ioctl.enabled
+        {
+            hooks.push(Box::new(HookData::<FileIoctlPredicate>::new(
+                FileMonHook::FileIoctl,
+                &file_ioctl.rules,
+            )?));
         }
 
-        resize_all_path_filter_maps(&config, ebpf_loader_ref)?;
+        resize_all_filemon_maps(hooks.as_slice(), ebpf_loader_ref)?;
 
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
-        Ok(FileMon { ebpf, config })
+        Ok(FileMon { ebpf, hooks })
     }
 }
 
 impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
-        let mut config = Config {
-            filter_mask: ProcessFilterMask::empty(),
-            path_mask: [PathFilterMask::empty(); FileEventNumber::TotalFileEvents as usize],
-            deny_list: false,
-        };
-        if let Some(filter) = &self.config.process_filter {
-            config.filter_mask = init_process_filter_maps!(filter, &mut self.ebpf);
-            config.deny_list = filter.deny_list;
-        }
-
-        init_all_path_filter_maps(&mut config, &self.config, &mut self.ebpf)?;
-        let mut config_map: Array<_, Config> =
-            Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
-        let _ = config_map.set(0, config, 0);
+        // TODO: Change trait error type to anyhow::Error
+        init_all_filemon_maps(&self.hooks, &mut self.ebpf).map_err(|e| MapError::InvalidName {
+            name: e.to_string(),
+        })?;
         Ok(())
     }
 
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
         let btf = Btf::from_sys_fs()?;
-        // safe
-        let kernel_ver = Version::current().unwrap();
+        let kernel_ver = Version::current().expect("Cannot get kernel version");
         let ver_6_8 = Version::new(6, 8, 0);
-
-        if let Some(ref open_cfg) = self.config.file_open
-            && open_cfg.enabled
-        {
-            let open: &mut Lsm = self
-                .ebpf
-                .program_mut("file_open_capture")
-                .unwrap()
-                .try_into()?;
-            open.load("file_open", &btf)?;
-            open.attach()?;
-        }
-        if let Some(ref truncate_cfg) = self.config.path_truncate
-            && truncate_cfg.enabled
-        {
-            if kernel_ver >= ver_6_8 {
-                let truncate: &mut Lsm = self
+        for hook in &self.hooks {
+            let (hook_name, load) = match hook.hook() {
+                FileMonHook::FileOpen => ("file_open", true),
+                FileMonHook::PathTruncate => ("path_truncate", kernel_ver >= ver_6_8),
+                FileMonHook::PathUnlink => ("path_unlink", kernel_ver >= ver_6_8),
+                FileMonHook::PathSymlink => ("path_symlink", kernel_ver >= ver_6_8),
+                FileMonHook::PathChmod => ("path_chmod", kernel_ver >= ver_6_8),
+                FileMonHook::PathChown => ("path_chown", kernel_ver >= ver_6_8),
+                FileMonHook::SbMount => ("sb_mount", true),
+                FileMonHook::MmapFile => ("mmap_file", true),
+                FileMonHook::FileIoctl => ("file_ioctl", true),
+            };
+            if load {
+                let program: &mut Lsm = self
                     .ebpf
-                    .program_mut("path_truncate_capture")
+                    .program_mut(&format!("{hook_name}_capture"))
                     .unwrap()
                     .try_into()?;
-                truncate.load("path_truncate", &btf)?;
-                truncate.attach()?;
+                program.load(hook_name, &btf)?;
+                program.attach()?;
             } else {
-                warn!(
-                    "Truncate hook needs 6.8+ kernel version. Current kernel {:?}",
-                    &kernel_ver
-                );
+                log::warn!("Cannot load hook: {hook_name}. Kernel version is too old.");
             }
-        }
-        if let Some(ref unlink_cfg) = self.config.path_unlink
-            && unlink_cfg.enabled
-        {
-            if kernel_ver >= ver_6_8 {
-                let unlink: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_unlink_capture")
-                    .unwrap()
-                    .try_into()?;
-                unlink.load("path_unlink", &btf)?;
-                unlink.attach()?;
-            } else {
-                warn!(
-                    "Unlink hook needs 6.8+ kernel version. Current kernel {:?}",
-                    &kernel_ver
-                );
-            }
-        }
-        if let Some(ref symlink_cfg) = self.config.path_symlink
-            && symlink_cfg.enabled
-        {
-            if kernel_ver >= ver_6_8 {
-                let symlink: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_symlink_capture")
-                    .unwrap()
-                    .try_into()?;
-                symlink.load("path_symlink", &btf)?;
-                symlink.attach()?;
-            } else {
-                warn!(
-                    "Symlink hook needs 6.8+ kernel version. Current kernel {:?}",
-                    &kernel_ver
-                );
-            }
-        }
-        if let Some(ref chmod_cfg) = self.config.path_chmod
-            && chmod_cfg.enabled
-        {
-            if kernel_ver >= ver_6_8 {
-                let chmod: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_chmod_capture")
-                    .unwrap()
-                    .try_into()?;
-                chmod.load("path_chmod", &btf)?;
-                chmod.attach()?;
-            } else {
-                warn!(
-                    "Chmod hook needs 6.8+ kernel version. Current kernel {:?}",
-                    &kernel_ver
-                );
-            }
-        }
-        if let Some(ref chown_cfg) = self.config.path_chown
-            && chown_cfg.enabled
-        {
-            if kernel_ver >= ver_6_8 {
-                let chown: &mut Lsm = self
-                    .ebpf
-                    .program_mut("path_chown_capture")
-                    .unwrap()
-                    .try_into()?;
-                chown.load("path_chown", &btf)?;
-                chown.attach()?;
-            } else {
-                warn!(
-                    "Chown hook needs 6.8+ kernel version. Current kernel {:?}",
-                    &kernel_ver
-                );
-            }
-        }
-        if let Some(ref sb_mount_cfg) = self.config.sb_mount
-            && sb_mount_cfg.enabled
-        {
-            let sb_mount: &mut Lsm = self
-                .ebpf
-                .program_mut("sb_mount_capture")
-                .unwrap()
-                .try_into()?;
-            sb_mount.load("sb_mount", &btf)?;
-            sb_mount.attach()?;
-        }
-        if let Some(ref mmap_file_cfg) = self.config.mmap_file
-            && mmap_file_cfg.enabled
-        {
-            let mmap_file: &mut Lsm = self
-                .ebpf
-                .program_mut("mmap_file_capture")
-                .unwrap()
-                .try_into()?;
-            mmap_file.load("mmap_file", &btf)?;
-            mmap_file.attach()?;
-        }
-        if let Some(ref file_ioctl_cfg) = self.config.file_ioctl
-            && file_ioctl_cfg.enabled
-        {
-            let file_ioctl: &mut Lsm = self
-                .ebpf
-                .program_mut("file_ioctl_capture")
-                .unwrap()
-                .try_into()?;
-            file_ioctl.load("file_ioctl", &btf)?;
-            file_ioctl.attach()?;
         }
         Ok(())
     }
 }
 
-macro_rules! resize_path_filter_maps {
-    ($filter_config:expr, $ebpf_loader_ref:expr, $name_map:expr, $path_map:expr, $prefix_map:expr) => {
-        if $filter_config.name.len() > 1 {
-            $ebpf_loader_ref.set_max_entries($name_map, $filter_config.name.len() as u32);
-        }
-        if $filter_config.path.len() > 1 {
-            $ebpf_loader_ref.set_max_entries($path_map, $filter_config.path.len() as u32);
-        }
-        if $filter_config.prefix.len() > 1 {
-            $ebpf_loader_ref.set_max_entries($prefix_map, $filter_config.prefix.len() as u32);
-        }
-    };
-}
-
 #[inline]
-fn resize_all_path_filter_maps(
-    config: &FileMonConfig,
-    loader: &mut EbpfLoader,
+fn resize_all_filemon_maps<'a>(
+    hooks: &'a [Box<dyn FileMonRuleContainer>],
+    loader: &mut EbpfLoader<'a>,
 ) -> Result<(), anyhow::Error> {
     let kernel_ver = Version::current()?;
     let ver_6_8 = Version::new(6, 8, 0);
-    if let Some(ref file_open_cfg) = config.file_open
-        && let Some(ref filter) = file_open_cfg.path_filter
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_OPEN_NAME_MAP,
-            FILTER_OPEN_PATH_MAP,
-            FILTER_OPEN_PREFIX_MAP
-        );
-    }
-    if let Some(ref truncate_cfg) = config.path_truncate
-        && let Some(ref filter) = truncate_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_TRUNC_NAME_MAP,
-            FILTER_TRUNC_PATH_MAP,
-            FILTER_TRUNC_PREFIX_MAP
-        );
-    }
-    if let Some(ref unlink_cfg) = config.path_unlink
-        && let Some(ref filter) = unlink_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_UNLINK_NAME_MAP,
-            FILTER_UNLINK_PATH_MAP,
-            FILTER_UNLINK_PREFIX_MAP
-        );
-    }
-    if let Some(ref symlink_cfg) = config.path_symlink
-        && let Some(ref filter) = symlink_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_SYMLINK_NAME_MAP,
-            FILTER_SYMLINK_PATH_MAP,
-            FILTER_SYMLINK_PREFIX_MAP
-        );
-    }
-    if let Some(ref chmod_cfg) = config.path_chmod
-        && let Some(ref filter) = chmod_cfg.path_filter
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_CHMOD_NAME_MAP,
-            FILTER_CHMOD_PATH_MAP,
-            FILTER_CHMOD_PREFIX_MAP
-        );
-    }
-    if let Some(ref chown_cfg) = config.path_chown
-        && let Some(ref filter) = chown_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_CHOWN_NAME_MAP,
-            FILTER_CHOWN_PATH_MAP,
-            FILTER_CHOWN_PREFIX_MAP
-        );
-    }
-    if let Some(ref mmap_cfg) = config.mmap_file
-        && let Some(ref filter) = mmap_cfg.path_filter
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_MMAP_NAME_MAP,
-            FILTER_MMAP_PATH_MAP,
-            FILTER_MMAP_PREFIX_MAP
-        );
-    }
-    if let Some(ref ioctl_cfg) = config.file_ioctl
-        && let Some(ref filter) = ioctl_cfg.path_filter
-    {
-        resize_path_filter_maps!(
-            filter,
-            loader,
-            FILTER_IOCTL_NAME_MAP,
-            FILTER_IOCTL_PATH_MAP,
-            FILTER_IOCTL_PREFIX_MAP
-        );
+
+    for hook in hooks {
+        let load = match hook.hook() {
+            FileMonHook::SbMount => false,
+            FileMonHook::FileOpen | FileMonHook::MmapFile | FileMonHook::FileIoctl => true,
+            FileMonHook::PathTruncate
+            | FileMonHook::PathChmod
+            | FileMonHook::PathUnlink
+            | FileMonHook::PathSymlink
+            | FileMonHook::PathChown => kernel_ver >= ver_6_8,
+        };
+        if load {
+            hook.map_sizes()
+                .iter()
+                .filter(|(_, size)| **size > 1)
+                .for_each(|(name, size)| {
+                    loader.set_max_entries(name, *size);
+                });
+        }
     }
     Ok(())
 }
 
-macro_rules! init_path_filter_maps {
-    ($filter_config:expr, $ebpf:expr, $name_map:expr, $path_map:expr, $prefix_map:expr) => {{
-        let mut filter_mask = PathFilterMask::empty();
-        if !$filter_config.name.is_empty() {
-            let mut bname_map: HashMap<_, [u8; MAX_FILENAME_SIZE], u8> =
-                HashMap::try_from($ebpf.map_mut($name_map).unwrap())?;
-            for name in $filter_config.name.iter() {
-                let mut v = [0u8; MAX_FILENAME_SIZE];
-                let name_bytes = name.as_bytes();
-                let len = name_bytes.len();
-                if len < MAX_FILENAME_SIZE {
-                    v[..len].clone_from_slice(name_bytes);
-                } else {
-                    v.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
-                }
-                let _ = bname_map.insert(v, 0, 0);
-            }
-            filter_mask |= PathFilterMask::NAME;
-        }
-        if !$filter_config.path.is_empty() {
-            let mut bpath_map: HashMap<_, [u8; MAX_FILE_PATH], u8> =
-                HashMap::try_from($ebpf.map_mut($path_map).unwrap())?;
-            for path in $filter_config.path.iter() {
-                let mut v = [0u8; MAX_FILE_PATH];
-                let path_bytes = path.as_bytes();
-                let len = path_bytes.len();
-                if len < MAX_FILE_PATH {
-                    v[..len].clone_from_slice(path_bytes);
-                } else {
-                    v.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
-                }
-                let _ = bpath_map.insert(v, 0, 0);
-            }
-            filter_mask |= PathFilterMask::PATH;
-        }
-        if !$filter_config.prefix.is_empty() {
-            let mut bprefix_map: LpmTrie<_, [u8; MAX_FILE_PREFIX], u8> =
-                LpmTrie::try_from($ebpf.map_mut($prefix_map).unwrap())?;
-            for prefix in $filter_config.prefix.iter() {
-                let mut v = [0u8; MAX_FILE_PREFIX];
-                let prefix_bytes = prefix.as_bytes();
-                let len = prefix_bytes.len();
-                if len < MAX_FILE_PREFIX {
-                    v[..len].clone_from_slice(prefix_bytes);
-                } else {
-                    v.clone_from_slice(&prefix_bytes[..MAX_FILE_PREFIX]);
-                }
-                let key = Key::new((prefix.len() * 8) as u32, v);
-                let _ = bprefix_map.insert(&key, 0, 0);
-            }
-            filter_mask |= PathFilterMask::PATH_PREFIX;
-        }
-        filter_mask
-    }};
-}
-
-#[inline]
-fn init_all_path_filter_maps(
-    ebpf_config: &mut Config,
-    config: &FileMonConfig,
+fn init_all_filemon_maps(
+    hooks: &[Box<dyn FileMonRuleContainer>],
     ebpf: &mut Ebpf,
-) -> Result<(), EbpfError> {
-    // safe
-    let kernel_ver = Version::current().unwrap();
+) -> Result<(), anyhow::Error> {
+    let kernel_ver = Version::current()?;
     let ver_6_8 = Version::new(6, 8, 0);
-    if let Some(ref file_open_cfg) = config.file_open
-        && let Some(ref filter) = file_open_cfg.path_filter
-    {
-        ebpf_config.path_mask[FileEventNumber::FileOpen as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_OPEN_NAME_MAP,
-            FILTER_OPEN_PATH_MAP,
-            FILTER_OPEN_PREFIX_MAP
-        );
+    for hook in hooks {
+        let load = match hook.hook() {
+            FileMonHook::SbMount => false,
+            FileMonHook::FileOpen | FileMonHook::MmapFile | FileMonHook::FileIoctl => true,
+            FileMonHook::PathTruncate
+            | FileMonHook::PathChmod
+            | FileMonHook::PathUnlink
+            | FileMonHook::PathSymlink
+            | FileMonHook::PathChown => kernel_ver >= ver_6_8,
+        };
+        if load {
+            hook.store_rules(ebpf, hook.hook().map_prefix())?;
+        }
     }
-    if let Some(ref truncate_cfg) = config.path_truncate
-        && let Some(ref filter) = truncate_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        ebpf_config.path_mask[FileEventNumber::PathTruncate as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_TRUNC_NAME_MAP,
-            FILTER_TRUNC_PATH_MAP,
-            FILTER_TRUNC_PREFIX_MAP
-        );
-    }
-    if let Some(ref unlink_cfg) = config.path_unlink
-        && let Some(ref filter) = unlink_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        ebpf_config.path_mask[FileEventNumber::PathUnlink as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_UNLINK_NAME_MAP,
-            FILTER_UNLINK_PATH_MAP,
-            FILTER_UNLINK_PREFIX_MAP
-        );
-    }
-    if let Some(ref symlink_cfg) = config.path_symlink
-        && let Some(ref filter) = symlink_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        ebpf_config.path_mask[FileEventNumber::PathSymlink as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_SYMLINK_NAME_MAP,
-            FILTER_SYMLINK_PATH_MAP,
-            FILTER_SYMLINK_PREFIX_MAP
-        );
-    }
-    if let Some(ref chmod_cfg) = config.path_chmod
-        && let Some(ref filter) = chmod_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        ebpf_config.path_mask[FileEventNumber::PathChmod as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_CHMOD_NAME_MAP,
-            FILTER_CHMOD_PATH_MAP,
-            FILTER_CHMOD_PREFIX_MAP
-        );
-    }
-    if let Some(ref chown_cfg) = config.path_chown
-        && let Some(ref filter) = chown_cfg.path_filter
-        && kernel_ver >= ver_6_8
-    {
-        ebpf_config.path_mask[FileEventNumber::PathChown as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_CHOWN_NAME_MAP,
-            FILTER_CHOWN_PATH_MAP,
-            FILTER_CHOWN_PREFIX_MAP
-        );
-    }
-    if let Some(ref mmap_cfg) = config.mmap_file
-        && let Some(ref filter) = mmap_cfg.path_filter
-    {
-        ebpf_config.path_mask[FileEventNumber::MmapFile as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_MMAP_NAME_MAP,
-            FILTER_MMAP_PATH_MAP,
-            FILTER_MMAP_PREFIX_MAP
-        );
-    }
-    if let Some(ref ioctl_cfg) = config.file_ioctl
-        && let Some(ref filter) = ioctl_cfg.path_filter
-    {
-        ebpf_config.path_mask[FileEventNumber::FileIoctl as usize] = init_path_filter_maps!(
-            filter,
-            ebpf,
-            FILTER_IOCTL_NAME_MAP,
-            FILTER_IOCTL_PATH_MAP,
-            FILTER_IOCTL_PREFIX_MAP
-        );
-    }
+
     Ok(())
 }
-
-/// FileMon Filter map names
-const FILTER_UID_MAP_NAME: &str = "FILEMON_FILTER_UID_MAP";
-
-const FILTER_EUID_MAP_NAME: &str = "FILEMON_FILTER_EUID_MAP";
-
-const FILTER_AUID_MAP_NAME: &str = "FILEMON_FILTER_AUID_MAP";
-
-const FILTER_BINPATH_MAP_NAME: &str = "FILEMON_FILTER_BINPATH_MAP";
-
-const FILTER_BINNAME_MAP_NAME: &str = "FILEMON_FILTER_BINNAME_MAP";
-
-const FILTER_BINPREFIX_MAP_NAME: &str = "FILEMON_FILTER_BINPREFIX_MAP";
-
-// File Open path filter maps
-const FILTER_OPEN_PATH_MAP: &str = "FILEMON_FILTER_OPEN_PATH_MAP";
-
-const FILTER_OPEN_NAME_MAP: &str = "FILEMON_FILTER_OPEN_NAME_MAP";
-
-const FILTER_OPEN_PREFIX_MAP: &str = "FILEMON_FILTER_OPEN_PREFIX_MAP";
-
-// Path truncate filter maps
-const FILTER_TRUNC_PATH_MAP: &str = "FILEMON_FILTER_TRUNC_PATH_MAP";
-
-const FILTER_TRUNC_NAME_MAP: &str = "FILEMON_FILTER_TRUNC_NAME_MAP";
-
-const FILTER_TRUNC_PREFIX_MAP: &str = "FILEMON_FILTER_TRUNC_PREFIX_MAP";
-
-// Path unlink filter maps
-const FILTER_UNLINK_PATH_MAP: &str = "FILEMON_FILTER_UNLINK_PATH_MAP";
-
-const FILTER_UNLINK_NAME_MAP: &str = "FILEMON_FILTER_UNLINK_NAME_MAP";
-
-const FILTER_UNLINK_PREFIX_MAP: &str = "FILEMON_FILTER_UNLINK_PREFIX_MAP";
-
-// Path symlink filter maps
-const FILTER_SYMLINK_PATH_MAP: &str = "FILEMON_FILTER_SYMLINK_PATH_MAP";
-
-const FILTER_SYMLINK_NAME_MAP: &str = "FILEMON_FILTER_SYMLINK_NAME_MAP";
-
-const FILTER_SYMLINK_PREFIX_MAP: &str = "FILEMON_FILTER_SYMLINK_PREFIX_MAP";
-
-// Path chmod filter maps
-const FILTER_CHMOD_PATH_MAP: &str = "FILEMON_FILTER_CHMOD_PATH_MAP";
-
-const FILTER_CHMOD_NAME_MAP: &str = "FILEMON_FILTER_CHMOD_NAME_MAP";
-
-const FILTER_CHMOD_PREFIX_MAP: &str = "FILEMON_FILTER_CHMOD_PREFIX_MAP";
-
-// Path chown filter maps
-const FILTER_CHOWN_PATH_MAP: &str = "FILEMON_FILTER_CHOWN_PATH_MAP";
-
-const FILTER_CHOWN_NAME_MAP: &str = "FILEMON_FILTER_CHOWN_NAME_MAP";
-
-const FILTER_CHOWN_PREFIX_MAP: &str = "FILEMON_FILTER_CHOWN_PREFIX_MAP";
-
-// Mmap path filter maps
-const FILTER_MMAP_PATH_MAP: &str = "FILEMON_FILTER_MMAP_PATH_MAP";
-
-const FILTER_MMAP_NAME_MAP: &str = "FILEMON_FILTER_MMAP_NAME_MAP";
-
-const FILTER_MMAP_PREFIX_MAP: &str = "FILEMON_FILTER_MMAP_PREFIX_MAP";
-
-// Ioctl path filter maps
-const FILTER_IOCTL_PATH_MAP: &str = "FILEMON_FILTER_IOCTL_PATH_MAP";
-
-const FILTER_IOCTL_NAME_MAP: &str = "FILEMON_FILTER_IOCTL_NAME_MAP";
-
-const FILTER_IOCTL_PREFIX_MAP: &str = "FILEMON_FILTER_IOCTL_PREFIX_MAP";

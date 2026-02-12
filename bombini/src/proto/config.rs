@@ -119,48 +119,35 @@ pub struct PathFilter {
     pub prefix: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// Configuration file for FileMon detector.
-#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct FileMonConfig {
     /// security_file_open config.
     #[prost(message, optional, tag = "1")]
-    pub file_open: ::core::option::Option<FileHookConfig>,
+    pub file_open: ::core::option::Option<HookConfig>,
     /// security_path_truncate config.
     #[prost(message, optional, tag = "2")]
-    pub path_truncate: ::core::option::Option<FileHookConfig>,
+    pub path_truncate: ::core::option::Option<HookConfig>,
     /// security_path_unlink config.
     #[prost(message, optional, tag = "3")]
-    pub path_unlink: ::core::option::Option<FileHookConfig>,
+    pub path_unlink: ::core::option::Option<HookConfig>,
     /// security_path_symlink config.
     #[prost(message, optional, tag = "4")]
-    pub path_symlink: ::core::option::Option<FileHookConfig>,
+    pub path_symlink: ::core::option::Option<HookConfig>,
     /// security_path_chmod config.
     #[prost(message, optional, tag = "5")]
-    pub path_chmod: ::core::option::Option<FileHookConfig>,
+    pub path_chmod: ::core::option::Option<HookConfig>,
     /// security_path_chown config.
     #[prost(message, optional, tag = "6")]
-    pub path_chown: ::core::option::Option<FileHookConfig>,
+    pub path_chown: ::core::option::Option<HookConfig>,
     /// security_sb_mount config.
     #[prost(message, optional, tag = "7")]
-    pub sb_mount: ::core::option::Option<FileHookConfig>,
+    pub sb_mount: ::core::option::Option<HookConfig>,
     /// security_mmap_file config.
     #[prost(message, optional, tag = "8")]
-    pub mmap_file: ::core::option::Option<FileHookConfig>,
+    pub mmap_file: ::core::option::Option<HookConfig>,
     /// security_file_ioctl config.
     #[prost(message, optional, tag = "9")]
-    pub file_ioctl: ::core::option::Option<FileHookConfig>,
-    /// Filter File events by Process information.
-    #[prost(message, optional, tag = "10")]
-    pub process_filter: ::core::option::Option<ProcessFilter>,
-}
-/// FileMon hook configuration
-#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct FileHookConfig {
-    /// Load eBPF programs
-    #[prost(bool, tag = "1")]
-    pub enabled: bool,
-    /// Filter event by Path
-    #[prost(message, optional, tag = "2")]
-    pub path_filter: ::core::option::Option<PathFilter>,
+    pub file_ioctl: ::core::option::Option<HookConfig>,
 }
 /// IP filter configuration
 #[derive(serde::Deserialize)]
@@ -237,37 +224,6 @@ pub struct Rule {
     #[prost(string, tag = "3")]
     #[serde(default)]
     pub event: ::prost::alloc::string::String,
-}
-/// Configuration file for FileMonNew detector.
-#[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
-pub struct FileMonNewConfig {
-    /// security_file_open config.
-    #[prost(message, optional, tag = "1")]
-    pub file_open: ::core::option::Option<HookConfig>,
-    /// security_path_truncate config.
-    #[prost(message, optional, tag = "2")]
-    pub path_truncate: ::core::option::Option<HookConfig>,
-    /// security_path_unlink config.
-    #[prost(message, optional, tag = "3")]
-    pub path_unlink: ::core::option::Option<HookConfig>,
-    /// security_path_symlink config.
-    #[prost(message, optional, tag = "4")]
-    pub path_symlink: ::core::option::Option<HookConfig>,
-    /// security_path_chmod config.
-    #[prost(message, optional, tag = "5")]
-    pub path_chmod: ::core::option::Option<HookConfig>,
-    /// security_path_chown config.
-    #[prost(message, optional, tag = "6")]
-    pub path_chown: ::core::option::Option<HookConfig>,
-    /// security_sb_mount config.
-    #[prost(message, optional, tag = "7")]
-    pub sb_mount: ::core::option::Option<HookConfig>,
-    /// security_mmap_file config.
-    #[prost(message, optional, tag = "8")]
-    pub mmap_file: ::core::option::Option<HookConfig>,
-    /// security_file_ioctl config.
-    #[prost(message, optional, tag = "9")]
-    pub file_ioctl: ::core::option::Option<HookConfig>,
 }
 /// FileMon hook configuration
 #[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
