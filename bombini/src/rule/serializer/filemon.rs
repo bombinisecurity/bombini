@@ -5,9 +5,8 @@ use aya::maps::{
 };
 
 use bombini_common::{
-    config::{
-        filemon::PathAttributes,
-        rule::{FileNameMapKey, PathMapKey, PathPrefixMapKey, Predicate, RuleOp},
+    config::rule::{
+        FileNameMapKey, PathAttributes, PathMapKey, PathPrefixMapKey, Predicate, RuleOp,
     },
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_RULE_OPERATIONS},
 };

@@ -1,10 +1,7 @@
 //! Path filters for file open hook
 
 use aya_ebpf::maps::{HashMap, LpmTrie, lpm_trie::Key};
-use bombini_common::config::{
-    filemon::PathAttributes,
-    rule::{FileNameMapKey, PathMapKey, PathPrefixMapKey},
-};
+use bombini_common::config::rule::{FileNameMapKey, PathAttributes, PathMapKey, PathPrefixMapKey};
 
 use crate::interpreter::CheckIn;
 
