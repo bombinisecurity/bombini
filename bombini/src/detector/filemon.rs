@@ -7,9 +7,10 @@ use crate::rule::serializer::filemon::{
     PathChownPredicate, PathSymlinkPredicate, PathTruncatePredicate, PathUnlinkPredicate,
     SbMountPredicate,
 };
-use aya::maps::MapError;
+use aya::maps::{Array, MapError};
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
+use bombini_common::constants::MAX_FILE_PATH;
 
 use crate::proto::config::{FileMonConfig, Rule};
 use crate::rule::serializer::SerializedRules;
@@ -274,6 +275,10 @@ fn init_all_filemon_maps(
             hook.store_rules(ebpf, hook.hook().map_prefix())?;
         }
     }
+
+    let mut zero_map: Array<_, [u8; MAX_FILE_PATH]> =
+        Array::try_from(ebpf.map_mut("ZERO_PATH_MAP").unwrap())?;
+    zero_map.set(0, [0; MAX_FILE_PATH], 0)?;
 
     Ok(())
 }
