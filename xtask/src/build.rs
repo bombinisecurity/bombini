@@ -1,9 +1,12 @@
-use std::process::Command;
+use std::{env, path::PathBuf, process::Command};
 
 use anyhow::Context as _;
 use clap::Parser;
 
-use crate::build_ebpf::{Architecture, Options as BuildOptions, build_ebpf};
+use crate::{
+    build_ebpf::{Architecture, Options as BuildOptions, build_ebpf},
+    vmlinux_gen,
+};
 
 #[derive(Debug, Parser)]
 pub struct Options {
@@ -29,8 +32,21 @@ fn build_project(opts: &Options) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn check_vmlinux() -> Result<bool, anyhow::Error> {
+    let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") else {
+        anyhow::bail!("CARGO_MANIFEST_DIR is not found")
+    };
+    let mut vmlinux_path = PathBuf::from(&manifest_dir);
+    vmlinux_path.pop();
+    vmlinux_path.push("bombini-detectors-ebpf/src/vmlinux.rs");
+    Ok(vmlinux_path.exists())
+}
+
 /// Build our ebpf program and the project
 pub fn build(opts: Options) -> Result<(), anyhow::Error> {
+    if !check_vmlinux()? {
+        vmlinux_gen::vmlinux_gen(vmlinux_gen::Options {})?;
+    }
     // build our ebpf program followed by our application
     build_ebpf(BuildOptions {
         target: opts.bpf_target,
