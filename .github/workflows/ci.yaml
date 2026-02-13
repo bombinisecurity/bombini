@@ -17,6 +17,10 @@ jobs:
 
       - name: Lint
         run: |
+          curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz
+          cargo install bindgen-cli
+          cargo install --git https://github.com/aya-rs/aya aya-tool
+          cargo xtask vmlinux-gen
           cargo clippy --workspace --all-features -- -D warnings
           cargo fmt --all -- --check
           cd bombini-detectors-ebpf
@@ -47,7 +51,7 @@ jobs:
           path: ~/.lima/ubuntu-kernel-v6.8
           key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_8-${{ hashFiles('.github/workflows/ci.yaml') }}
 
-      - name: Configure lima VM 
+      - name: Configure lima VM
         if: steps.lima-ubuntu-kernel-v6_8.outputs.cache-hit != 'true'
         run: |
           limactl start --plain --name=ubuntu-kernel-v6.8 --cpus=1 --memory=1 template:ubuntu-lts
@@ -61,7 +65,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
           ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya aya-tool'
-          
+
           limactl stop ubuntu-kernel-v6.8
 
       - name: Build and Run tests
@@ -99,7 +103,7 @@ jobs:
           path: ~/.lima/ubuntu-kernel-v6.14
           key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_14-${{ hashFiles('.github/workflows/ci.yaml') }}
 
-      - name: Configure lima VM 
+      - name: Configure lima VM
         if: steps.lima-ubuntu-kernel-v6_14.outputs.cache-hit != 'true'
         run: |
           limactl start --plain --name=ubuntu-kernel-v6.14 --cpus=1 --memory=1 template:ubuntu-lts
@@ -113,7 +117,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
           ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya aya-tool'
-          
+
           limactl stop ubuntu-kernel-v6.14
 
       - name: Build and Run tests
@@ -151,7 +155,7 @@ jobs:
           path: ~/.lima/ubuntu-kernel-v6.2
           key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_2-${{ hashFiles('.github/workflows/ci.yaml') }}
 
-      - name: Configure lima VM 
+      - name: Configure lima VM
         if: steps.lima-ubuntu-kernel-v6_2.outputs.cache-hit != 'true'
         run: |
           limactl start --plain --name=ubuntu-kernel-v6.2 --cpus=1 --memory=1 template:ubuntu-22.04
@@ -165,7 +169,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
           ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya aya-tool'
-          
+
           limactl stop ubuntu-kernel-v6.2
 
       - name: Build and Run tests
