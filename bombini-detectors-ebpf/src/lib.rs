@@ -7,4 +7,5 @@ pub mod interpreter;
 pub mod util;
 #[allow(clippy::all)]
 #[allow(warnings)]
+#[rustfmt::skip]
 pub mod vmlinux;
