@@ -147,12 +147,6 @@ message NetMonConfigNew {
     HookConfig egress = 2;
 }
 
-// Configuration file for IOUringMon detector.
-message IOUringMonConfig {
-    // Filter io_uring events by Process information.
-    ProcessFilter process_filter = 1;
-}
-
 // Configuration file for GTFOBinsDetector.
 message GTFOBinsConfig {
     // Block execution of GTFOBins binaries.
