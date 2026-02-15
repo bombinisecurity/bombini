@@ -200,13 +200,6 @@ pub struct NetMonConfigNew {
     #[prost(message, optional, tag = "2")]
     pub egress: ::core::option::Option<HookConfig>,
 }
-/// Configuration file for IOUringMon detector.
-#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct IoUringMonConfig {
-    /// Filter io_uring events by Process information.
-    #[prost(message, optional, tag = "1")]
-    pub process_filter: ::core::option::Option<ProcessFilter>,
-}
 /// Configuration file for GTFOBinsDetector.
 #[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GtfoBinsConfig {

@@ -85,7 +85,7 @@ impl TransmuterRegistry {
                     registry.handlers[MSG_NETWORK as usize] =
                         Some(Arc::new(NetworkEventTransmuter));
                 }
-                DetectorConfig::IOUringMon(_) => {
+                DetectorConfig::IOUringMon => {
                     registry.handlers[MSG_IOURING as usize] =
                         Some(Arc::new(IOUringEventTransmuter));
                 }
