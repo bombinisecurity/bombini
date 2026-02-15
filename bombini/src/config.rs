@@ -7,10 +7,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
     options::Options,
-    proto::config::{
-        FileMonConfig, GtfoBinsConfig, IoUringMonConfig, NetMonConfig, NetMonConfigNew,
-        ProcMonConfig,
-    },
+    proto::config::{FileMonConfig, GtfoBinsConfig, NetMonConfig, NetMonConfigNew, ProcMonConfig},
 };
 
 /// Unified Detector's config representation
@@ -20,7 +17,7 @@ pub enum DetectorConfig {
     FileMon(Arc<FileMonConfig>),
     NetMon(Arc<NetMonConfig>),
     NetMonNew(Arc<NetMonConfigNew>),
-    IOUringMon(Arc<IoUringMonConfig>),
+    IOUringMon,
     GTFOBins(Arc<GtfoBinsConfig>),
 }
 
@@ -72,10 +69,7 @@ impl Config {
                     let config: NetMonConfigNew = serde_yml::from_str(yaml_config.as_ref())?;
                     DetectorConfig::NetMonNew(Arc::new(config))
                 }
-                "io_uringmon" => {
-                    let config: IoUringMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
-                    DetectorConfig::IOUringMon(Arc::new(config))
-                }
+                "io_uringmon" => DetectorConfig::IOUringMon,
                 "gtfobins" => {
                     let config: GtfoBinsConfig = serde_yml::from_str(yaml_config.as_ref())?;
                     DetectorConfig::GTFOBins(Arc::new(config))
