@@ -374,7 +374,7 @@ egress:
 }
 
 #[test]
-fn test_6_8_iouring_allow_list() {
+fn test_6_8_io_uringmon() {
     let (temp_dir, mut config, bpf_objs) = init_test_env();
     let bombini_temp_dir = temp_dir.path();
     let mut tmp_config = bombini_temp_dir.join("config/config.yaml");
@@ -385,17 +385,7 @@ fn test_6_8_iouring_allow_list() {
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
-    let config_contents = r#"
-process_filter:
-  uid:
-    - 0
-  euid:
-    - 0
-  binary:
-    name:
-      - nslookup
-"#;
-    let _ = fs::write(tmp_config.join("io_uringmon.yaml"), config_contents);
+    let _ = fs::File::create(tmp_config.join("io_uringmon.yaml"));
     let event_log = temp_dir.path().join("events.log");
 
     let bombini = Command::new(EXE_BOMBINI)

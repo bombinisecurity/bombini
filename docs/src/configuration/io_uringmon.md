@@ -13,17 +13,4 @@ Inspired by:
 
 ## Config Description
 
-IOUringMon detector supports [process filtering](filtering.md/#process-filter).
-
-Config example:
-
-```yaml
-process_fiter:
-  uid:
-    - 0
-  euid:
-    - 0
-  binary:
-    name:
-      - nslookup
-```
+IOUringMon doesn't provide filtering.
