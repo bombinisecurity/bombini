@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 aya-ebpf = "0.1.1"
 bombini-common = { path = "../bombini-common" }
-bitflags = "2.10.0"
+bitflags = "2.11.0"
 
 [profile.dev]
 opt-level = 3
