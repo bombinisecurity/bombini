@@ -24,7 +24,7 @@ fn test_6_2_netmon_tcp_new() {
     tmp_config.pop();
     config.pop();
     let _ = fs::copy(config.join("procmon.yaml"), tmp_config.join("procmon.yaml"));
-    let netmon_config = tmp_config.join("netmon_new.yaml");
+    let netmon_config = tmp_config.join("netmon.yaml");
     let config_contents = r#"
 egress:
   enabled: true
@@ -50,7 +50,7 @@ egress:
             "--detector",
             "procmon",
             "--detector",
-            "netmon_new",
+            "netmon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
