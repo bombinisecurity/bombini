@@ -9,7 +9,7 @@ aya = "0.13.1"
 bombini-common = { path = "../bombini-common", features = ["user"] }
 clap = { version = "4.5.58", features = ["derive"] }
 anyhow = "1"
-bitflags = { version = "2.10.0", features = ["serde"]}
+bitflags = { version = "2.11.0", features = ["serde"]}
 bytes = "1.11.1"
 env_logger = "0.11.8"
 libc = "0.2.180"
