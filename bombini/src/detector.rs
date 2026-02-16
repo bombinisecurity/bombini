@@ -10,7 +10,6 @@ pub mod filemon;
 pub mod gtfobins;
 pub mod io_uringmon;
 pub mod netmon;
-pub mod netmon_new;
 pub mod procmon;
 
 pub trait Detector {

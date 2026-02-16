@@ -1,13 +1,12 @@
 egress:
   enabled: true
-  ipv4_filter:
-    deny_list: true
-    dst_ip:
-      - 10.0.0.0/8
-      - 172.16.0.0/12
-      - 192.168.0.0/16
-      - 127.0.0.1
-      - 0.0.0.0
-  ipv6_filter:
-    dst_ip:
-      - 2000::/3
+  rules:
+  - rule: tcp-connections-out-of-cluster
+    event: >
+      NOT ipv4_dst in [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "127.0.0.1",
+        "0.0.0.0"
+      ] OR ipv6_dst == "2000::/3"
