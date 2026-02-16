@@ -1,4 +1,0 @@
-ingress:
-  enabled: true
-egress:
-  enabled: true
