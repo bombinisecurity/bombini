@@ -2,7 +2,7 @@
 
 ProcMon is the main detector that collects information about process being spawned and detached.
 Information about living process is stored in shared eBPF map and in Process cache in user space.
-Every other detector needs ProcMon that monitors process execs and exits. This detector can not be disabled.
+Every other detector needs ProcMon that monitors process execs and exits. This detector cannot be disabled.
 
 ## Required Linux Kernel Version
 
@@ -28,99 +28,98 @@ gc_period: 30
 
 ProcMon helps to monitor privilege escalation during process execution. It uses LSM hooks for this:
 
+* security_task_fix_setuid (config name: setuid)
+* security_task_fix_setgid (config name: setgid)
+* security_capset (config name: capset)
+* security_task_prctl (config name: prctl)
+* security_create_user_ns (config name: create_user_ns)
+* security_ptrace_access_check (config name: ptrace_access_check)
+
+To enable hook:
+
+```yaml
+<hook>:
+  enabled: true
+```
+
+## Event Filtering
+
+All hooks support scope filtering.
+
+The following list of hooks support event filtering by rules:
+
 * security_task_fix_setuid
 * security_task_fix_setgid
 * security_capset
-* security_task_prctl
 * security_create_user_ns
 
-To enable `setuid` events put this to config:
+### security_task_fix_setuid
+
+`setuid` supports the following filtering attributes:
+
+* `uid` - new uid
+* `euid` - new euid
+
+**Example**
 
 ```yaml
 setuid:
   enabled: true
+  rules:
+  - rule: UidTestRule
+    event: uid == 1000 AND euid == 0
 ```
 
-Enabling `setgid` events:
+### security_task_fix_setgid
+
+`setgid` supports the following filtering attributes:
+
+* `gid` - new gid
+* `egid` - new egid
+
+**Example**
 
 ```yaml
 setgid:
   enabled: true
+  rules:
+  - rule: GidTestRule
+    event: gid == 1000 AND egid == 0
 ```
 
-Enabling `capset` events:
+### security_capset
+
+`capset` supports the following filtering attributes:
+
+* `ecaps` - new effective capabilities
+* `pcaps` - new permitted capabilities
+
+List of capabilities can be found in [capabilities(7)](https://man7.org/linux/man-pages/man7/capabilities.7.html).
+we support a placeholder `ANY_CAPS` that matches all capabilities. Expression `ecaps in ["ANY_CAPS"]` or `ecaps == "ANY_CAPS"` checks if any capability is set.
+
+**Example**
 
 ```yaml
-capset:
+setcaps:
   enabled: true
+  rules:
+  - rule: CapsTestRule
+    event: ecaps == "CAP_SYS_ADMIN"
 ```
 
-Enabling `prctl` events:
+### security_create_user_ns
 
-```yaml
-prctl:
-  enabled: true
-```
+`create_user_ns` supports the following filtering attributes:
 
-Enabling `create_user_ns` events:
+* `ecaps` - effective capabilities
+* `euid` - effective uid
+
+**Example**
 
 ```yaml
 create_user_ns:
   enabled: true
-```
-
-Enabling `ptrace_access_check` events:
-
-```yaml
-ptrace_access_check:
-  enabled: true
-```
-
-ProcMon supports [process filtering](filtering.md/#process-filter).
-
-[Cred filter](filtering.md/#cred--filter) can be applied to these hooks:
-
-* security_task_fix_setuid
-* security_capset
-* security_create_user_ns
-
-Config example:
-
-```yaml
-setuid:
-  enabled: true
-  cred_filter:
-    uid_filter:
-      euid:
-      - 0
-setgid:
-  enabled: true
-  cred_filter:
-    gid_filter:
-      egid:
-      - 0
-capset:
-  enabled: true
-  cred_filter:
-    cap_filter:
-      effective:
-      - "ANY"
-create_user_ns:
-  enabled: true
-  cred_filter:
-    cap_filter:
-      effective:
-      - "CAP_SYS_ADMIN"
-      deny_list: true
-process_filter:
-  uid:
-    - 0
-  euid:
-    - 0
-  auid:
-    - 1000
-  binary:
-    prefix:
-      - /usr/bin/
-      - /usr/sbin/
+  rules:
+  - rule: UnprivNsTestRule
+    event: NOT ecaps == "CAP_SYS_ADMIN"
 ```

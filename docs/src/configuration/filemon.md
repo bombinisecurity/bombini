@@ -43,11 +43,9 @@ For each file hook the following options are supported:
 
 * `enabled` enables detection for current hook. False by default.
 
-### Event filtering
+## Event Filtering
 
-FileMon detector supports [process filtering](filtering.md#process-filter).
-
-FileMon also supports [path filtering](filtering.md/#path-filter) for hooks:
+The following list of hooks support event filtering by rules:
 
 * file_open
 * path_truncate
@@ -58,39 +56,146 @@ FileMon also supports [path filtering](filtering.md/#path-filter) for hooks:
 * mmap_file
 * file_ioctl
 
-Path filtering for the symlink hook is based on the target path, not the symlink file.
+### file_open
 
-Config example:
+`file_open` supports the following filtering attributes:
+
+* `path` - the absolute path of opening file.
+* `path_prefix` - the absolute path prefix of opening file.
+* `name` - the name of opening file.
+
+**Example**
 
 ```yaml
 file_open:
   enabled: true
-  path_filter:
-    name:
-      - .history
-      - .bash_history
-    prefix:
-      - /boot
-    path:
-      - /etc/passwd
+  rules:
+  - rule: OpenTestRule
+    scope: binary_name in ["ls", "tail"]
+    event: path in ["/etc"] OR name == "filemon.yaml"
+```
+
+### path_truncate
+
+`file_truncate` supports the following filtering attributes:
+
+* `path` - the absolute path of truncating file.
+* `path_prefix` - the absolute path prefix of truncating file.
+* `name` - the name of truncating file.
+
+**Example**
+
+```yaml
+path_truncate:
+  enabled: true
+  rules:
+  - rule: TruncateTestRule
+    event: path_prefix == "/tmp/bombini-test-"
+```
+
+### path_unlink
+
+`path_unlink` supports the following filtering attributes:
+
+* `path` - the absolute path of deleting file.
+* `path_prefix` - the absolute path prefix of deleting file.
+* `name` - the name of deleting file.
+
+**Example**
+
+```yaml
+path_unlink:
+  enabled: true
+  rules:
+  - rule: UnlinkTestRule
+    event: path_prefix == "/tmp" AND name == "test.json"
+```
+
+### path_symlink
+
+`path_symlink` supports the following filtering attributes:
+
+* `path` - the path of target file (maybe relative).
+* `path_prefix` - the path prefix of target file (maybe relative).
+
+**Example**
+
+```yaml
+path_symlink:
+  enabled: true
+  rules:
+  - rule: SymlinkTestRule
+    event: path_prefix == "../"
+```
+
+### file_chmod
+
+`file_chmod` supports the following filtering attributes:
+
+* `path` - the absolute path of changing permissions file.
+* `path_prefix` - the absolute path prefix of changing permissions file.
+* `name` - the name of changing permissions file.
+
+**Example**
+
+```yaml
+path_chmod:
+  enabled: true
+  rules:
+  - rule: ChmodTestRule
+    event: name == "filemon.yaml"
+```
+
+### file_chown
+
+`file_chown` supports the following filtering attributes:
+
+* `path` - the absolute path of changing owner file.
+* `path_prefix` - the absolute path prefix of changing owner file.
+* `name` - the name of changing owner file.
+
+**Example**
+
+```yaml
+path_chmod:
+  enabled: true
+  rules:
+  - rule: ChownTestRule
+    event: name == "filemon.yaml"
+```
+
+### mmap_file
+
+`mmap_file` supports the following filtering attributes:
+
+* `path` - the absolute path of mmaped file.
+* `path_prefix` - the absolute path prefix of mmaped file.
+* `name` - the name of mmaped file.
+
+**Example**
+
+```yaml
 mmap_file:
   enabled: true
-path_truncate:
-  enabled: false
-path_unlink:
-  enabled: false
-path_symlink:
-  enabled: false
-path_chmod:
-  enabled: false
-path_chown:
-  enabled: false
-sb_mount:
-  enabled: false
-process_filter:
-  binary:
-    name:
-      - tail
-    path:
-      - /usr/bin/cat
+  rules:
+  - rule: MmapTestRule
+    event: name == "filemon.yaml"
+```
+
+### file_ioctl
+
+`file_ioctl` supports the following filtering attributes:
+
+* `path` - the absolute path of device file.
+* `path_prefix` - the absolute path prefix of device file.
+* `name` - the name of device file.
+
+**Example**
+
+```yaml
+file_ioctl:
+  enabled: true
+  rules:
+  - rule: IoctlTestRule
+    event: path_prefix == "/dev"
 ```
