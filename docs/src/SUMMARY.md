@@ -7,7 +7,7 @@
     - [Kubernetes](./getting_started/k8s.md)
     - [Build](./getting_started/build.md)
 - [Configuration](./configuration/configuration.md)
-    - [Filtering](./configuration/filtering.md)
+    - [Rules](./configuration/rules.md)
     - [ProcMon](./configuration/procmon.md)
     - [FileMon](./configuration/filemon.md)
     - [NetMon](./configuration/netmon.md)

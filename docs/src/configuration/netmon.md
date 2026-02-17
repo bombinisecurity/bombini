@@ -25,24 +25,28 @@ egress:
   enabled: true
 ```
 
-NetMon supports [filtering by IP](filtering.md/#ip-filter). You can have separate filters for ingress/egress traffic.
+## Event Filtering
+
+NetMon supports attributes filtering for ingress/egress tcp connection events.
+
+* `ipv4_dst` - destination IPv4 address of ingress/egress tcp connection
+* `ipv4_src` - source IPv4 address of ingress/egress tcp connection
+* `ipv6_dst` - destination IPv6 address of ingress/egress tcp connection
+* `ipv6_src` - source IPv6 address of ingress/egress tcp connection
+
+**Example**
 
 ```yaml
 egress:
   enabled: true
-  ipv4_filter:
-    deny_list: true
-    dst_ip:
-      - 10.0.0.0/8
-      - 172.16.0.0/12
-      - 192.168.0.0/16
-      - 127.0.0.1
-      - 0.0.0.0
-  ipv6_filter:
-    dst_ip:
-      - 2000::/3
+  rules:
+  - rule: tcp-connections-out-of-cluster
+    event: >
+      NOT ipv4_dst in [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "127.0.0.1",
+        "0.0.0.0"
+      ] OR ipv6_dst == "2000::/3"
 ```
-
-The example above shows NetMon config that can detect outgoing connections from cluster network.
-
-NetMon detector supports [process filtering](filtering.md/#process-filter).

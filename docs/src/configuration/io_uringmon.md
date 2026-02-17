@@ -13,4 +13,4 @@ Inspired by:
 
 ## Config Description
 
-IOUringMon doesn't provide filtering.
+IOUringMon doesn't provide rule-based filtering.

@@ -78,7 +78,7 @@ config:
   look: handDrawn
 ---
 flowchart LR
-    A["Kernel Events"] -- collect & filter --> B["eBPF probes"]
+    A["Kernel Events"] -- collect & apply rules --> B["eBPF probes"]
     B <-- store/update --> C["eBPF maps"]
     B -- send --> D["RingBuffer"]
     D --enrich & transform --> E["Transmuters"]
@@ -95,10 +95,12 @@ flowchart LR
     I@{ shape: cyl}
 ```
 
-### Filters
+### Rule Engine
 
-Filters are applied to eBPF events inside eBPF probes in order to decide will be event exposed to user space or not.
-A detailed description of the filtering can be found directly in the description of the corresponding detector.
+The rule engine executes entirely within the eBPF layer using a custom Reverse Polish Notation (RPN) interpreter.
+Rules are parsed using the LALRPOP framework, which generates an AST that undergoes optimization passes before being
+serialized into a binary format. These serialized rules are stored in dedicated eBPF maps,
+while `in` operations trigger lookups against attribute-specific eBPF maps (e.g., binary_path, ipv4_dst, etc.).
 
 ## Process Execution Detection
 
