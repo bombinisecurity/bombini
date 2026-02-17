@@ -3,7 +3,7 @@
 Recommended order to visit pages:
 
 1. [Bombini config](./configuration.md)
-2. [Event filtering](./filtering.md)
+2. [Rules](./rules.md)
 
 Next look and detector configuration guides:
 
