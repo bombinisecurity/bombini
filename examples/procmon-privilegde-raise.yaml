@@ -1,19 +1,15 @@
 setuid:
   enabled: true
-  cred_filter:
-    uid_filter:
-      euid:
-      - 0
+  rules:
+    - rule: SetUidRule
+      event: euid == 0
 capset:
   enabled: true
-  cred_filter:
-    cap_filter:
-      effective:
-      - "ANY"
+  rules:
+    - rule: CapSetRule
+      event: ecaps == "ANY_CAPS"
 create_user_ns:
   enabled: true
-  cred_filter:
-    cap_filter:
-      effective:
-      - "CAP_SYS_ADMIN"
-      deny_list: true
+  rules:
+    - rule: CreateUserNsRule
+      event: NOT ecaps == "CAP_SYS_ADMIN"

@@ -13,8 +13,10 @@ use crate::proto::config::Rule;
 use crate::rule::ast::{Expr, Literal};
 use crate::rule::predicate;
 
+pub mod dummy;
 pub mod filemon;
 pub mod netmon;
+pub mod procmon;
 pub mod scope;
 
 use scope::ScopePredicate;

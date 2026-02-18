@@ -174,8 +174,8 @@ fn serialize_capabilities<S>(caps: &Capabilities, serializer: S) -> Result<S::Ok
 where
     S: Serializer,
 {
-    if *caps == Capabilities::ALL_CAPS {
-        serializer.serialize_str("ALL_CAPS")
+    if *caps == Capabilities::ANY_CAPS {
+        serializer.serialize_str("ANY_CAPS")
     } else {
         caps.serialize(serializer)
     }
