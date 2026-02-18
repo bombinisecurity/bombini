@@ -254,7 +254,7 @@ bitflags! {
 }
 
 bitflags! {
-    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, Default)]
     #[cfg_attr(feature = "user", derive(Serialize))]
     #[repr(C)]
     pub struct Capabilities: u64 {
@@ -300,7 +300,7 @@ bitflags! {
         const CAP_BPF = 1 << 39;
         const CAP_CHECKPOINT_RESTORE = 1 << 40;
 
-        const ALL_CAPS = Self::CAP_CHOWN.bits()
+        const ANY_CAPS = Self::CAP_CHOWN.bits()
         | Self::CAP_DAC_OVERRIDE.bits()
         | Self::CAP_DAC_READ_SEARCH.bits()
         | Self::CAP_FOWNER.bits()
@@ -412,15 +412,27 @@ pub struct ProcessMsg {
 #[repr(u8)]
 pub enum ProcessEventVariant {
     /// Set uid/euid for process
-    Setuid(ProcSetUid) = 0,
+    Setuid(ProcSetUid) = ProcessEventNumber::Setuid as u8,
     /// Set capabilities for process
-    Setcaps(ProcCapset) = 1,
+    Setcaps(ProcCapset) = ProcessEventNumber::Setcaps as u8,
     /// Prctl cmd for process
-    Prctl(ProcPrctl) = 2,
+    Prctl(ProcPrctl) = ProcessEventNumber::Prctl as u8,
     /// Create user namespace
-    CreateUserNs = 3,
+    CreateUserNs = ProcessEventNumber::CreateUserNs as u8,
     /// Ptrace access check
-    PtraceAccessCheck(ProcPtraceAccessCheck) = 4,
+    PtraceAccessCheck(ProcPtraceAccessCheck) = ProcessEventNumber::PtraceAccessCheck as u8,
     /// Set gid/egid for process
-    Setgid(ProcSetGid) = 5,
+    Setgid(ProcSetGid) = ProcessEventNumber::Setgid as u8,
+}
+
+#[repr(C)]
+pub enum ProcessEventNumber {
+    Setuid,
+    Setcaps,
+    Prctl,
+    CreateUserNs,
+    PtraceAccessCheck,
+    Setgid,
+
+    TotalProcessEvents,
 }

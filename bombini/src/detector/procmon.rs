@@ -1,41 +1,114 @@
-// Detect process execution life cycle
+use std::path::PathBuf;
+use std::time::Duration;
+use std::{path::Path, sync::Arc};
 
-use aya::maps::{
-    Array, Map, MapData,
-    hash_map::HashMap,
-    lpm_trie::{Key, LpmTrie},
-};
+use crate::detector::Detector;
+use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME};
+use crate::rule::serializer::PredicateSerializer;
+use crate::rule::serializer::dummy::DummyPredicate;
+use crate::rule::serializer::procmon::{CapPredicate, CredPredicate, GidPredicate, UidPredicate};
+use aya::maps::{Array, HashMap, Map, MapData, MapError};
 use aya::programs::{BtfTracePoint, Lsm};
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
-
+use bombini_common::config::procmon::ProcMonKernelConfig;
+use bombini_common::constants::{MAX_EVENT_SIZE, PAGE_SIZE};
+use bombini_common::event::process::ProcInfo;
 use procfs::process;
+use tokio::time::interval;
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use tokio::time::{Duration, interval};
-
-use bombini_common::{
-    config::procmon::{Config, CredFilterMask, ProcessFilterMask},
-    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
-    event::process::{Capabilities, ProcInfo},
-};
-
-use crate::{
-    init_process_filter_maps,
-    options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME},
-    proto::config::ProcMonConfig,
-    resize_process_filter_maps,
-};
-
-use super::Detector;
+use crate::proto::config::{ProcMonConfig, Rule};
+use crate::rule::serializer::SerializedRules;
 
 pub struct ProcMon {
-    /// aya::Ebpf object
     ebpf: Ebpf,
-    /// User supplied config
-    config: Arc<ProcMonConfig>,
+    ima_hash: bool,
+    hooks: Vec<Box<dyn ProcMonRuleContainer>>,
+}
+
+trait ProcMonRuleContainer {
+    fn map_sizes(&self) -> &std::collections::HashMap<String, u32>;
+    fn store_rules(&self, ebpf: &mut Ebpf, map_prefix: &'static str) -> Result<(), anyhow::Error>;
+    fn hook(&self) -> ProcMonHook;
+}
+
+#[derive(Debug)]
+struct HookData<T: PredicateSerializer> {
+    hook: ProcMonHook,
+    serialized_rules: SerializedRules<T>,
+    map_sizes: std::collections::HashMap<String, u32>,
+}
+
+impl<T: PredicateSerializer + Default> HookData<T> {
+    fn new(hook: ProcMonHook, rules: &[Rule]) -> Result<Self, anyhow::Error> {
+        let mut serialized_rules = SerializedRules::new();
+        serialized_rules.serialize_rules(rules)?;
+        let map_sizes = serialized_rules.map_sizes(hook.map_prefix());
+
+        Ok(HookData {
+            hook,
+            serialized_rules,
+            map_sizes,
+        })
+    }
+}
+
+impl<T: PredicateSerializer> ProcMonRuleContainer for HookData<T> {
+    fn map_sizes(&self) -> &std::collections::HashMap<String, u32> {
+        &self.map_sizes
+    }
+
+    fn store_rules(&self, ebpf: &mut Ebpf, map_prefix: &'static str) -> Result<(), anyhow::Error> {
+        self.serialized_rules.store_rules(ebpf, map_prefix)
+    }
+
+    fn hook(&self) -> ProcMonHook {
+        self.hook
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+enum ProcMonHook {
+    Setuid,
+    Setgid,
+    SetCaps,
+    Prctl,
+    Userns,
+    PtraceAccessCheck,
+}
+
+impl ProcMonHook {
+    fn map_prefix(&self) -> &'static str {
+        match self {
+            ProcMonHook::Setuid => "PROCMON_SETUID",
+            ProcMonHook::Setgid => "PROCMON_SETGID",
+            ProcMonHook::SetCaps => "PROCMON_CAPSET",
+            ProcMonHook::Prctl => "PROCMON_PRCTL",
+            ProcMonHook::Userns => "PROCMON_USERNS",
+            ProcMonHook::PtraceAccessCheck => "PROCMON_PTRACE_ACCESS_CHECK",
+        }
+    }
+
+    fn hook_name(&self) -> &'static str {
+        match self {
+            ProcMonHook::Setuid => "task_fix_setuid",
+            ProcMonHook::Setgid => "task_fix_setgid",
+            ProcMonHook::SetCaps => "capset",
+            ProcMonHook::Prctl => "task_prctl",
+            ProcMonHook::Userns => "userns_create",
+            ProcMonHook::PtraceAccessCheck => "ptrace_access_check",
+        }
+    }
+
+    fn program_name(&self) -> &'static str {
+        match self {
+            ProcMonHook::Setuid => "setuid_capture",
+            ProcMonHook::Setgid => "setgid_capture",
+            ProcMonHook::SetCaps => "capset_capture",
+            ProcMonHook::Prctl => "prctl_capture",
+            ProcMonHook::Userns => "create_user_ns_capture",
+            ProcMonHook::PtraceAccessCheck => "ptrace_access_check_capture",
+        }
+    }
 }
 
 impl ProcMon {
@@ -50,21 +123,73 @@ impl ProcMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let mut ebpf_loader_ref = ebpf_loader
+        let ebpf_loader_ref = ebpf_loader
             .map_pin_path(maps_pin_path.as_ref())
             .set_max_entries(EVENT_MAP_NAME, event_map_size)
             .set_max_entries(PROCMON_PROC_MAP_NAME, proc_map_size);
-        if let Some(filter) = &config.process_filter {
-            resize_process_filter_maps!(filter, ebpf_loader_ref);
+
+        let mut hooks: Vec<Box<dyn ProcMonRuleContainer>> = Vec::new();
+        if let Some(setuid) = &config.setuid
+            && setuid.enabled
+        {
+            hooks.push(Box::new(HookData::<UidPredicate>::new(
+                ProcMonHook::Setuid,
+                &setuid.rules,
+            )?));
         }
-        resize_cred_filter_maps(&config, ebpf_loader_ref);
+        if let Some(setgid) = &config.setgid
+            && setgid.enabled
+        {
+            hooks.push(Box::new(HookData::<GidPredicate>::new(
+                ProcMonHook::Setgid,
+                &setgid.rules,
+            )?));
+        }
+        if let Some(setcaps) = &config.capset
+            && setcaps.enabled
+        {
+            hooks.push(Box::new(HookData::<CapPredicate>::new(
+                ProcMonHook::SetCaps,
+                &setcaps.rules,
+            )?));
+        }
+        if let Some(prctl) = &config.prctl
+            && prctl.enabled
+        {
+            hooks.push(Box::new(HookData::<DummyPredicate>::new(
+                ProcMonHook::Prctl,
+                &prctl.rules,
+            )?));
+        }
+        if let Some(userns) = &config.create_user_ns
+            && userns.enabled
+        {
+            hooks.push(Box::new(HookData::<CredPredicate>::new(
+                ProcMonHook::Userns,
+                &userns.rules,
+            )?));
+        }
+        if let Some(ptrace_access_check) = &config.ptrace_access_check
+            && ptrace_access_check.enabled
+        {
+            hooks.push(Box::new(HookData::<DummyPredicate>::new(
+                ProcMonHook::PtraceAccessCheck,
+                &ptrace_access_check.rules,
+            )?));
+        }
+
+        resize_all_procmon_filter_maps(hooks.as_slice(), ebpf_loader_ref)?;
 
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
         // Start GC for PROCMON_PROC_MAP
         start_proc_map_gc(maps_pin_path, config.clone())?;
 
-        Ok(ProcMon { ebpf, config })
+        Ok(ProcMon {
+            ebpf,
+            ima_hash: config.ima_hash.unwrap_or_default(),
+            hooks,
+        })
     }
 }
 
@@ -75,7 +200,7 @@ fn start_proc_map_gc<P: AsRef<Path>>(
     let gc_period = config.gc_period.unwrap_or(30);
     let proc_map_path = PathBuf::from(maps_pin_path.as_ref()).join(PROCMON_PROC_MAP_NAME);
     let map = Map::LruHashMap(MapData::from_pin(&proc_map_path)?);
-    let mut proc_map: HashMap<_, u32, ProcInfo> = HashMap::try_from(map)?;
+    let mut proc_map: aya::maps::HashMap<_, u32, ProcInfo> = aya::maps::HashMap::try_from(map)?;
     tokio::spawn(async move {
         let mut interval = interval(Duration::from_secs(gc_period));
         interval.tick().await;
@@ -101,19 +226,11 @@ fn start_proc_map_gc<P: AsRef<Path>>(
 
 impl Detector for ProcMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
-        let mut config = Config {
-            filter_mask: ProcessFilterMask::empty(),
-            cred_mask: [CredFilterMask::empty(); 4],
-            deny_list: false,
-            ima_hash: false,
+        // TODO: Change trait error type to anyhow::Error
+        let config = ProcMonKernelConfig {
+            ima_hash: self.ima_hash,
         };
-        config.ima_hash = self.config.ima_hash.unwrap_or_default();
-        if let Some(filter) = &self.config.process_filter {
-            config.filter_mask = init_process_filter_maps!(filter, &mut self.ebpf);
-            config.deny_list = filter.deny_list;
-        }
-        init_cred_filter_maps(&mut config, &self.config, &mut self.ebpf)?;
-        let mut config_map: Array<_, Config> =
+        let mut config_map: Array<_, ProcMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, config, 0);
 
@@ -128,6 +245,11 @@ impl Detector for ProcMon {
                 let _ = proc_map.insert(p.pid, p, 0);
             });
 
+        init_all_procmon_filter_maps(&self.hooks, &mut self.ebpf).map_err(|e| {
+            MapError::InvalidName {
+                name: e.to_string(),
+            }
+        })?;
         Ok(())
     }
 
@@ -153,342 +275,46 @@ impl Detector for ProcMon {
         program.load("bprm_committing_creds", &btf)?;
         program.attach()?;
 
-        if let Some(ref setuid_cfg) = self.config.setuid
-            && setuid_cfg.enabled
-        {
-            let setuid: &mut Lsm = self
+        for hook in &self.hooks {
+            let program: &mut Lsm = self
                 .ebpf
-                .program_mut("setuid_capture")
+                .program_mut(hook.hook().program_name())
                 .unwrap()
                 .try_into()?;
-            setuid.load("task_fix_setuid", &btf)?;
-            setuid.attach()?;
-        }
-        if let Some(ref setgid_cfg) = self.config.setgid
-            && setgid_cfg.enabled
-        {
-            let setgid: &mut Lsm = self
-                .ebpf
-                .program_mut("setgid_capture")
-                .unwrap()
-                .try_into()?;
-            setgid.load("task_fix_setgid", &btf)?;
-            setgid.attach()?;
-        }
-        if let Some(ref capset_cfg) = self.config.capset
-            && capset_cfg.enabled
-        {
-            let capset: &mut Lsm = self
-                .ebpf
-                .program_mut("capset_capture")
-                .unwrap()
-                .try_into()?;
-            capset.load("capset", &btf)?;
-            capset.attach()?;
-        }
-        if let Some(ref prctl_cfg) = self.config.prctl
-            && prctl_cfg.enabled
-        {
-            let prctl: &mut Lsm = self
-                .ebpf
-                .program_mut("task_prctl_capture")
-                .unwrap()
-                .try_into()?;
-            prctl.load("task_prctl", &btf)?;
-            prctl.attach()?;
-        }
-        if let Some(ref create_user_ns_cfg) = self.config.create_user_ns
-            && create_user_ns_cfg.enabled
-        {
-            let create_user_ns: &mut Lsm = self
-                .ebpf
-                .program_mut("create_user_ns_capture")
-                .unwrap()
-                .try_into()?;
-            create_user_ns.load("userns_create", &btf)?;
-            create_user_ns.attach()?;
-        }
-        if let Some(ref ptrace_cfg) = self.config.ptrace_access_check
-            && ptrace_cfg.enabled
-        {
-            let ptrace: &mut Lsm = self
-                .ebpf
-                .program_mut("ptrace_access_check_capture")
-                .unwrap()
-                .try_into()?;
-            ptrace.load("ptrace_access_check", &btf)?;
-            ptrace.attach()?;
+            program.load(hook.hook().hook_name(), &btf)?;
+            program.attach()?;
         }
         Ok(())
     }
 }
 
-#[macro_export]
-macro_rules! resize_process_filter_maps {
-    ($filter_config:expr, $ebpf_loader_ref:expr) => {
-        if $filter_config.uid.len() > 1 {
-            $ebpf_loader_ref = $ebpf_loader_ref
-                .set_max_entries(FILTER_UID_MAP_NAME, $filter_config.uid.len() as u32);
-        }
-        if $filter_config.euid.len() > 1 {
-            $ebpf_loader_ref = $ebpf_loader_ref
-                .set_max_entries(FILTER_EUID_MAP_NAME, $filter_config.euid.len() as u32);
-        }
-        if $filter_config.auid.len() > 1 {
-            $ebpf_loader_ref = $ebpf_loader_ref
-                .set_max_entries(FILTER_AUID_MAP_NAME, $filter_config.auid.len() as u32);
-        }
-        if let Some(binary) = $filter_config.binary.as_ref() {
-            if binary.name.len() > 1 {
-                $ebpf_loader_ref = $ebpf_loader_ref
-                    .set_max_entries(FILTER_BINNAME_MAP_NAME, binary.name.len() as u32);
-            }
-            if binary.path.len() > 1 {
-                $ebpf_loader_ref = $ebpf_loader_ref
-                    .set_max_entries(FILTER_BINPATH_MAP_NAME, binary.path.len() as u32);
-            }
-            if binary.prefix.len() > 1 {
-                $ebpf_loader_ref = $ebpf_loader_ref
-                    .set_max_entries(FILTER_BINPREFIX_MAP_NAME, binary.prefix.len() as u32);
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! init_process_filter_maps {
-    ($filter_config:expr, $ebpf:expr) => {{
-        let mut filter_mask = ProcessFilterMask::empty();
-        if !$filter_config.uid.is_empty() {
-            let mut uid_map: HashMap<_, u32, u8> =
-                HashMap::try_from($ebpf.map_mut(FILTER_UID_MAP_NAME).unwrap())?;
-            for v in $filter_config.uid.iter() {
-                let _ = uid_map.insert(v, 0, 0);
-            }
-            filter_mask |= ProcessFilterMask::UID;
-        }
-        if !$filter_config.euid.is_empty() {
-            let mut euid_map: HashMap<_, u32, u8> =
-                HashMap::try_from($ebpf.map_mut(FILTER_EUID_MAP_NAME).unwrap())?;
-            for v in $filter_config.euid.iter() {
-                let _ = euid_map.insert(v, 0, 0);
-            }
-            filter_mask |= ProcessFilterMask::EUID;
-        }
-        if !$filter_config.auid.is_empty() {
-            let mut auid_map: HashMap<_, u32, u8> =
-                HashMap::try_from($ebpf.map_mut(FILTER_AUID_MAP_NAME).unwrap())?;
-            for v in $filter_config.auid.iter() {
-                let _ = auid_map.insert(v, 0, 0);
-            }
-            filter_mask |= ProcessFilterMask::AUID;
-        }
-        if let Some(binary) = $filter_config.binary.as_ref() {
-            if !binary.name.is_empty() {
-                let mut bname_map: HashMap<_, [u8; MAX_FILENAME_SIZE], u8> =
-                    HashMap::try_from($ebpf.map_mut(FILTER_BINNAME_MAP_NAME).unwrap())?;
-                for name in binary.name.iter() {
-                    let mut v = [0u8; MAX_FILENAME_SIZE];
-                    let name_bytes = name.as_bytes();
-                    let len = name_bytes.len();
-                    if len < MAX_FILENAME_SIZE {
-                        v[..len].clone_from_slice(name_bytes);
-                    } else {
-                        v.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
-                    }
-                    let _ = bname_map.insert(v, 0, 0);
-                }
-                filter_mask |= ProcessFilterMask::BINARY_NAME;
-            }
-            if !binary.path.is_empty() {
-                let mut bpath_map: HashMap<_, [u8; MAX_FILE_PATH], u8> =
-                    HashMap::try_from($ebpf.map_mut(FILTER_BINPATH_MAP_NAME).unwrap())?;
-                for path in binary.path.iter() {
-                    let mut v = [0u8; MAX_FILE_PATH];
-                    let path_bytes = path.as_bytes();
-                    let len = path_bytes.len();
-                    if len < MAX_FILE_PATH {
-                        v[..len].clone_from_slice(path_bytes);
-                    } else {
-                        v.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
-                    }
-                    let _ = bpath_map.insert(v, 0, 0);
-                }
-                filter_mask |= ProcessFilterMask::BINARY_PATH;
-            }
-            if !binary.prefix.is_empty() {
-                let mut bprefix_map: LpmTrie<_, [u8; MAX_FILE_PREFIX], u8> =
-                    LpmTrie::try_from($ebpf.map_mut(FILTER_BINPREFIX_MAP_NAME).unwrap())?;
-                for prefix in binary.prefix.iter() {
-                    let mut v = [0u8; MAX_FILE_PREFIX];
-                    let prefix_bytes = prefix.as_bytes();
-                    let len = prefix_bytes.len();
-                    if len < MAX_FILE_PREFIX {
-                        v[..len].clone_from_slice(prefix_bytes);
-                    } else {
-                        v.clone_from_slice(&prefix_bytes[..MAX_FILE_PREFIX]);
-                    }
-                    let key = Key::new((prefix.len() * 8) as u32, v);
-                    let _ = bprefix_map.insert(&key, 0, 0);
-                }
-                filter_mask |= ProcessFilterMask::BINARY_PATH_PREFIX;
-            }
-        }
-        filter_mask
-    }};
-}
-
 #[inline]
-fn resize_cred_filter_maps(config: &ProcMonConfig, loader: &mut EbpfLoader) {
-    if let Some(ref capset_cfg) = config.capset
-        && let Some(ref cred_filter) = capset_cfg.cred_filter
-        && let Some(ref cap_filter) = cred_filter.cap_filter
-        && cap_filter.effective.len() > 1
-    {
-        loader.set_max_entries(
-            FILTER_CAPSET_ECAP_MAP_NAME,
-            cap_filter.effective.len() as u32,
-        );
-    }
-    if let Some(ref setuid_cfg) = config.setuid
-        && let Some(ref cred_filter) = setuid_cfg.cred_filter
-        && let Some(ref uid_filter) = cred_filter.uid_filter
-        && uid_filter.euid.len() > 1
-    {
-        loader.set_max_entries(FILTER_SETUID_EUID_MAP_NAME, uid_filter.euid.len() as u32);
-    }
-    if let Some(ref setgid_cfg) = config.setgid
-        && let Some(ref cred_filter) = setgid_cfg.cred_filter
-        && let Some(ref gid_filter) = cred_filter.gid_filter
-        && gid_filter.egid.len() > 1
-    {
-        loader.set_max_entries(FILTER_SETGID_EGID_MAP_NAME, gid_filter.egid.len() as u32);
-    }
-    if let Some(ref userns_cfg) = config.create_user_ns
-        && let Some(ref cred_filter) = userns_cfg.cred_filter
-    {
-        if let Some(ref uid_filter) = cred_filter.uid_filter
-            && uid_filter.euid.len() > 1
-        {
-            loader.set_max_entries(FILTER_USERNS_ECAP_MAP_NAME, uid_filter.euid.len() as u32);
-        }
-        if let Some(ref cap_filter) = cred_filter.cap_filter
-            && cap_filter.effective.len() > 1
-        {
-            loader.set_max_entries(
-                FILTER_USERNS_ECAP_MAP_NAME,
-                cap_filter.effective.len() as u32,
-            );
-        }
-    }
-}
-
-macro_rules! init_uid_filter_map {
-    ($uid_list:expr, $ebpf:expr, $map_name:expr) => {{
-        let mut uid_map: HashMap<_, u32, u8> =
-            HashMap::try_from($ebpf.map_mut($map_name).unwrap())?;
-        for v in $uid_list.iter() {
-            let _ = uid_map.insert(v, 0, 0);
-        }
-    }};
-}
-
-use std::str::FromStr;
-
-macro_rules! init_cap_filter_map {
-    ($cap_list:expr, $ebpf:expr, $map_name:expr) => {{
-        let mut cap_map: Array<_, u64> = Array::try_from($ebpf.map_mut($map_name).unwrap())?;
-        for (i, v) in $cap_list.iter().enumerate() {
-            if *v == "ANY" {
-                let _ = cap_map.set(i as u32, 1 << 63, 0);
-                continue;
-            }
-            if let Ok(cap) = Capabilities::from_str(v) {
-                let _ = cap_map.set(i as u32, cap.bits(), 0);
-            }
-        }
-    }};
-}
-
-#[inline]
-fn init_cred_filter_maps(
-    ebpf_config: &mut Config,
-    config: &ProcMonConfig,
-    ebpf: &mut Ebpf,
-) -> Result<(), EbpfError> {
-    if let Some(ref setuid_cfg) = config.setuid
-        && let Some(ref cred_filter) = setuid_cfg.cred_filter
-        && let Some(ref uid_filter) = cred_filter.uid_filter
-        && !uid_filter.euid.is_empty()
-    {
-        init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_SETUID_EUID_MAP_NAME);
-        ebpf_config.cred_mask[0] |= CredFilterMask::EUID;
-    }
-    if let Some(ref capset_cfg) = config.capset
-        && let Some(ref cred_filter) = capset_cfg.cred_filter
-        && let Some(ref cap_filter) = cred_filter.cap_filter
-        && !cap_filter.effective.is_empty()
-    {
-        init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_CAPSET_ECAP_MAP_NAME);
-        let deny = cap_filter.deny_list.unwrap_or(false);
-        if deny {
-            ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS_DENY_LIST;
-        } else {
-            ebpf_config.cred_mask[1] |= CredFilterMask::E_CAPS;
-        }
-    }
-    if let Some(ref userns_cfg) = config.create_user_ns
-        && let Some(ref cred_filter) = userns_cfg.cred_filter
-    {
-        if let Some(ref uid_filter) = cred_filter.uid_filter
-            && !uid_filter.euid.is_empty()
-        {
-            init_uid_filter_map!(&uid_filter.euid, ebpf, FILTER_USERNS_EUID_MAP_NAME);
-            ebpf_config.cred_mask[2] |= CredFilterMask::EUID;
-        }
-        if let Some(ref cap_filter) = cred_filter.cap_filter
-            && !cap_filter.effective.is_empty()
-        {
-            init_cap_filter_map!(&cap_filter.effective, ebpf, FILTER_USERNS_ECAP_MAP_NAME);
-            let deny = cap_filter.deny_list.unwrap_or(false);
-            if deny {
-                ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS_DENY_LIST;
-            } else {
-                ebpf_config.cred_mask[2] |= CredFilterMask::E_CAPS;
-            }
-        }
-    }
-    if let Some(ref setgid_cfg) = config.setgid
-        && let Some(ref cred_filter) = setgid_cfg.cred_filter
-        && let Some(ref gid_filter) = cred_filter.gid_filter
-        && !gid_filter.egid.is_empty()
-    {
-        init_uid_filter_map!(&gid_filter.egid, ebpf, FILTER_SETGID_EGID_MAP_NAME);
-        ebpf_config.cred_mask[3] |= CredFilterMask::EGID;
+fn resize_all_procmon_filter_maps<'a>(
+    hooks: &'a [Box<dyn ProcMonRuleContainer>],
+    loader: &mut EbpfLoader<'a>,
+) -> Result<(), anyhow::Error> {
+    for hook in hooks {
+        hook.map_sizes()
+            .iter()
+            .filter(|(_, size)| **size > 1)
+            .for_each(|(name, size)| {
+                loader.set_max_entries(name, *size);
+            });
     }
     Ok(())
 }
 
-// ProcMon Filter map names
-const FILTER_UID_MAP_NAME: &str = "PROCMON_FILTER_UID_MAP";
+fn init_all_procmon_filter_maps(
+    hooks: &[Box<dyn ProcMonRuleContainer>],
+    ebpf: &mut Ebpf,
+) -> Result<(), anyhow::Error> {
+    for hook in hooks {
+        hook.store_rules(ebpf, hook.hook().map_prefix())?;
+    }
 
-const FILTER_EUID_MAP_NAME: &str = "PROCMON_FILTER_EUID_MAP";
+    let mut zero_map: Array<_, [u8; PAGE_SIZE]> =
+        Array::try_from(ebpf.map_mut("ZERO_MAP").unwrap())?;
+    zero_map.set(0, [0; PAGE_SIZE], 0)?;
 
-const FILTER_AUID_MAP_NAME: &str = "PROCMON_FILTER_AUID_MAP";
-
-const FILTER_BINPATH_MAP_NAME: &str = "PROCMON_FILTER_BINPATH_MAP";
-
-const FILTER_BINNAME_MAP_NAME: &str = "PROCMON_FILTER_BINNAME_MAP";
-
-const FILTER_BINPREFIX_MAP_NAME: &str = "PROCMON_FILTER_BINPREFIX_MAP";
-
-// Cred filter map names
-const FILTER_SETUID_EUID_MAP_NAME: &str = "PROCMON_FILTER_SETUID_EUID_MAP";
-
-const FILTER_SETGID_EGID_MAP_NAME: &str = "PROCMON_FILTER_SETGID_EGID_MAP";
-
-const FILTER_CAPSET_ECAP_MAP_NAME: &str = "PROCMON_FILTER_CAPSET_ECAP_MAP";
-
-const FILTER_USERNS_ECAP_MAP_NAME: &str = "PROCMON_FILTER_USERNS_ECAP_MAP";
-
-const FILTER_USERNS_EUID_MAP_NAME: &str = "PROCMON_FILTER_USERNS_EUID_MAP";
+    Ok(())
+}

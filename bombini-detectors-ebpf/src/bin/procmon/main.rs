@@ -2,31 +2,36 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::BPF_ANY,
+    bindings::{BPF_ANY, bpf_dynptr},
     helpers::{
         bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_get_current_task_btf,
         bpf_ima_inode_hash, bpf_probe_read_kernel, bpf_probe_read_kernel_buf,
         bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes,
+        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
     macros::{btf_tracepoint, lsm, map},
     maps::{
-        array::Array, hash_map::HashMap, hash_map::LruHashMap, lpm_trie::LpmTrie,
+        array::Array,
+        hash_map::{HashMap, LruHashMap},
+        lpm_trie::{Key, LpmTrie},
         per_cpu_array::PerCpuArray,
     },
     programs::{BtfTracePointContext, LsmContext},
 };
 
 use bombini_common::{
-    config::procmon::{Config, CredFilterMask},
+    config::procmon::ProcMonKernelConfig,
+    config::rule::{CapKey, FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
     constants::{
         MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
+        PAGE_SIZE,
     },
     event::{
         Event, GenericEvent, MSG_PROCESS, MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
         process::{
             Capabilities, Cgroup, ImaHash, LsmSetIdFlags, PR_SET_DUMPABLE, PR_SET_KEEPCAPS,
-            PR_SET_NAME, PR_SET_SECUREBITS, PrctlCmd, ProcInfo, ProcessEventVariant, PtraceMode,
-            SecureExec,
+            PR_SET_NAME, PR_SET_SECUREBITS, PrctlCmd, ProcInfo, ProcessEventNumber,
+            ProcessEventVariant, ProcessMsg, PtraceMode, SecureExec,
         },
     },
 };
@@ -35,9 +40,10 @@ use bombini_detectors_ebpf::{
     event_capture,
     event_map::rb_event_init,
     filter::{
-        cred::{CapFilter, GidFilter, UidFilter},
-        process::ProcessFilter,
+        procmon::cred::{CapFilter, CapValue, CredFilter, UidFilter},
+        scope::ScopeFilter,
     },
+    interpreter::{self, rule::IsEmpty},
     util,
     vmlinux::{
         cgroup, cred, css_set, file, kernfs_node, kgid_t, kuid_t, linux_binprm, mm_struct, path,
@@ -65,34 +71,149 @@ static PROCMON_CRED_SHARED_MAP: LruHashMap<u64, CredSharedInfo> = LruHashMap::pi
 #[map]
 static PROCMON_CRED_HEAP: PerCpuArray<CredSharedInfo> = PerCpuArray::with_max_entries(1, 0);
 
+// Detector config
+#[map]
+static PROCMON_CONFIG: Array<ProcMonKernelConfig> = Array::with_max_entries(1, 0);
+
+// Helpers
 #[map]
 static PROCMON_HEAP: PerCpuArray<ProcInfo> = PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-static PROCMON_CONFIG: Array<Config> = Array::with_max_entries(1, 0);
+static ZERO_MAP: Array<[u8; PAGE_SIZE]> = Array::with_max_entries(1, 0);
 
-// Filter maps
+/// Fill file name map
+macro_rules! fill_name_map {
+    ($map:ident, $src:expr) => {{
+        let Some(name_ptr) = $map.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        let name = name_ptr.as_mut();
+        let Some(name) = name else {
+            return Err(0);
+        };
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_MAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        bpf_dynptr_from_mem(
+            &mut name.name as *mut u8 as *mut _,
+            MAX_FILENAME_SIZE as u32,
+            0,
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(
+            &tmp as *const _,
+            0,
+            zero_ptr as *mut _,
+            MAX_FILENAME_SIZE as u32,
+            0,
+        );
+        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| 0i32)?;
+        name
+    }};
+}
+
+/// Fill file path map
+macro_rules! fill_path_map {
+    ($map:ident, $src:expr) => {{
+        let Some(path_ptr) = $map.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        let path = path_ptr.as_mut();
+        let Some(path) = path else {
+            return Err(0);
+        };
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_MAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        bpf_dynptr_from_mem(
+            &mut path.path as *mut u8 as *mut _,
+            MAX_FILE_PATH as u32,
+            0,
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(
+            &tmp as *const _,
+            0,
+            zero_ptr as *mut _,
+            MAX_FILE_PATH as u32,
+            0,
+        );
+        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| 0i32)?;
+        path
+    }};
+}
+
+macro_rules! fill_prefix_map {
+    ($map:ident, $src:expr) => {{
+        let Some(prefix) = $map.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        let prefix = prefix.as_mut();
+        let Some(prefix) = prefix else {
+            return Err(0);
+        };
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_MAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        bpf_dynptr_from_mem(
+            prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
+            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+            0,
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(
+            &tmp as *const _,
+            0,
+            zero_ptr as *mut _,
+            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+            0,
+        );
+        bpf_probe_read_kernel_buf($src as *const u8, &mut prefix.data.path_prefix)
+            .map_err(|_| 0)?;
+        prefix.prefix_len = (MAX_FILE_PREFIX * 8) as u32;
+        prefix
+    }};
+}
 
 #[map]
-static PROCMON_FILTER_UID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+static DYNPTR_HELPER: PerCpuArray<bpf_dynptr> = PerCpuArray::with_max_entries(1, 0);
+
+macro_rules! memzero {
+    ($mut_ptr:expr, $size:expr) => {{
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_MAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        bpf_dynptr_from_mem(
+            $mut_ptr as *mut u8 as *mut _,
+            $size as u32,
+            0,
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(&tmp as *const _, 0, zero_ptr as *mut _, $size as u32, 0);
+    }
+    // Very dirty hack to make BPF verifier happy with stack area used for dynptr.
+    // After dynptr is passed away from the scope, BPF verifier still thinks that stack area is untouchable.
+    // We can create new variable that will may separate this stack area from the dynptr.
+    let __very_dirty_verifier_hack = 0u8;
+    core::hint::black_box(__very_dirty_verifier_hack);};
+}
+
+// Attribute helper maps
+#[map]
+static PROCMON_BINARY_PATH_MAP: PerCpuArray<PathMapKey> = PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-static PROCMON_FILTER_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+static PROCMON_BINARY_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> =
+    PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-static PROCMON_FILTER_AUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
-
-#[map]
-static PROCMON_FILTER_BINPATH_MAP: HashMap<[u8; MAX_FILE_PATH], u8> =
-    HashMap::with_max_entries(1, 0);
-
-#[map]
-static PROCMON_FILTER_BINNAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u8> =
-    HashMap::with_max_entries(1, 0);
-
-#[map]
-static PROCMON_FILTER_BINPREFIX_MAP: LpmTrie<[u8; MAX_FILE_PREFIX], u8> =
-    LpmTrie::with_max_entries(1, 0);
+static PROCMON_BINARY_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
+    PerCpuArray::with_max_entries(1, 0);
 
 #[inline(always)]
 fn get_creds(proc: &mut ProcInfo, task: *const task_struct) -> Result<u32, u32> {
@@ -140,7 +261,7 @@ fn get_cgroup_info(cgroup: &mut Cgroup, task: *const task_struct) -> Result<u32,
         let name =
             bpf_probe_read_kernel::<*const _>(&(*kn).name as *const *const _).map_err(|_| 0u32)?;
 
-        aya_ebpf::memset(cgroup.cgroup_name.as_mut_ptr(), 0, cgroup.cgroup_name.len());
+        memzero!(cgroup.cgroup_name.as_mut_ptr(), cgroup.cgroup_name.len());
         bpf_probe_read_kernel_str_bytes(name as *const _, &mut cgroup.cgroup_name)
             .map_err(|_| 0u32)?;
         cgroup.cgroup_id = bpf_get_current_cgroup_id();
@@ -216,7 +337,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
         let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
             .map_err(|_| 0u32)?;
 
-        aya_ebpf::memset(proc.filename.as_mut_ptr(), 0, proc.filename.len());
+        memzero!(proc.filename.as_mut_ptr(), proc.filename.len());
         bpf_probe_read_kernel_str_bytes(d_name.name, &mut proc.filename).map_err(|_| 0u32)?;
 
         // Get cred
@@ -234,7 +355,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     };
     let arg_size = (arg_end - arg_start) & (MAX_ARGS_SIZE - 1) as u64;
     unsafe {
-        aya_ebpf::memset(proc.args.as_mut_ptr(), 0, proc.args.len());
+        memzero!(proc.args.as_mut_ptr(), proc.args.len());
         bpf_probe_read_user_buf(arg_start as *const u8, &mut proc.args[..arg_size as usize])
             .map_err(|_| 0u32)?;
     }
@@ -245,7 +366,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
                 return Err(0);
             };
             proc.creds.secureexec = cred_info.secureexec;
-            aya_ebpf::memset(proc.binary_path.as_mut_ptr(), 0, proc.binary_path.len());
+            memzero!(proc.binary_path.as_mut_ptr(), proc.binary_path.len());
             bpf_probe_read_kernel_str_bytes(cred_info.binary_path.as_ptr(), &mut proc.binary_path)
                 .map_err(|_| 0u32)?;
             if cred_info.ima_hash.algo > 0 {
@@ -324,7 +445,7 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
     };
     creds_info.ima_hash.algo = 0;
     unsafe {
-        aya_ebpf::memset(cred_ptr as *mut u8, 0, core::mem::size_of_val(creds_info));
+        memzero!(cred_ptr, core::mem::size_of_val(creds_info));
         let binprm: *const linux_binprm = ctx.arg(0);
 
         // if per_clear is zero, it's not a privileged execution
@@ -412,10 +533,7 @@ fn try_fork(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Resu
     let Some(parent_proc) = parent_proc else {
         return Err(0);
     };
-    let proc_ptr = exec_map_get_init(tgid);
-    let Some(proc_ptr) = proc_ptr else {
-        return Err(0);
-    };
+    let proc_ptr = exec_map_get_init(tgid)?;
     let proc = unsafe { proc_ptr.as_mut() };
 
     let Some(proc) = proc else {
@@ -473,57 +591,46 @@ fn execve_find_parent(task: *const task_struct) -> Option<*const ProcInfo> {
 }
 
 #[inline(always)]
-fn exec_map_get_init(pid: u32) -> Option<*mut ProcInfo> {
+fn exec_map_get_init(pid: u32) -> Result<*mut ProcInfo, u32> {
     if let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&pid) {
-        return Some(proc_ptr);
+        return Ok(proc_ptr);
     }
 
-    let proc_ptr = PROCMON_HEAP.get_ptr_mut(0)?;
+    let proc_ptr = PROCMON_HEAP.get_ptr_mut(0).ok_or(0u32)?;
 
     let proc = unsafe { proc_ptr.as_mut() };
 
-    let proc = proc?;
+    let proc = proc.ok_or(0u32)?;
     unsafe {
-        aya_ebpf::memset(proc_ptr as *mut u8, 0, core::mem::size_of_val(proc));
+        memzero!(proc_ptr, core::mem::size_of_val(proc));
     }
-    if PROCMON_PROC_MAP.insert(&pid, proc, BPF_ANY as u64).is_err() {
-        return None;
-    }
-    PROCMON_PROC_MAP.get_ptr_mut(&pid)
+    PROCMON_PROC_MAP
+        .insert(&pid, proc, BPF_ANY as u64)
+        .map_err(|x| x as u32)?;
+    PROCMON_PROC_MAP.get_ptr_mut(&pid).ok_or(0)
 }
 
-// Privelage escalation hooks
-#[inline(always)]
-fn filter_by_process(config: &Config, proc: &ProcInfo) -> Result<(), i32> {
-    // Filter event by process
-    let allow = if !config.filter_mask.is_empty() {
-        let process_filter: ProcessFilter = ProcessFilter::new(
-            &PROCMON_FILTER_UID_MAP,
-            &PROCMON_FILTER_EUID_MAP,
-            &PROCMON_FILTER_AUID_MAP,
-            &PROCMON_FILTER_BINNAME_MAP,
-            &PROCMON_FILTER_BINPATH_MAP,
-            &PROCMON_FILTER_BINPREFIX_MAP,
-        );
-        if config.deny_list {
-            !process_filter.filter(config.filter_mask, proc)
-        } else {
-            process_filter.filter(config.filter_mask, proc)
-        }
-    } else {
-        true
-    };
+// Setuid rules map
+#[map]
+static PROCMON_SETUID_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
 
-    // Skip argument parsing if event is not exported
-    if !allow {
-        return Err(0);
-    }
-
-    Ok(())
-}
+// Filter setuid maps begin
+#[map]
+static PROCMON_SETUID_UID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
-static PROCMON_FILTER_SETUID_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+static PROCMON_SETUID_EUID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
 
 #[lsm(hook = "task_fix_setuid")]
 pub fn setuid_capture(ctx: LsmContext) -> i32 {
@@ -534,25 +641,20 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
+
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
 
-    filter_by_process(config, proc)?;
+    let Some(rules) = PROCMON_SETUID_RULE_MAP.get(0) else {
+        return Err(0);
+    };
 
     unsafe {
         let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
-        // Setuid
-        *p = 0;
+        *p = ProcessEventNumber::Setuid as u8;
     }
     let ProcessEventVariant::Setuid(ref mut event) = msg.event else {
         return Err(0);
@@ -564,23 +666,84 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         event.uid = (*creds).uid.val;
         event.euid = (*creds).euid.val;
         event.fsuid = (*creds).fsuid.val;
-    }
-    let filter = UidFilter::new(&PROCMON_FILTER_SETUID_EUID_MAP);
-    if !config.cred_mask[0].is_empty() && !filter.filter(config.cred_mask[0], event.euid) {
-        return Err(0);
+
+        let Some(ref rule_array) = rules.0 else {
+            enrich_with_proc_info(msg, proc);
+            return Ok(0);
+        };
+
+        let mut proc_uid = UIDKey {
+            rule_idx: 0,
+            uid: event.uid,
+        };
+
+        let mut proc_euid = UIDKey {
+            rule_idx: 0,
+            uid: event.euid,
+        };
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            proc_uid.rule_idx = idx as u32;
+            proc_euid.rule_idx = idx as u32;
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_SETUID_BINNAME_MAP,
+                &PROCMON_SETUID_BINPATH_MAP,
+                &PROCMON_SETUID_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            if scope_filter.check_predicate(&rule.scope)? {
+                let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
+                    &PROCMON_SETUID_UID_MAP,
+                    &PROCMON_SETUID_EUID_MAP,
+                    &proc_uid,
+                    &proc_euid,
+                ))?;
+                if event_filter.check_predicate(&rule.event)? {
+                    enrich_with_proc_info(msg, proc);
+                    return Ok(0);
+                }
+            }
+        }
     }
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        msg.parent.pid = parent.pid;
-        msg.parent.start = parent.start;
-    }
-
-    util::process_key_init(&mut msg.process, proc);
-    Ok(0)
+    Err(0)
 }
 
+// Setgid rules map
 #[map]
-static PROCMON_FILTER_SETGID_EGID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+static PROCMON_SETGID_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter setgid maps begin
+#[map]
+static PROCMON_SETGID_GID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_EGID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
 
 #[lsm(hook = "task_fix_setgid")]
 pub fn setgid_capture(ctx: LsmContext) -> i32 {
@@ -591,25 +754,20 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
+
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
 
-    filter_by_process(config, proc)?;
+    let Some(rules) = PROCMON_SETGID_RULE_MAP.get(0) else {
+        return Err(0);
+    };
 
     unsafe {
         let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
-        // Setgid
-        *p = 5;
+        *p = ProcessEventNumber::Setgid as u8;
     }
     let ProcessEventVariant::Setgid(ref mut event) = msg.event else {
         return Err(0);
@@ -621,22 +779,84 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         event.gid = (*creds).gid.val;
         event.egid = (*creds).egid.val;
         event.fsgid = (*creds).fsgid.val;
-    }
-    let filter = GidFilter::new(&PROCMON_FILTER_SETGID_EGID_MAP);
-    if !config.cred_mask[3].is_empty() && !filter.filter(config.cred_mask[3], event.egid) {
-        return Err(0);
+
+        let Some(ref rule_array) = rules.0 else {
+            enrich_with_proc_info(msg, proc);
+            return Ok(0);
+        };
+
+        let mut proc_gid = UIDKey {
+            rule_idx: 0,
+            uid: event.gid,
+        };
+
+        let mut proc_egid = UIDKey {
+            rule_idx: 0,
+            uid: event.egid,
+        };
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            proc_gid.rule_idx = idx as u32;
+            proc_egid.rule_idx = idx as u32;
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_SETGID_BINNAME_MAP,
+                &PROCMON_SETGID_BINPATH_MAP,
+                &PROCMON_SETGID_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            if scope_filter.check_predicate(&rule.scope)? {
+                let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
+                    &PROCMON_SETGID_GID_MAP,
+                    &PROCMON_SETGID_EGID_MAP,
+                    &proc_gid,
+                    &proc_egid,
+                ))?;
+                if event_filter.check_predicate(&rule.event)? {
+                    enrich_with_proc_info(msg, proc);
+                    return Ok(0);
+                }
+            }
+        }
     }
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        msg.parent.pid = parent.pid;
-        msg.parent.start = parent.start;
-    }
-
-    util::process_key_init(&mut msg.process, proc);
-    Ok(0)
+    Err(0)
 }
+
+// Capset rules map
 #[map]
-static PROCMON_FILTER_CAPSET_ECAP_MAP: Array<u64> = Array::with_max_entries(1, 0);
+static PROCMON_CAPSET_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter capset maps begin
+#[map]
+static PROCMON_CAPSET_ECAP_MAP: HashMap<CapKey, Capabilities> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_PCAP_MAP: HashMap<CapKey, Capabilities> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
 
 #[lsm(hook = "capset")]
 pub fn capset_capture(ctx: LsmContext) -> i32 {
@@ -647,25 +867,20 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
+
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
 
-    filter_by_process(config, proc)?;
+    let Some(rules) = PROCMON_CAPSET_RULE_MAP.get(0) else {
+        return Err(0);
+    };
 
     unsafe {
         let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
-        // Setcaps
-        *p = 1;
+        *p = ProcessEventNumber::Setcaps as u8;
     }
     let ProcessEventVariant::Setcaps(ref mut event) = msg.event else {
         return Err(0);
@@ -678,50 +893,102 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         event.inheritable =
             Capabilities::from_bits_retain(*(&(*creds).cap_inheritable as *const _ as *const u64));
         event.permitted =
-            Capabilities::from_bits_retain(*(&(*creds).cap_permitted as *const _ as *const u64))
-    }
-    let filter = CapFilter::new(&PROCMON_FILTER_CAPSET_ECAP_MAP);
-    if !config.cred_mask[1].is_empty() && !filter.filter(config.cred_mask[1], &event.effective) {
-        return Err(0);
+            Capabilities::from_bits_retain(*(&(*creds).cap_permitted as *const _ as *const u64));
+
+        let Some(ref rule_array) = rules.0 else {
+            enrich_with_proc_info(msg, proc);
+            return Ok(0);
+        };
+
+        let mut proc_ecap = CapValue {
+            rule_idx: 0,
+            caps: event.effective,
+        };
+
+        let mut proc_pcap = CapValue {
+            rule_idx: 0,
+            caps: event.permitted,
+        };
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            proc_ecap.rule_idx = idx as u8;
+            proc_pcap.rule_idx = idx as u8;
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_CAPSET_BINNAME_MAP,
+                &PROCMON_CAPSET_BINPATH_MAP,
+                &PROCMON_CAPSET_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            if scope_filter.check_predicate(&rule.scope)? {
+                let mut event_filter = interpreter::Interpreter::new(CapFilter::new(
+                    &PROCMON_CAPSET_ECAP_MAP,
+                    &PROCMON_CAPSET_PCAP_MAP,
+                    &proc_ecap,
+                    &proc_pcap,
+                ))?;
+                if event_filter.check_predicate(&rule.event)? {
+                    enrich_with_proc_info(msg, proc);
+                    return Ok(0);
+                }
+            }
+        }
     }
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        msg.parent.pid = parent.pid;
-        msg.parent.start = parent.start;
-    }
-
-    util::process_key_init(&mut msg.process, proc);
-    Ok(0)
+    Err(0)
 }
+
+// Prctl rules map
+#[map]
+static PROCMON_PRCTL_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter prctl maps begin
+#[map]
+static PROCMON_PRCTL_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> = LpmTrie::with_max_entries(1, 0);
+// Filter maps end
 
 #[lsm(hook = "task_prctl")]
-pub fn task_prctl_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_task_prctl_capture)
+pub fn prctl_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_PROCESS, true, try_prctl_capture)
 }
 
-fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
+
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
 
-    filter_by_process(config, proc)?;
+    let Some(rules) = PROCMON_PRCTL_RULE_MAP.get(0) else {
+        return Err(0);
+    };
 
     unsafe {
         let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
-        // Prctl
-        *p = 2;
+        *p = ProcessEventNumber::Prctl as u8;
     }
     let ProcessEventVariant::Prctl(ref mut event) = msg.event else {
         return Err(0);
@@ -741,22 +1008,64 @@ fn try_task_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             }
             _ => event.cmd = PrctlCmd::Opcode(cmd),
         }
+
+        let Some(ref rule_array) = rules.0 else {
+            enrich_with_proc_info(msg, proc);
+            return Ok(0);
+        };
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_PRCTL_BINNAME_MAP,
+                &PROCMON_PRCTL_BINPATH_MAP,
+                &PROCMON_PRCTL_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            if scope_filter.check_predicate(&rule.scope)? {
+                enrich_with_proc_info(msg, proc);
+                return Ok(0);
+            }
+        }
     }
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
-        msg.parent.pid = parent.pid;
-        msg.parent.start = parent.start;
-    }
-
-    util::process_key_init(&mut msg.process, proc);
-    Ok(0)
+    Err(0)
 }
 
+// Userns rules map
 #[map]
-static PROCMON_FILTER_USERNS_ECAP_MAP: Array<u64> = Array::with_max_entries(1, 0);
+static PROCMON_USERNS_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter userns maps begin
+#[map]
+static PROCMON_USERNS_ECAP_MAP: HashMap<CapKey, Capabilities> = HashMap::with_max_entries(1, 0);
 
 #[map]
-static PROCMON_FILTER_USERNS_EUID_MAP: HashMap<u32, u8> = HashMap::with_max_entries(1, 0);
+static PROCMON_USERNS_EUID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
 
 #[lsm(hook = "create_user_ns")]
 pub fn create_user_ns_capture(ctx: LsmContext) -> i32 {
@@ -770,51 +1079,103 @@ fn try_create_user_ns_capture(
     let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
+
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
 
-    filter_by_process(config, proc)?;
+    let Some(rules) = PROCMON_USERNS_RULE_MAP.get(0) else {
+        return Err(0);
+    };
 
     unsafe {
         let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
-        // CreateUserNs
-        *p = 3;
+        *p = ProcessEventNumber::CreateUserNs as u8;
     }
     let ProcessEventVariant::CreateUserNs = msg.event else {
         return Err(0);
     };
 
     unsafe {
+        let Some(ref rule_array) = rules.0 else {
+            util::process_key_init(&mut msg.process, proc);
+            return Ok(0);
+        };
+
         let creds: *const cred = ctx.arg(0);
-        let cap_filter = CapFilter::new(&PROCMON_FILTER_USERNS_ECAP_MAP);
         let effective =
             Capabilities::from_bits_retain(*(&(*creds).cap_effective as *const _ as *const u64));
-        if config.cred_mask[2].intersects(CredFilterMask::E_CAPS | CredFilterMask::E_CAPS_DENY_LIST)
-            && !cap_filter.filter(config.cred_mask[2], &effective)
-        {
-            return Err(0);
-        }
         let euid = (*creds).euid.val;
-        let uid_filter = UidFilter::new(&PROCMON_FILTER_SETUID_EUID_MAP);
-        if config.cred_mask[2].contains(CredFilterMask::EUID)
-            && !uid_filter.filter(config.cred_mask[2], euid)
-        {
-            return Err(0);
+
+        let mut proc_ecap = CapValue {
+            rule_idx: 0,
+            caps: effective,
+        };
+        let mut proc_euid = UIDKey {
+            rule_idx: 0,
+            uid: euid,
+        };
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            proc_ecap.rule_idx = idx as u8;
+            proc_euid.rule_idx = idx as u32;
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_USERNS_BINNAME_MAP,
+                &PROCMON_USERNS_BINPATH_MAP,
+                &PROCMON_USERNS_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            if scope_filter.check_predicate(&rule.scope)? {
+                let mut event_filter = interpreter::Interpreter::new(CredFilter::new(
+                    &PROCMON_USERNS_ECAP_MAP,
+                    &PROCMON_USERNS_EUID_MAP,
+                    &proc_ecap,
+                    &proc_euid,
+                ))?;
+                if event_filter.check_predicate(&rule.event)? {
+                    util::process_key_init(&mut msg.process, proc);
+                    return Ok(0);
+                }
+            }
         }
     }
-    util::process_key_init(&mut msg.process, proc);
-    Ok(0)
+
+    Err(0)
 }
+
+// Ptrace access check rules map
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter ptrace access check maps begin
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
 
 #[lsm(hook = "ptrace_access_check")]
 pub fn ptrace_access_check_capture(ctx: LsmContext) -> i32 {
@@ -828,26 +1189,63 @@ fn try_ptrace_access_check_capture(
     let Event::Process(ref mut msg) = generic_event.event else {
         return Err(0);
     };
-    let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
-        return Err(0);
-    };
-    let config = unsafe { config_ptr.as_ref() };
-    let Some(config) = config else {
-        return Err(0);
-    };
+
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(0);
     };
 
-    filter_by_process(config, proc)?;
+    let Some(rules) = PROCMON_PTRACE_ACCESS_CHECK_RULE_MAP.get(0) else {
+        return Err(0);
+    };
 
     unsafe {
         let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
-        // PtraceAccessCheck
-        *p = 4;
+        *p = ProcessEventNumber::PtraceAccessCheck as u8;
     }
+
+    unsafe {
+        let Some(ref rule_array) = rules.0 else {
+            return enrich_ptrace_access_check_info(msg, proc, &ctx);
+        };
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_PTRACE_ACCESS_CHECK_BINNAME_MAP,
+                &PROCMON_PTRACE_ACCESS_CHECK_BINPATH_MAP,
+                &PROCMON_PTRACE_ACCESS_CHECK_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            if scope_filter.check_predicate(&rule.scope)? {
+                return enrich_ptrace_access_check_info(msg, proc, &ctx);
+            }
+        }
+    }
+
+    Err(0)
+}
+
+#[inline(always)]
+fn enrich_ptrace_access_check_info(
+    msg: &mut ProcessMsg,
+    proc: &ProcInfo,
+    ctx: &LsmContext,
+) -> Result<i32, i32> {
     let ProcessEventVariant::PtraceAccessCheck(ref mut event) = msg.event else {
         return Err(0);
     };
@@ -871,6 +1269,16 @@ fn try_ptrace_access_check_capture(
     util::process_key_init(&mut msg.process, proc);
     util::copy_proc(proc_child, &mut event.child);
     Ok(0)
+}
+
+#[inline(always)]
+fn enrich_with_proc_info(msg: &mut ProcessMsg, proc: &ProcInfo) {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+        msg.parent.pid = parent.pid;
+        msg.parent.start = parent.start;
+    }
+
+    util::process_key_init(&mut msg.process, proc);
 }
 
 #[panic_handler]
