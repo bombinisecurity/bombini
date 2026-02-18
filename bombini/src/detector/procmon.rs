@@ -3,7 +3,7 @@ use std::time::Duration;
 use std::{path::Path, sync::Arc};
 
 use crate::detector::Detector;
-use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME};
+use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME, ZERO_EVENT_MAP};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::dummy::DummyPredicate;
 use crate::rule::serializer::procmon::{CapPredicate, CredPredicate, GidPredicate, UidPredicate};
@@ -315,6 +315,10 @@ fn init_all_procmon_filter_maps(
     let mut zero_map: Array<_, [u8; PAGE_SIZE]> =
         Array::try_from(ebpf.map_mut("ZERO_MAP").unwrap())?;
     zero_map.set(0, [0; PAGE_SIZE], 0)?;
+
+    let mut zero_map: Array<_, [u8; MAX_EVENT_SIZE]> =
+        Array::try_from(ebpf.map_mut(ZERO_EVENT_MAP).unwrap())?;
+    zero_map.set(0, [0; MAX_EVENT_SIZE], 0)?;
 
     Ok(())
 }

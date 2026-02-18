@@ -9,6 +9,9 @@ use std::path::PathBuf;
 /// Ring buffer map name is used to send events
 pub const EVENT_MAP_NAME: &str = "EVENT_MAP";
 
+/// Zero event map is used to clear event map ringbuffer entries
+pub const ZERO_EVENT_MAP: &str = "ZERO_EVENT_MAP";
+
 /// Procmon map name is used to hold alive processes
 pub const PROCMON_PROC_MAP_NAME: &str = "PROCMON_PROC_MAP";
 

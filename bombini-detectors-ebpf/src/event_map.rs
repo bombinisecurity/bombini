@@ -1,14 +1,13 @@
 //! Ring buffer to send events from all detectors.
-use aya_ebpf::{
-    helpers::bpf_ktime_get_boot_ns,
-    macros::map,
-    maps::{RingBuf, ring_buf::RingBufEntry},
-};
+
+use aya_ebpf::{helpers::bpf_ktime_get_boot_ns, macros::map};
 
 use bombini_common::event::{Event, GenericEvent};
 
+use crate::dyn_ringbuf::{DynRingBuf, DynRingBufEntry};
+
 #[map]
-pub static EVENT_MAP: RingBuf = RingBuf::pinned(1, 0);
+pub static EVENT_MAP: DynRingBuf = DynRingBuf::pinned(1, 0);
 
 #[inline(always)]
 /// Reserve place in the ring buffer event map for given message type
@@ -19,28 +18,26 @@ pub static EVENT_MAP: RingBuf = RingBuf::pinned(1, 0);
 ///
 /// * `zero` - fill buffer with zeros
 ///
-/// # Return value
-///
-/// RingBufEntry for Event filled with zeros
-pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEvent>, i32> {
-    let Some(mut event_rb) = EVENT_MAP.reserve::<GenericEvent>(0) else {
-        return Err(0);
-    };
+/// * `ring_entry` - ring buffer entry
+pub fn rb_event_init(
+    msg_code: u8,
+    zero: bool,
+    ring_entry: &mut DynRingBufEntry<GenericEvent>,
+) -> Result<(), i32> {
+    EVENT_MAP.reserve::<GenericEvent>(0, ring_entry)?;
     unsafe {
         if zero {
-            aya_ebpf::memset(
-                event_rb.as_mut_ptr() as *mut u8,
-                0,
-                core::mem::size_of_val(event_rb.assume_init_ref()),
-            );
+            ring_entry.zero_entry()?;
         }
-        let event_ref = &mut *event_rb.as_mut_ptr();
-        let p = &mut event_ref.event as *mut Event as *mut u8;
+        let Some(event_ref) = ring_entry.get_ptr_mut() else {
+            return Err(0);
+        };
+        let p = event_ref as *mut Event as *mut u8;
         *p = msg_code;
-        event_ref.msg_code = msg_code;
-        event_ref.ktime = bpf_ktime_get_boot_ns();
+        (*event_ref).msg_code = msg_code;
+        (*event_ref).ktime = bpf_ktime_get_boot_ns();
     }
-    Ok(event_rb)
+    Ok(())
 }
 
 /// This macro reserves place for event in ring buffer event map, calls
@@ -58,17 +55,25 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<RingBufEntry<GenericEve
 #[macro_export]
 macro_rules! event_capture {
     ($ctx:expr, $msg_code:expr, $zero:expr, $handler:expr) => {{
-        let Ok(mut event_rb) = rb_event_init($msg_code, $zero) else {
+        use bombini_detectors_ebpf::dyn_ringbuf::DynRingBufEntry;
+        let mut ring_entry = DynRingBufEntry::new();
+
+        if rb_event_init($msg_code, $zero, &mut ring_entry).is_err() {
+            ring_entry.discard(0);
             return 0;
         };
-        let event_ref = unsafe { &mut *event_rb.as_mut_ptr() };
+        let Some(ring_data) = ring_entry.get_ptr_mut() else {
+            ring_entry.discard(0);
+            return 0;
+        };
+        let event_ref = unsafe { &mut *ring_data };
         match $handler($ctx, event_ref) {
             Ok(ret) => {
-                event_rb.submit(0);
+                ring_entry.submit(0);
                 ret
             }
             Err(ret) => {
-                event_rb.discard(0);
+                ring_entry.discard(0);
                 ret
             }
         }
