@@ -15,7 +15,7 @@ pub trait CheckIn {
 }
 
 pub struct Interpreter<T> {
-    stack: stack::Stack<'static, bool>,
+    stack: stack::Stack<bool>,
 
     hook_attributes: T,
 }

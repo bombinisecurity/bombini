@@ -49,6 +49,17 @@ pub enum ConnectionAttributes {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(u8)]
+pub enum CredAttributes {
+    UID = 0,
+    EUID,
+    GID,
+    EGID,
+    ECAPS,
+    PCAPS,
+}
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct FileNameMapKey {
     pub rule_idx: u8,
@@ -83,9 +94,24 @@ pub struct Ipv6MapKey {
     pub ip_addr: [u8; 16],
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct UIDKey {
+    pub rule_idx: u32,
+    pub uid: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct CapKey {
+    pub rule_idx: u8,
+    pub in_idx: u8,
+}
+
 #[cfg(feature = "user")]
 pub mod user {
     use super::*;
+    use crate::event::process::Capabilities;
 
     unsafe impl aya::Pod for Rules {}
     unsafe impl aya::Pod for FileNameMapKey {}
@@ -93,4 +119,7 @@ pub mod user {
     unsafe impl aya::Pod for PathMapKey {}
     unsafe impl aya::Pod for Ipv4MapKey {}
     unsafe impl aya::Pod for Ipv6MapKey {}
+    unsafe impl aya::Pod for UIDKey {}
+    unsafe impl aya::Pod for CapKey {}
+    unsafe impl aya::Pod for Capabilities {}
 }
