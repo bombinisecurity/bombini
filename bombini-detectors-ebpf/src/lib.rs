@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+pub mod dyn_ringbuf;
 pub mod event_map;
 pub mod filter;
 pub mod interpreter;
