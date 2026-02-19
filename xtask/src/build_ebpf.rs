@@ -1,6 +1,8 @@
-use std::{path::PathBuf, process::Command};
+use std::{env, path::PathBuf, process::Command};
 
 use clap::Parser;
+
+use crate::vmlinux_gen;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Architecture {
@@ -39,7 +41,20 @@ pub struct Options {
     pub release: bool,
 }
 
+fn check_vmlinux() -> Result<bool, anyhow::Error> {
+    let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") else {
+        anyhow::bail!("CARGO_MANIFEST_DIR is not found")
+    };
+    let mut vmlinux_path = PathBuf::from(&manifest_dir);
+    vmlinux_path.pop();
+    vmlinux_path.push("bombini-detectors-ebpf/src/vmlinux.rs");
+    Ok(vmlinux_path.exists())
+}
+
 pub fn build_ebpf(opts: Options) -> Result<(), anyhow::Error> {
+    if !check_vmlinux()? {
+        vmlinux_gen::vmlinux_gen(vmlinux_gen::Options {})?;
+    }
     let dir = PathBuf::from("bombini-detectors-ebpf");
     let target = format!("--target={}", opts.target);
     let mut args = vec!["build", target.as_str(), "-Z", "build-std=core"];
