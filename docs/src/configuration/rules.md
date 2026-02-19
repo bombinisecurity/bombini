@@ -50,7 +50,7 @@ The scope and event predicates are combined using logical *AND*. This means both
 
 | Operation   | Syntax      | Description                                      | Example                                      |
 |-------------|-------------|--------------------------------------------------|----------------------------------------------|
-| AND         | `AND`       | Logical conjunction                              | `path_prefix == "/etc" AND filename == "passwd"` |
+| AND         | `AND`       | Logical conjunction                              | `path_prefix == "/etc" AND name == "passwd"` |
 | OR          | `OR`        | Logical disjunction                              | `binary_path == "/usr/bin/cat" OR binary_path == "/usr/bin/tail"` |
 | NOT         | `NOT`       | Logical negation                                 | `NOT uid in [2000, 1000]` |
 | Grouping    | `( )`       | Control evaluation precedence                    | `(A OR B) AND C`                             |
