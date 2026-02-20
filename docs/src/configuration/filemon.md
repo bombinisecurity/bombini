@@ -128,9 +128,9 @@ path_symlink:
     event: path_prefix == "../"
 ```
 
-### file_chmod
+### path_chmod
 
-`file_chmod` supports the following filtering attributes:
+`path_chmod` supports the following filtering attributes:
 
 * `path` - the absolute path of changing permissions file.
 * `path_prefix` - the absolute path prefix of changing permissions file.
@@ -146,22 +146,24 @@ path_chmod:
     event: name == "filemon.yaml"
 ```
 
-### file_chown
+### path_chown
 
-`file_chown` supports the following filtering attributes:
+`path_chown` supports the following filtering attributes:
 
 * `path` - the absolute path of changing owner file.
 * `path_prefix` - the absolute path prefix of changing owner file.
 * `name` - the name of changing owner file.
+* `uid` - the new file's owner UID.
+* `gid` - the new file's owner GID.
 
 **Example**
 
 ```yaml
-path_chmod:
+path_chown:
   enabled: true
   rules:
   - rule: ChownTestRule
-    event: name == "filemon.yaml"
+    event: name == "filemon.yaml" AND uid == 0 AND gid == 0
 ```
 
 ### mmap_file
