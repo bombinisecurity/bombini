@@ -1,8 +1,11 @@
 use aya::Ebpf;
-use aya::maps::lpm_trie::{Key, LpmTrie};
+use aya::maps::{
+    HashMap as EbpfHashMap,
+    lpm_trie::{Key, LpmTrie},
+};
 
 use bombini_common::{
-    config::rule::{ConnectionAttributes, Ipv4MapKey, Ipv6MapKey, Predicate, RuleOp},
+    config::rule::{ConnectionAttributes, Ipv4MapKey, Ipv6MapKey, PortKey, Predicate, RuleOp},
     constants::MAX_RULE_OPERATIONS,
 };
 
@@ -22,6 +25,8 @@ pub struct TcpConnectionPredicate {
     pub ipv4_dst_map: HashMap<String, u8>,
     pub ipv6_src_map: HashMap<String, u8>,
     pub ipv6_dst_map: HashMap<String, u8>,
+    pub port_src_map: HashMap<u16, u8>,
+    pub port_dst_map: HashMap<u16, u8>,
 }
 
 impl TcpConnectionPredicate {
@@ -32,6 +37,8 @@ impl TcpConnectionPredicate {
             ipv4_dst_map: HashMap::new(),
             ipv6_src_map: HashMap::new(),
             ipv6_dst_map: HashMap::new(),
+            port_src_map: HashMap::new(),
+            port_dst_map: HashMap::new(),
         }
     }
 }
@@ -57,6 +64,48 @@ impl PredicateSerializer for TcpConnectionPredicate {
         values: &[Literal],
         in_idx: u8,
     ) -> Result<u8, anyhow::Error> {
+        if name.starts_with("port_") {
+            let values: Result<Vec<u16>, anyhow::Error> = values
+                .iter()
+                .map(|lit| match lit {
+                    Literal::Uint(i) => {
+                        if *i > 65535 {
+                            Err(anyhow::anyhow!("port value: {} must be <= 65535", i))
+                        } else {
+                            Ok(*i as u16)
+                        }
+                    }
+                    Literal::String(s) => Err(anyhow::anyhow!(
+                        "expected Uint literal, found String: {}",
+                        s
+                    )),
+                })
+                .collect();
+            let values = values?;
+            match name {
+                "port_src" => {
+                    for port in values {
+                        self.port_src_map
+                            .entry(port)
+                            .and_modify(|value| *value |= 1 << in_idx)
+                            .or_insert(1 << in_idx);
+                    }
+                    return Ok(ConnectionAttributes::PortSrc as u8);
+                }
+                "port_dst" => {
+                    for port in values {
+                        self.port_dst_map
+                            .entry(port)
+                            .and_modify(|value| *value |= 1 << in_idx)
+                            .or_insert(1 << in_idx);
+                    }
+                    return Ok(ConnectionAttributes::PortDst as u8);
+                }
+                _ => return Err(anyhow::anyhow!("invalid event attribute name: {}", name)),
+            }
+        }
+
+        // CIDR processing
         let values: Result<Vec<String>, anyhow::Error> = values
             .iter()
             .map(|lit| match lit {
@@ -239,6 +288,29 @@ impl PredicateSerializer for TcpConnectionPredicate {
             let _ = ipv6_dst_map.insert(&map_key, value, 0);
         }
 
+        let mut port_src_map: EbpfHashMap<_, PortKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_SRC_PORT_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (port, value) in self.port_src_map.iter() {
+            let key = PortKey {
+                rule_idx: rule_idx as u16,
+                port: *port,
+            };
+            let _ = port_src_map.insert(key, value, 0);
+        }
+
+        let mut port_dst_map: EbpfHashMap<_, PortKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_DST_PORT_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (port, value) in self.port_dst_map.iter() {
+            let key = PortKey {
+                rule_idx: rule_idx as u16,
+                port: *port,
+            };
+            let _ = port_dst_map.insert(key, value, 0);
+        }
         Ok(())
     }
 
@@ -259,6 +331,14 @@ impl PredicateSerializer for TcpConnectionPredicate {
         map.insert(
             format!("{}_DST_IPV6_MAP", map_name_prefix),
             self.ipv6_dst_map.len() as u32,
+        );
+        map.insert(
+            format!("{}_SRC_PORT_MAP", map_name_prefix),
+            self.port_src_map.len() as u32,
+        );
+        map.insert(
+            format!("{}_DST_PORT_MAP", map_name_prefix),
+            self.port_dst_map.len() as u32,
         );
         map
     }
