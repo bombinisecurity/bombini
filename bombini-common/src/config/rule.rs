@@ -62,6 +62,15 @@ pub enum ConnectionAttributes {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
+pub enum FileIoctlAttributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+    Cmd,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum CredAttributes {
     UID = 0,
     EUID,
@@ -119,6 +128,8 @@ pub struct UIDKey {
     pub rule_idx: u32,
     pub uid: u32,
 }
+
+pub type CmdKey = UIDKey;
 
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]

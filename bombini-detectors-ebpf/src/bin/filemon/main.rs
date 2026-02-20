@@ -16,7 +16,7 @@ use aya_ebpf::{
     programs::LsmContext,
 };
 use bombini_common::{
-    config::rule::{FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
+    config::rule::{CmdKey, FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::{
         Event, GenericEvent, MSG_FILE,
@@ -33,7 +33,9 @@ use bombini_detectors_ebpf::{
     vmlinux::{dentry, file, kgid_t, kuid_t, path, qstr},
 };
 
-use bombini_detectors_ebpf::filter::filemon::{chown::ChownFilter, path::PathFilter};
+use bombini_detectors_ebpf::filter::filemon::{
+    chown::ChownFilter, ioctl::FileIoctlFilter, path::PathFilter,
+};
 
 // Helpers
 #[map]
@@ -1215,6 +1217,9 @@ static FILEMON_FILE_IOCTL_PATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_
 static FILEMON_FILE_IOCTL_NAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
+static FILEMON_FILE_IOCTL_CMD_MAP: HashMap<CmdKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
 static FILEMON_FILE_IOCTL_PREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 
@@ -1299,10 +1304,17 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        // Get Cmd
+        let mut cmd = CmdKey {
+            rule_idx: 0,
+            uid: event.cmd,
+        };
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
+            cmd.rule_idx = idx as u32;
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -1315,13 +1327,15 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                 binary_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
-                let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
+                let mut event_filter = interpreter::Interpreter::new(FileIoctlFilter::new(
                     &FILEMON_FILE_IOCTL_NAME_MAP,
                     &FILEMON_FILE_IOCTL_PATH_MAP,
                     &FILEMON_FILE_IOCTL_PREFIX_MAP,
+                    &FILEMON_FILE_IOCTL_CMD_MAP,
                     file_name,
                     file_path,
                     file_prefix,
+                    &cmd,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
                     enrich_with_proc_info(msg, proc);
