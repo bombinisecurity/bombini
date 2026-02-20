@@ -46,6 +46,8 @@ pub enum ConnectionAttributes {
     Ipv6Src,
     Ipv4Dst,
     Ipv6Dst,
+    PortSrc,
+    PortDst,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -96,6 +98,13 @@ pub struct Ipv6MapKey {
 
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
+pub struct PortKey {
+    pub rule_idx: u16,
+    pub port: u16,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
 pub struct UIDKey {
     pub rule_idx: u32,
     pub uid: u32,
@@ -122,4 +131,5 @@ pub mod user {
     unsafe impl aya::Pod for UIDKey {}
     unsafe impl aya::Pod for CapKey {}
     unsafe impl aya::Pod for Capabilities {}
+    unsafe impl aya::Pod for PortKey {}
 }

@@ -24,7 +24,9 @@ use bombini_common::event::{
     network::TcpConnectionV6, process::ProcInfo,
 };
 use bombini_common::{
-    config::rule::{FileNameMapKey, Ipv4MapKey, Ipv6MapKey, PathMapKey, PathPrefixMapKey, Rules},
+    config::rule::{
+        FileNameMapKey, Ipv4MapKey, Ipv6MapKey, PathMapKey, PathPrefixMapKey, PortKey, Rules,
+    },
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::network::{NetworkEventNumber, NetworkEventVariant},
 };
@@ -238,6 +240,12 @@ static NETMON_EGRESS_SRC_IPV4_MAP: LpmTrie<Ipv4MapKey, u8> = LpmTrie::with_max_e
 static NETMON_EGRESS_DST_IPV4_MAP: LpmTrie<Ipv4MapKey, u8> = LpmTrie::with_max_entries(1, 0);
 
 #[map]
+static NETMON_EGRESS_SRC_PORT_MAP: HashMap<PortKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_EGRESS_DST_PORT_MAP: HashMap<PortKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
 static NETMON_EGRESS_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
@@ -257,6 +265,12 @@ static NETMON_INGRESS_SRC_IPV4_MAP: LpmTrie<Ipv4MapKey, u8> = LpmTrie::with_max_
 
 #[map]
 static NETMON_INGRESS_DST_IPV4_MAP: LpmTrie<Ipv4MapKey, u8> = LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_INGRESS_SRC_PORT_MAP: HashMap<PortKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_INGRESS_DST_PORT_MAP: HashMap<PortKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
 static NETMON_INGRESS_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
@@ -366,9 +380,23 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         let daddr = event.daddr.to_le_bytes();
         let ip_dst = fill_ip_map!(NETMON_IPV4_DST_MAP, &daddr, 4);
 
+        // Get port_src
+        let mut port_src = PortKey {
+            rule_idx: 0,
+            port: event.sport,
+        };
+
+        // Get port_dst
+        let mut port_dst = PortKey {
+            rule_idx: 0,
+            port: event.dport,
+        };
+
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             ip_src.data.rule_idx = idx as u8;
             ip_dst.data.rule_idx = idx as u8;
+            port_src.rule_idx = idx as u16;
+            port_dst.rule_idx = idx as u16;
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -384,8 +412,12 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                     &NETMON_EGRESS_SRC_IPV4_MAP,
                     &NETMON_EGRESS_DST_IPV4_MAP,
+                    &NETMON_EGRESS_SRC_PORT_MAP,
+                    &NETMON_EGRESS_DST_PORT_MAP,
                     ip_src,
                     ip_dst,
+                    &port_src,
+                    &port_dst,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
                     let _ =
@@ -456,9 +488,23 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         // Get ip_dst
         let ip_dst = fill_ip_map!(NETMON_IPV6_DST_MAP, &event.daddr, 16);
 
+        // Get port_src
+        let mut port_src = PortKey {
+            rule_idx: 0,
+            port: event.sport,
+        };
+
+        // Get port_dst
+        let mut port_dst = PortKey {
+            rule_idx: 0,
+            port: event.dport,
+        };
+
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             ip_src.data.rule_idx = idx as u8;
             ip_dst.data.rule_idx = idx as u8;
+            port_src.rule_idx = idx as u16;
+            port_dst.rule_idx = idx as u16;
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -474,8 +520,12 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                     &NETMON_EGRESS_SRC_IPV6_MAP,
                     &NETMON_EGRESS_DST_IPV6_MAP,
+                    &NETMON_EGRESS_SRC_PORT_MAP,
+                    &NETMON_EGRESS_DST_PORT_MAP,
                     ip_src,
                     ip_dst,
+                    &port_src,
+                    &port_dst,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
                     let _ =
@@ -551,12 +601,26 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             let daddr = event.daddr.to_le_bytes();
             let ip_dst = fill_ip_map!(NETMON_IPV4_DST_MAP, &daddr, 4);
 
+            // Get port_src
+            let mut port_src = PortKey {
+                rule_idx: 0,
+                port: event.sport,
+            };
+
+            // Get port_dst
+            let mut port_dst = PortKey {
+                rule_idx: 0,
+                port: event.dport,
+            };
+
             if direction == Direction::Ingress as u8
                 && let Some(ref rule_array) = rules_ingress.0
             {
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
+                    port_src.rule_idx = idx as u16;
+                    port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
@@ -572,8 +636,12 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                         let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                             &NETMON_INGRESS_SRC_IPV4_MAP,
                             &NETMON_INGRESS_DST_IPV4_MAP,
+                            &NETMON_INGRESS_SRC_PORT_MAP,
+                            &NETMON_INGRESS_DST_PORT_MAP,
                             ip_src,
                             ip_dst,
+                            &port_src,
+                            &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
                             enrich_with_proc_info(msg, proc);
@@ -587,6 +655,8 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
+                    port_src.rule_idx = idx as u16;
+                    port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
@@ -602,8 +672,12 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                         let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                             &NETMON_EGRESS_SRC_IPV4_MAP,
                             &NETMON_EGRESS_DST_IPV4_MAP,
+                            &NETMON_EGRESS_SRC_PORT_MAP,
+                            &NETMON_EGRESS_DST_PORT_MAP,
                             ip_src,
                             ip_dst,
+                            &port_src,
+                            &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
                             enrich_with_proc_info(msg, proc);
@@ -677,12 +751,26 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             // Get ip_dst
             let ip_dst = fill_ip_map!(NETMON_IPV6_DST_MAP, &event.daddr, 16);
 
+            // Get port_src
+            let mut port_src = PortKey {
+                rule_idx: 0,
+                port: event.sport,
+            };
+
+            // Get port_dst
+            let mut port_dst = PortKey {
+                rule_idx: 0,
+                port: event.dport,
+            };
+
             if direction == Direction::Ingress as u8
                 && let Some(ref rule_array) = rules_ingress.0
             {
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
+                    port_src.rule_idx = idx as u16;
+                    port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
@@ -698,8 +786,12 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                         let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                             &NETMON_INGRESS_SRC_IPV6_MAP,
                             &NETMON_INGRESS_DST_IPV6_MAP,
+                            &NETMON_INGRESS_SRC_PORT_MAP,
+                            &NETMON_INGRESS_DST_PORT_MAP,
                             ip_src,
                             ip_dst,
+                            &port_src,
+                            &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
                             enrich_with_proc_info(msg, proc);
@@ -713,6 +805,8 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
+                    port_src.rule_idx = idx as u16;
+                    port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
@@ -728,8 +822,12 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                         let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                             &NETMON_EGRESS_SRC_IPV6_MAP,
                             &NETMON_EGRESS_DST_IPV6_MAP,
+                            &NETMON_EGRESS_SRC_PORT_MAP,
+                            &NETMON_EGRESS_DST_PORT_MAP,
                             ip_src,
                             ip_dst,
+                            &port_src,
+                            &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
                             enrich_with_proc_info(msg, proc);
@@ -806,9 +904,23 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 let daddr = event.daddr.to_le_bytes();
                 let ip_dst = fill_ip_map!(NETMON_IPV4_DST_MAP, &daddr, 4);
 
+                // Get port_src
+                let mut port_src = PortKey {
+                    rule_idx: 0,
+                    port: event.sport,
+                };
+
+                // Get port_dst
+                let mut port_dst = PortKey {
+                    rule_idx: 0,
+                    port: event.dport,
+                };
+
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
+                    port_src.rule_idx = idx as u16;
+                    port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
@@ -824,8 +936,12 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                             &NETMON_INGRESS_SRC_IPV4_MAP,
                             &NETMON_INGRESS_DST_IPV4_MAP,
+                            &NETMON_INGRESS_SRC_PORT_MAP,
+                            &NETMON_INGRESS_DST_PORT_MAP,
                             ip_src,
                             ip_dst,
+                            &port_src,
+                            &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
                             let _ = NETMON_SOCK_COOKIE_MAP.insert(
@@ -867,9 +983,23 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 // Get ip_dst
                 let ip_dst = fill_ip_map!(NETMON_IPV6_DST_MAP, &event.daddr, 16);
 
+                // Get port_src
+                let mut port_src = PortKey {
+                    rule_idx: 0,
+                    port: event.sport,
+                };
+
+                // Get port_dst
+                let mut port_dst = PortKey {
+                    rule_idx: 0,
+                    port: event.dport,
+                };
+
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
+                    port_src.rule_idx = idx as u16;
+                    port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
@@ -885,8 +1015,12 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                             &NETMON_INGRESS_SRC_IPV6_MAP,
                             &NETMON_INGRESS_DST_IPV6_MAP,
+                            &NETMON_INGRESS_SRC_PORT_MAP,
+                            &NETMON_INGRESS_DST_PORT_MAP,
                             ip_src,
                             ip_dst,
+                            &port_src,
+                            &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
                             let _ = NETMON_SOCK_COOKIE_MAP.insert(
