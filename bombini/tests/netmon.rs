@@ -30,9 +30,9 @@ egress:
   enabled: true
   rules:
   - rule: NetMonIpv4Test
-    event: ipv4_dst == "127.0.0.1" AND ipv4_src == "127.0.0.1"
+    event: ipv4_dst == "127.0.0.1" AND ipv4_src == "127.0.0.1" AND port_dst == 7878
   - rule: NetMonIpv6Test
-    event: ipv6_dst == "2000::/3"
+    event: ipv6_dst == "2000::/3" AND port_dst in [80, 443]
 "#;
     let _ = fs::write(&netmon_config, config_contents);
     let bombini_log =
