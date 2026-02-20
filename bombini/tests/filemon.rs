@@ -451,7 +451,7 @@ path_chown:
   enabled: true
   rules:
   - rule: ChownTestRule
-    event: name == "filemon.yaml"
+    event: name == "filemon.yaml" AND uid == 0 AND gid == 0
 "#;
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
