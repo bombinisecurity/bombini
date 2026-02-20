@@ -611,7 +611,7 @@ file_ioctl:
   enabled: true
   rules:
   - rule: IoctlTestRule
-    event: path_prefix == "/dev"
+    event: path_prefix == "/dev" AND cmd in [4712, 2147766906, 769]
 "#;
     let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
