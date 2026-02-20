@@ -33,8 +33,10 @@ NetMon supports attributes filtering for ingress/egress tcp connection events.
 * `ipv4_src` - source IPv4 address of ingress/egress tcp connection
 * `ipv6_dst` - destination IPv6 address of ingress/egress tcp connection
 * `ipv6_src` - source IPv6 address of ingress/egress tcp connection
+* `port_src` - source port of ingress/egress tcp connection
+* `port_dst` - destination port of ingress/egress tcp connection
 
-**Example**
+**Examples**
 
 ```yaml
 egress:
@@ -49,4 +51,12 @@ egress:
         "127.0.0.1",
         "0.0.0.0"
       ] OR ipv6_dst == "2000::/3"
+```
+
+```yaml
+egress:
+  enabled: true
+  rules:
+  - rule: tcp-connections-to-api-server
+    event: ipv4_dst == "10.96.0.1" AND port_dst == 443
 ```
