@@ -41,6 +41,16 @@ pub enum PathAttributes {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
+pub enum PathChownAttributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+    UID,
+    GID,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum ConnectionAttributes {
     Ipv4Src = 0,
     Ipv6Src,
