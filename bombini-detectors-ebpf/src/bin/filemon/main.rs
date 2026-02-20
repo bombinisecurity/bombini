@@ -16,7 +16,7 @@ use aya_ebpf::{
     programs::LsmContext,
 };
 use bombini_common::{
-    config::rule::{FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules},
+    config::rule::{FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::{
         Event, GenericEvent, MSG_FILE,
@@ -33,7 +33,7 @@ use bombini_detectors_ebpf::{
     vmlinux::{dentry, file, kgid_t, kuid_t, path, qstr},
 };
 
-use bombini_detectors_ebpf::filter::filemon::path::PathFilter;
+use bombini_detectors_ebpf::filter::filemon::{chown::ChownFilter, path::PathFilter};
 
 // Helpers
 #[map]
@@ -901,6 +901,12 @@ static FILEMON_PATH_CHOWN_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 #[map]
 static FILEMON_PATH_CHOWN_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_UID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_GID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
 // Filter maps end
 
 #[lsm(hook = "path_chown")]
@@ -972,10 +978,25 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        // Get UID
+        let mut owner_uid = UIDKey {
+            rule_idx: 0,
+            uid: event.uid,
+        };
+
+        // Get GID
+        let mut owner_gid = UIDKey {
+            rule_idx: 0,
+            uid: event.gid,
+        };
+
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
+            owner_uid.rule_idx = idx as u32;
+            owner_gid.rule_idx = idx as u32;
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -988,13 +1009,17 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                 binary_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
-                let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
+                let mut event_filter = interpreter::Interpreter::new(ChownFilter::new(
                     &FILEMON_PATH_CHOWN_NAME_MAP,
                     &FILEMON_PATH_CHOWN_PATH_MAP,
                     &FILEMON_PATH_CHOWN_PREFIX_MAP,
+                    &FILEMON_PATH_CHOWN_UID_MAP,
+                    &FILEMON_PATH_CHOWN_GID_MAP,
                     file_name,
                     file_path,
                     file_prefix,
+                    &owner_uid,
+                    &owner_gid,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
                     enrich_with_proc_info(msg, proc);
