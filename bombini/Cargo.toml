@@ -25,7 +25,7 @@ scopeguard = "1.2.0"
 nix = { version = "0.31.1", features = ["time"] }
 chrono = { version = "0.4.43", features = ["alloc"] }
 schemars = {version = "1.2.1", optional = true }
-lalrpop-util = {version = "0.22.2", features = ["lexer", "unicode"] }
+lalrpop-util = {version = "0.23.0", features = ["lexer", "unicode"] }
 
 [dev-dependencies]
 nix = { version = "0.31.1", features = ["signal"] }
