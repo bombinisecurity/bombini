@@ -1,5 +1,6 @@
 use crate::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
 use crate::constants::{MAX_RULE_OPERATIONS, MAX_RULES_COUNT};
+use crate::event::file::AccessMode;
 
 #[derive(Clone, Debug, Copy)]
 #[repr(C)]
@@ -37,6 +38,16 @@ pub enum PathAttributes {
     Path = 0,
     PathPrefix,
     Name,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
+pub enum FileOpenAttributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+    CreationFlags,
+    AccessMode,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -142,17 +153,28 @@ pub type CmdKey = UIDKey;
 
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
+pub struct AccessModeKey {
+    pub rule_idx: u32,
+    pub access_mode: AccessMode,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
 pub struct CapKey {
     pub rule_idx: u8,
     pub in_idx: u8,
 }
 
 pub type ImodeKey = CapKey;
+pub type CreationFlagsKey = CapKey;
 
 #[cfg(feature = "user")]
 pub mod user {
     use super::*;
-    use crate::event::{file::Imode, process::Capabilities};
+    use crate::event::{
+        file::{CreationFlags, Imode},
+        process::Capabilities,
+    };
 
     unsafe impl aya::Pod for Rules {}
     unsafe impl aya::Pod for FileNameMapKey {}
@@ -165,4 +187,6 @@ pub mod user {
     unsafe impl aya::Pod for Capabilities {}
     unsafe impl aya::Pod for PortKey {}
     unsafe impl aya::Pod for Imode {}
+    unsafe impl aya::Pod for CreationFlags {}
+    unsafe impl aya::Pod for AccessModeKey {}
 }

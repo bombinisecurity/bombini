@@ -16,11 +16,14 @@ use aya_ebpf::{
     programs::LsmContext,
 };
 use bombini_common::{
-    config::rule::{CmdKey, FileNameMapKey, ImodeKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
+    config::rule::{
+        AccessModeKey, CmdKey, CreationFlagsKey, FileNameMapKey, ImodeKey, PathMapKey,
+        PathPrefixMapKey, Rules, UIDKey,
+    },
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::{
         Event, GenericEvent, MSG_FILE,
-        file::{FileEventNumber, FileEventVariant, FileMsg, Imode},
+        file::{AccessMode, CreationFlags, FileEventNumber, FileEventVariant, FileMsg, Imode},
         process::ProcInfo,
     },
 };
@@ -28,7 +31,10 @@ use bombini_detectors_ebpf::{
     event_capture,
     event_map::rb_event_init,
     filter::{
-        filemon::chmod::{ChmodFilter, ImodeValue},
+        filemon::{
+            chmod::{ChmodFilter, ImodeValue},
+            fileopen::{CreationFlagsValue, FileOpenFilter},
+        },
         scope::ScopeFilter,
     },
     interpreter::{self, rule::IsEmpty},
@@ -188,6 +194,14 @@ static FILEMON_FILE_OPEN_PREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 
 #[map]
+static FILEMON_FILE_OPEN_ACCESS_MODE_MAP: HashMap<AccessModeKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_OPEN_CREATION_FLAGS_MAP: HashMap<CreationFlagsKey, CreationFlags> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
 static FILEMON_FILE_OPEN_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
@@ -233,6 +247,8 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
         };
 
         let fp: *const file = ctx.arg(0);
+        event.access_mode = AccessMode::from_bits_truncate(1 << ((*fp).f_flags & 3));
+        event.creation_flags = CreationFlags::from_bits_truncate((*fp).f_flags);
         let _ = bpf_d_path(
             &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
@@ -258,6 +274,16 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
+        let mut access_mode = AccessModeKey {
+            access_mode: event.access_mode,
+            rule_idx: 0,
+        };
+
+        let mut creation_flags = CreationFlagsValue {
+            creation_flags: event.creation_flags,
+            rule_idx: 0,
+        };
+
         // Get binary name
         let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
@@ -271,6 +297,8 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
+            access_mode.rule_idx = idx as u32;
+            creation_flags.rule_idx = idx as u8;
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -283,13 +311,17 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                 binary_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
-                let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
+                let mut event_filter = interpreter::Interpreter::new(FileOpenFilter::new(
                     &FILEMON_FILE_OPEN_NAME_MAP,
                     &FILEMON_FILE_OPEN_PATH_MAP,
                     &FILEMON_FILE_OPEN_PREFIX_MAP,
+                    &FILEMON_FILE_OPEN_ACCESS_MODE_MAP,
+                    &FILEMON_FILE_OPEN_CREATION_FLAGS_MAP,
                     file_name,
                     file_path,
                     file_prefix,
+                    &access_mode,
+                    &creation_flags,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
                     return enrich_file_open_event(msg, proc, fp);
@@ -307,7 +339,6 @@ fn enrich_file_open_event(msg: &mut FileMsg, proc: &ProcInfo, fp: *const file) -
         return Err(0);
     };
     unsafe {
-        event.flags = (*fp).f_flags;
         event.i_mode = Imode::from_bits_retain((*(*fp).f_inode).i_mode);
         event.uid = bpf_probe_read_kernel::<kuid_t>(&(*(*fp).f_inode).i_uid as *const _)
             .map_err(|_| 0i32)?

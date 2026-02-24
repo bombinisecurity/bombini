@@ -15,12 +15,10 @@ use bombini_common::event::{
 use serde::Serialize;
 
 use super::{
-    Transmuter,
-    cache::process::ProcessCache,
-    file::{AccessMode, CreationFlags},
-    process::Process,
-    str_from_bytes, transmute_ktime,
+    Transmuter, cache::process::ProcessCache, process::Process, str_from_bytes, transmute_ktime,
 };
+
+use bombini_common::event::file::{AccessMode, CreationFlags};
 
 /// io_uring events
 #[derive(Clone, Debug, Serialize)]
