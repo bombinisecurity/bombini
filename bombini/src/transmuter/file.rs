@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use bombini_common::event::{
     Event,
-    file::{FileEventVariant, Imode},
+    file::{AccessMode, CreationFlags, FileEventVariant, Imode},
 };
 
 use bitflags::bitflags;
@@ -14,16 +14,6 @@ use serde::{Serialize, Serializer};
 use super::{
     Transmuter, cache::process::ProcessCache, process::Process, str_from_bytes, transmute_ktime,
 };
-
-bitflags! {
-    #[derive(Clone, Debug, Serialize)]
-    #[repr(C)]
-    pub struct AccessMode: u32 {
-        const O_RDONLY =    0b00000001;
-        const O_WRONLY =    0b00000010;
-        const O_RDWR =      0b00000100;
-    }
-}
 
 bitflags! {
     #[derive(Clone, Debug, Serialize)]
@@ -55,30 +45,6 @@ bitflags! {
         const MAP_STACK      = 0x20000;
         const MAP_HUGETLB    = 0x40000;
         const MAP_SYNC       = 0x80000;
-    }
-}
-
-bitflags! {
-    #[derive(Clone, Debug, Serialize)]
-    #[repr(C)]
-    pub struct CreationFlags: u32 {
-        const O_CREAT =	    0o00000100;
-        const O_EXCL =      0o00000200;
-        const O_NOCTTY =    0o00000400;
-        const O_TRUNC =	    0o00001000;
-        const O_APPEND =    0o00002000;
-        const O_NONBLOCK =  0o00004000;
-        const O_DSYNC =	    0o00010000;
-        const O_FASYNC =    0o00020000;
-        const O_DIRECT	=   0o00040000;
-        const O_LARGEFILE = 0o00100000;
-        const O_DIRECTORY =	0o00200000;
-        const O_NOFOLLOW =	0o00400000;
-        const O_NOATIME	=   0o01000000;
-        const O_CLOEXEC =   0o02000000;
-        const O_SYNC =	    0o04010000;
-        const O_PATH =		0o10000000;
-        const O_TMPFILE =   0o20200000;
     }
 }
 
@@ -319,8 +285,8 @@ impl FileEvent {
             FileEventVariant::FileOpen(info) => {
                 let info = FileOpenInfo {
                     path: str_from_bytes(&info.path),
-                    access_mode: AccessMode::from_bits_truncate(1 << (info.flags & 3)),
-                    creation_flags: CreationFlags::from_bits_truncate(info.flags),
+                    access_mode: info.access_mode,
+                    creation_flags: info.creation_flags,
                     uid: info.uid,
                     gid: info.gid,
                     i_mode: info.i_mode.into(),

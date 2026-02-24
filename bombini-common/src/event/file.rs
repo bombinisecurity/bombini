@@ -21,8 +21,10 @@ pub struct FileMsg {
 pub struct FileOpen {
     /// full path
     pub path: [u8; MAX_FILE_PATH],
-    /// flags passed to open()
-    pub flags: u32,
+    /// creation flags passed to open()
+    pub creation_flags: CreationFlags,
+    /// access mode passed to open() via flags
+    pub access_mode: AccessMode,
     /// File owner UID
     pub uid: u32,
     /// Group owner GID
@@ -96,6 +98,60 @@ pub struct PathSymlink {
     pub link_path: [u8; MAX_FILE_PATH],
     /// path to target
     pub old_path: [u8; MAX_FILE_PATH],
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
+    #[repr(C)]
+    pub struct AccessMode: u32 {
+        const O_RDONLY =    0b00000001;
+        const O_WRONLY =    0b00000010;
+        const O_RDWR =      0b00000100;
+    }
+}
+
+#[cfg(feature = "user")]
+impl core::str::FromStr for AccessMode {
+    type Err = bitflags::parser::ParseError;
+
+    fn from_str(access_mode_str: &str) -> Result<Self, Self::Err> {
+        bitflags::parser::from_str(access_mode_str)
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
+    #[repr(C)]
+    pub struct CreationFlags: u32 {
+        const O_CREAT =	    0o00000100;
+        const O_EXCL =      0o00000200;
+        const O_NOCTTY =    0o00000400;
+        const O_TRUNC =	    0o00001000;
+        const O_APPEND =    0o00002000;
+        const O_NONBLOCK =  0o00004000;
+        const O_DSYNC =	    0o00010000;
+        const O_FASYNC =    0o00020000;
+        const O_DIRECT	=   0o00040000;
+        const O_LARGEFILE = 0o00100000;
+        const O_DIRECTORY =	0o00200000;
+        const O_NOFOLLOW =	0o00400000;
+        const O_NOATIME	=   0o01000000;
+        const O_CLOEXEC =   0o02000000;
+        const O_SYNC =	    0o04010000;
+        const O_PATH =		0o10000000;
+        const O_TMPFILE =   0o20200000;
+    }
+}
+
+#[cfg(feature = "user")]
+impl core::str::FromStr for CreationFlags {
+    type Err = bitflags::parser::ParseError;
+
+    fn from_str(creation_flags_str: &str) -> Result<Self, Self::Err> {
+        bitflags::parser::from_str(creation_flags_str)
+    }
 }
 
 bitflags! {
