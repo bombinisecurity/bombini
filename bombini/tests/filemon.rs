@@ -36,6 +36,9 @@ file_open:
   - rule: OpenTestRule
     scope: binary_name in ["ls", "tail"]
     event: path in ["/etc"] OR name == "filemon.yaml"
+  - rule: OpenTestRule2
+    scope: binary_name == "touch"
+    event: name == "bombini_file_open_test_file.txt" AND creation_flags in ["O_CREAT", "O_TRUNC"] AND access_mode == "O_WRONLY"
 "#;
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
@@ -86,6 +89,18 @@ file_open:
 
     assert!(tail_conf.success());
 
+    let bombini_test_file = bombini_temp_dir.join("bombini_file_open_test_file.txt");
+
+    let tail_conf = Command::new("touch")
+        .args([bombini_test_file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start tail");
+
+    assert!(tail_conf.success());
+
     // Wait Events being processed
     thread::sleep(Duration::from_millis(500));
 
@@ -96,11 +111,16 @@ file_open:
     let events =
         fs::read_to_string(bombini_temp_dir.join("events.log")).expect("can't read events");
     print_example_events!(&events);
-    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 2);
-    ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 2);
+    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 3);
+    ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 3);
     ma::assert_ge!(events.matches("\"path\":\"/etc\"").count(), 1);
+    ma::assert_ge!(events.matches("\"access_mode\":\"O_WRONLY\"").count(), 1);
+    ma::assert_ge!(events.matches("\"creation_flags\":\"O_CREAT").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(&filemon_config.to_str().unwrap());
+    assert_eq!(events.matches(&file_path).count(), 1);
+    let mut file_path = String::from("\"path\":\"");
+    file_path.push_str(bombini_test_file.to_str().unwrap());
     assert_eq!(events.matches(&file_path).count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
