@@ -2,6 +2,9 @@
 
 use crate::constants::{MAX_FILE_PATH, MAX_FILENAME_SIZE};
 use crate::event::process::ProcessKey;
+use bitflags::bitflags;
+#[cfg(feature = "user")]
+use serde::Serialize;
 
 /// File open/mmap, etc. event
 #[derive(Clone, Debug)]
@@ -25,7 +28,7 @@ pub struct FileOpen {
     /// Group owner GID
     pub gid: u32,
     /// i_mode
-    pub i_mode: u16,
+    pub i_mode: Imode,
 }
 
 /// PathChmod info
@@ -35,7 +38,7 @@ pub struct PathChmod {
     /// full path
     pub path: [u8; MAX_FILE_PATH],
     /// i_mode
-    pub i_mode: u16,
+    pub i_mode: Imode,
 }
 
 /// PathChown info
@@ -82,7 +85,7 @@ pub struct FileIoctl {
     /// ioctl cmd
     pub cmd: u32,
     /// i_mode
-    pub i_mode: u16,
+    pub i_mode: Imode,
 }
 
 /// FileIoctl info
@@ -93,6 +96,49 @@ pub struct PathSymlink {
     pub link_path: [u8; MAX_FILE_PATH],
     /// path to target
     pub old_path: [u8; MAX_FILE_PATH],
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
+    #[repr(C)]
+    pub struct Imode: u16 {
+        // File type
+        const S_IFMT = 0o170000;
+        const S_IFSOCK = 0o140000;
+        const S_IFLNK = 0o120000;
+        const S_IFREG = 0o100000;
+        const S_IFBLK = 0o060000;
+        const S_IFDIR = 0o040000;
+        const S_IFCHR = 0o020000;
+        const S_IFIFO = 0o010000;
+
+        // Access type
+        const S_ISUID = 0o4000;
+        const S_ISGID = 0o2000;
+        const S_ISVTX = 0o1000;
+
+        const S_IRUSR = 0o0400;
+        const S_IWUSR = 0o0200;
+        const S_IXUSR = 0o0100;
+
+        const S_IRGRP = 0o0040;
+        const S_IWGRP = 0o0020;
+        const S_IXGRP = 0o0010;
+
+        const S_IROTH = 0o0004;
+        const S_IWOTH = 0o0002;
+        const S_IXOTH = 0o0001;
+    }
+}
+
+#[cfg(feature = "user")]
+impl core::str::FromStr for Imode {
+    type Err = bitflags::parser::ParseError;
+
+    fn from_str(imode_str: &str) -> Result<Self, Self::Err> {
+        bitflags::parser::from_str(imode_str)
+    }
 }
 
 /// Raw File event messages

@@ -41,6 +41,15 @@ pub enum PathAttributes {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
+pub enum PathChmodAttributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+    Imode,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum PathChownAttributes {
     Path = 0,
     PathPrefix,
@@ -138,10 +147,12 @@ pub struct CapKey {
     pub in_idx: u8,
 }
 
+pub type ImodeKey = CapKey;
+
 #[cfg(feature = "user")]
 pub mod user {
     use super::*;
-    use crate::event::process::Capabilities;
+    use crate::event::{file::Imode, process::Capabilities};
 
     unsafe impl aya::Pod for Rules {}
     unsafe impl aya::Pod for FileNameMapKey {}
@@ -153,4 +164,5 @@ pub mod user {
     unsafe impl aya::Pod for CapKey {}
     unsafe impl aya::Pod for Capabilities {}
     unsafe impl aya::Pod for PortKey {}
+    unsafe impl aya::Pod for Imode {}
 }
