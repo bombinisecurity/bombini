@@ -3,7 +3,10 @@
 use anyhow::anyhow;
 use std::sync::Arc;
 
-use bombini_common::event::{Event, file::FileEventVariant};
+use bombini_common::event::{
+    Event,
+    file::{FileEventVariant, Imode},
+};
 
 use bitflags::bitflags;
 use serde::{Serialize, Serializer};
@@ -80,36 +83,10 @@ bitflags! {
 }
 
 #[derive(Clone, Debug)]
-struct Imode(u16);
+#[repr(transparent)]
+struct ImodeEvent(Imode);
 
-// File type
-const S_IFMT: u16 = 0o170000;
-const S_IFSOCK: u16 = 0o140000;
-const S_IFLNK: u16 = 0o120000;
-const S_IFREG: u16 = 0o100000;
-const S_IFBLK: u16 = 0o060000;
-const S_IFDIR: u16 = 0o040000;
-const S_IFCHR: u16 = 0o020000;
-const S_IFIFO: u16 = 0o010000;
-
-// Access type
-const S_ISUID: u16 = 0o4000;
-const S_ISGID: u16 = 0o2000;
-const S_ISVTX: u16 = 0o1000;
-
-const S_IRUSR: u16 = 0o0400;
-const S_IWUSR: u16 = 0o0200;
-const S_IXUSR: u16 = 0o0100;
-
-const S_IRGRP: u16 = 0o0040;
-const S_IWGRP: u16 = 0o0020;
-const S_IXGRP: u16 = 0o0010;
-
-const S_IROTH: u16 = 0o0004;
-const S_IWOTH: u16 = 0o0002;
-const S_IXOTH: u16 = 0o0001;
-
-impl Serialize for Imode {
+impl Serialize for ImodeEvent {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -117,45 +94,81 @@ impl Serialize for Imode {
         let mut result = String::with_capacity(11);
 
         // Get file type
-        let file_type = self.0 & S_IFMT;
+        let file_type = self.0 & Imode::S_IFMT;
         let file_type_char = match file_type {
-            S_IFSOCK => 's',
-            S_IFLNK => 'l',
-            S_IFREG => '-',
-            S_IFBLK => 'b',
-            S_IFDIR => 'd',
-            S_IFCHR => 'c',
-            S_IFIFO => 'p',
+            Imode::S_IFSOCK => 's',
+            Imode::S_IFLNK => 'l',
+            Imode::S_IFREG => '-',
+            Imode::S_IFBLK => 'b',
+            Imode::S_IFDIR => 'd',
+            Imode::S_IFCHR => 'c',
+            Imode::S_IFIFO => 'p',
             _ => '?',
         };
         result.push(file_type_char);
 
         // Access for owner
-        result.push(if (self.0 & S_IRUSR) != 0 { 'r' } else { '-' });
-        result.push(if (self.0 & S_IWUSR) != 0 { 'w' } else { '-' });
+        result.push(if (self.0 & Imode::S_IRUSR).bits() != 0 {
+            'r'
+        } else {
+            '-'
+        });
+        result.push(if (self.0 & Imode::S_IWUSR).bits() != 0 {
+            'w'
+        } else {
+            '-'
+        });
 
-        let mut x = if (self.0 & S_IXUSR) != 0 { 'x' } else { '-' };
-        if (self.0 & S_ISUID) != 0 {
+        let mut x = if (self.0 & Imode::S_IXUSR).bits() != 0 {
+            'x'
+        } else {
+            '-'
+        };
+        if (self.0 & Imode::S_ISUID).bits() != 0 {
             x = if x == 'x' { 's' } else { 'S' };
         }
         result.push(x);
 
         // Access for group
-        result.push(if (self.0 & S_IRGRP) != 0 { 'r' } else { '-' });
-        result.push(if (self.0 & S_IWGRP) != 0 { 'w' } else { '-' });
+        result.push(if (self.0 & Imode::S_IRGRP).bits() != 0 {
+            'r'
+        } else {
+            '-'
+        });
+        result.push(if (self.0 & Imode::S_IWGRP).bits() != 0 {
+            'w'
+        } else {
+            '-'
+        });
 
-        x = if (self.0 & S_IXGRP) != 0 { 'x' } else { '-' };
-        if (self.0 & S_ISGID) != 0 {
+        x = if (self.0 & Imode::S_IXGRP).bits() != 0 {
+            'x'
+        } else {
+            '-'
+        };
+        if (self.0 & Imode::S_ISGID).bits() != 0 {
             x = if x == 'x' { 's' } else { 'S' };
         }
         result.push(x);
 
         // Access for others
-        result.push(if (self.0 & S_IROTH) != 0 { 'r' } else { '-' });
-        result.push(if (self.0 & S_IWOTH) != 0 { 'w' } else { '-' });
+        result.push(if (self.0 & Imode::S_IROTH).bits() != 0 {
+            'r'
+        } else {
+            '-'
+        });
+        result.push(if (self.0 & Imode::S_IWOTH).bits() != 0 {
+            'w'
+        } else {
+            '-'
+        });
 
-        x = if (self.0 & S_IXOTH) != 0 { 'x' } else { '-' };
-        if (self.0 & S_ISVTX) != 0 {
+        x = if (self.0 & Imode::S_IXOTH).bits() != 0 {
+            'x'
+        } else {
+            '-'
+        };
+        if (self.0 & Imode::S_ISVTX).bits() != 0 {
             x = if x == 'x' { 't' } else { 'T' };
         }
         result.push(x);
@@ -164,9 +177,9 @@ impl Serialize for Imode {
     }
 }
 
-impl From<u16> for Imode {
-    fn from(value: u16) -> Self {
-        Imode(value)
+impl From<Imode> for ImodeEvent {
+    fn from(value: Imode) -> Self {
+        ImodeEvent(value)
     }
 }
 
@@ -202,7 +215,7 @@ pub struct FileOpenInfo {
     gid: u32,
     /// i_mode
     #[cfg_attr(feature = "schema", schemars(with = "String"))]
-    i_mode: Imode,
+    i_mode: ImodeEvent,
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -227,7 +240,7 @@ pub struct ChmodInfo {
     path: String,
     /// i_mode
     #[cfg_attr(feature = "schema", schemars(with = "String"))]
-    i_mode: Imode,
+    i_mode: ImodeEvent,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -272,7 +285,7 @@ pub struct IoctlInfo {
     path: String,
     /// i_mode
     #[cfg_attr(feature = "schema", schemars(with = "String"))]
-    i_mode: Imode,
+    i_mode: ImodeEvent,
     /// cmd
     cmd: u32,
 }

@@ -16,18 +16,21 @@ use aya_ebpf::{
     programs::LsmContext,
 };
 use bombini_common::{
-    config::rule::{CmdKey, FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
+    config::rule::{CmdKey, FileNameMapKey, ImodeKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::{
         Event, GenericEvent, MSG_FILE,
-        file::{FileEventNumber, FileEventVariant, FileMsg},
+        file::{FileEventNumber, FileEventVariant, FileMsg, Imode},
         process::ProcInfo,
     },
 };
 use bombini_detectors_ebpf::{
     event_capture,
     event_map::rb_event_init,
-    filter::scope::ScopeFilter,
+    filter::{
+        filemon::chmod::{ChmodFilter, ImodeValue},
+        scope::ScopeFilter,
+    },
     interpreter::{self, rule::IsEmpty},
     util,
     vmlinux::{dentry, file, kgid_t, kuid_t, path, qstr},
@@ -305,7 +308,7 @@ fn enrich_file_open_event(msg: &mut FileMsg, proc: &ProcInfo, fp: *const file) -
     };
     unsafe {
         event.flags = (*fp).f_flags;
-        event.i_mode = (*(*fp).f_inode).i_mode;
+        event.i_mode = Imode::from_bits_retain((*(*fp).f_inode).i_mode);
         event.uid = bpf_probe_read_kernel::<kuid_t>(&(*(*fp).f_inode).i_uid as *const _)
             .map_err(|_| 0i32)?
             .val;
@@ -760,6 +763,9 @@ static FILEMON_PATH_CHMOD_PATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_
 static FILEMON_PATH_CHMOD_NAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
+static FILEMON_PATH_CHMOD_IMODE_MAP: HashMap<ImodeKey, Imode> = HashMap::with_max_entries(1, 0);
+
+#[map]
 static FILEMON_PATH_CHMOD_PREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 
@@ -808,7 +814,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             return Err(0);
         };
         let p: *const path = ctx.arg(0);
-        event.i_mode = ctx.arg(1);
+        event.i_mode = Imode::from_bits_retain(ctx.arg(1));
         let _ = bpf_d_path(
             p as *const _ as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
@@ -835,6 +841,11 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
+        let mut chomd_value = ImodeValue {
+            imode: event.i_mode,
+            rule_idx: 0,
+        };
+
         // Get binary name
         let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
@@ -847,6 +858,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
+            chomd_value.rule_idx = idx as u8;
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -859,13 +871,15 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                 binary_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
-                let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
+                let mut event_filter = interpreter::Interpreter::new(ChmodFilter::new(
                     &FILEMON_PATH_CHMOD_NAME_MAP,
                     &FILEMON_PATH_CHMOD_PATH_MAP,
                     &FILEMON_PATH_CHMOD_PREFIX_MAP,
+                    &FILEMON_PATH_CHMOD_IMODE_MAP,
                     file_name,
                     file_path,
                     file_prefix,
+                    &chomd_value,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
                     enrich_with_proc_info(msg, proc);
@@ -1268,7 +1282,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        event.i_mode = (*(*fp).f_inode).i_mode;
+        event.i_mode = Imode::from_bits_retain((*(*fp).f_inode).i_mode);
         event.cmd = ctx.arg(1);
         let _ = bpf_d_path(
             &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
