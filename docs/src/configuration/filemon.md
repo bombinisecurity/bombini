@@ -63,6 +63,8 @@ The following list of hooks support event filtering by rules:
 * `path` - the absolute path of opening file.
 * `path_prefix` - the absolute path prefix of opening file.
 * `name` - the name of opening file.
+* `access_mode` - the access mode of opening file. It is treated as an enum value and can have only one value at a runtime (e.g., O_RDONLY, O_WRONLY, O_RDWR). See [man](https://man7.org/linux/man-pages/man2/open.2.html).
+* `creation_flags` - the creation flags of opening file. It is treated as mask and can have multiple values at a runtime (e.g., O_CREAT, O_EXCL, O_TRUNC simultaneously). See [man](https://man7.org/linux/man-pages/man2/open.2.html).
 
 **Example**
 
@@ -135,7 +137,7 @@ path_symlink:
 * `path` - the absolute path of changing permissions file.
 * `path_prefix` - the absolute path prefix of changing permissions file.
 * `name` - the name of changing permissions file.
-* `mode` - the new file's permissions.
+* `mode` - the new file's permissions. See [man](https://man7.org/linux/man-pages/man2/chmod.2.html) for details.
 
 **Example**
 
