@@ -191,6 +191,7 @@ mmap_file:
 * `path` - the absolute path of device file.
 * `path_prefix` - the absolute path prefix of device file.
 * `name` - the name of device file.
+* `cmd` - ioctl command.
 
 **Example**
 
@@ -199,5 +200,5 @@ file_ioctl:
   enabled: true
   rules:
   - rule: IoctlTestRule
-    event: path_prefix == "/dev"
+    event: path_prefix == "/dev" AND cmd in [4712, 2147766906, 769]
 ```
