@@ -375,7 +375,7 @@ path_chmod:
   enabled: true
   rules:
   - rule: ChmodTestRule
-    event: name == "filemon.yaml"
+    event: name == "filemon.yaml" AND mode in ["S_IWOTH", "S_IWGRP", "S_IWUSR"]
 "#;
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
