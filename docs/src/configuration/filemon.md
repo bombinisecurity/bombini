@@ -135,6 +135,7 @@ path_symlink:
 * `path` - the absolute path of changing permissions file.
 * `path_prefix` - the absolute path prefix of changing permissions file.
 * `name` - the name of changing permissions file.
+* `mode` - the new file's permissions.
 
 **Example**
 
@@ -143,7 +144,7 @@ path_chmod:
   enabled: true
   rules:
   - rule: ChmodTestRule
-    event: name == "filemon.yaml"
+    event: name == "filemon.yaml" AND mode in ["S_IWOTH","S_IWGRP","S_IWUSR"]
 ```
 
 ### path_chown
