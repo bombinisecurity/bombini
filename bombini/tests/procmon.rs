@@ -138,6 +138,7 @@ setuid:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Setuid\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"ProcMonSetuid\"").count(), 1);
     ma::assert_ge!(events.matches("\"flags\":\"LSM_SETID_RES\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"sudo\"").count(), 1);
     ma::assert_ge!(events.matches("\"euid\":0").count(), 1);
@@ -212,6 +213,7 @@ setgid:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Setgid\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"ProcMonSetgid\"").count(), 1);
     ma::assert_ge!(events.matches("\"flags\":\"LSM_SETID_RES\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"sudo\"").count(), 1);
     ma::assert_ge!(events.matches("\"euid\":0").count(), 1);
@@ -292,6 +294,7 @@ capset:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Setcaps\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"ProcMonSetcaps\"").count(), 1);
     assert_eq!(
         events
             .matches("\"effective\":\"CAP_NET_RAW | CAP_SYS_ADMIN\"")
@@ -368,6 +371,7 @@ prctl:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"Prctl\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"ProcMonPrctl\"").count(), 1);
     assert_eq!(events.matches("\"PrSetKeepCaps\":1").count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
@@ -439,6 +443,10 @@ create_user_ns:
     print_example_events!(&events);
     assert_eq!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
     assert_eq!(events.matches("\"type\":\"CreateUserNs\"").count(), 1);
+    assert_eq!(
+        events.matches("\"rule\":\"ProcMonCreateUserNs\"").count(),
+        1
+    );
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
 }
