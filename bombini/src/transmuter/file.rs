@@ -11,6 +11,8 @@ use bombini_common::event::{
 use bitflags::bitflags;
 use serde::{Serialize, Serializer};
 
+use crate::proto::config::{FileMonConfig, HookConfig};
+
 use super::{
     Transmuter, cache::process::ProcessCache, process::Process, str_from_bytes, transmute_ktime,
 };
@@ -153,7 +155,7 @@ impl From<Imode> for ImodeEvent {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct FileEvent {
+struct FileEvent<'a> {
     /// Process Information
     process: Arc<Process>,
     /// Parent Information
@@ -162,6 +164,9 @@ pub struct FileEvent {
     hook: LsmFileHook,
     /// Event's date and time
     timestamp: String,
+    /// Rule name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rule: Option<&'a str>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -273,12 +278,13 @@ pub enum LsmFileHook {
     FileIoctl(IoctlInfo),
 }
 
-impl FileEvent {
+impl<'a> FileEvent<'a> {
     /// Constructs High level event representation from low eBPF message
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
         event: &FileEventVariant,
+        rule: Option<&'a str>,
         ktime: u64,
     ) -> Self {
         match event {
@@ -294,6 +300,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::FileOpen(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -305,6 +312,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::PathTruncate(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -315,6 +323,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::PathUnlink(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -327,6 +336,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::PathSymlink(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -339,6 +349,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::PathChmod(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -352,6 +363,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::PathChown(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -365,6 +377,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::SbMount(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -378,6 +391,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::MmapFile(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -391,6 +405,7 @@ impl FileEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     hook: LsmFileHook::FileIoctl(info),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -399,7 +414,70 @@ impl FileEvent {
     }
 }
 
-pub struct FileEventTransmuter;
+pub struct FileEventTransmuter {
+    file_open_rule_names: Vec<String>,
+    path_truncate_rule_names: Vec<String>,
+    path_unlink_rule_names: Vec<String>,
+    path_symlink_rule_names: Vec<String>,
+    path_chmod_rule_names: Vec<String>,
+    path_chown_rule_names: Vec<String>,
+    sb_mount_rule_names: Vec<String>,
+    mmap_file_rule_names: Vec<String>,
+    file_ioctl_rule_names: Vec<String>,
+}
+
+impl FileEventTransmuter {
+    pub fn new(cfg: &FileMonConfig) -> Self {
+        #[inline(always)]
+        fn rule_names_from_hook_config(hook: &Option<HookConfig>) -> Vec<String> {
+            hook.as_ref().map_or(Vec::new(), |hcfg| {
+                hcfg.rules.iter().map(|x| x.name.clone()).collect()
+            })
+        }
+
+        Self {
+            file_open_rule_names: rule_names_from_hook_config(&cfg.file_open),
+            path_truncate_rule_names: rule_names_from_hook_config(&cfg.path_truncate),
+            path_unlink_rule_names: rule_names_from_hook_config(&cfg.path_unlink),
+            path_symlink_rule_names: rule_names_from_hook_config(&cfg.path_symlink),
+            path_chmod_rule_names: rule_names_from_hook_config(&cfg.path_chmod),
+            path_chown_rule_names: rule_names_from_hook_config(&cfg.path_chown),
+            sb_mount_rule_names: rule_names_from_hook_config(&cfg.sb_mount),
+            mmap_file_rule_names: rule_names_from_hook_config(&cfg.mmap_file),
+            file_ioctl_rule_names: rule_names_from_hook_config(&cfg.file_ioctl),
+        }
+    }
+
+    fn get_rule_name(
+        &self,
+        file_event: &FileEventVariant,
+        rule_idx: Option<u8>,
+    ) -> Result<Option<&str>, anyhow::Error> {
+        let rule_names = match file_event {
+            FileEventVariant::FileOpen(_) => &self.file_open_rule_names,
+            FileEventVariant::PathTruncate(_) => &self.path_truncate_rule_names,
+            FileEventVariant::PathUnlink(_) => &self.path_unlink_rule_names,
+            FileEventVariant::PathSymlink(_) => &self.path_symlink_rule_names,
+            FileEventVariant::PathChmod(_) => &self.path_chmod_rule_names,
+            FileEventVariant::PathChown(_) => &self.path_chown_rule_names,
+            FileEventVariant::SbMount(_) => &self.sb_mount_rule_names,
+            FileEventVariant::MmapFile(_) => &self.mmap_file_rule_names,
+            FileEventVariant::FileIoctl(_) => &self.file_ioctl_rule_names,
+        };
+
+        rule_idx
+            .map(|idx| {
+                rule_names
+                    .get(idx as usize)
+                    .map(|x| x.as_str())
+                    .ok_or(anyhow::anyhow!(
+                        "FileEvent: No rule name found for rule index: {}",
+                        idx
+                    ))
+            })
+            .transpose()
+    }
+}
 
 impl Transmuter for FileEventTransmuter {
     fn transmute(
@@ -420,8 +498,20 @@ impl Transmuter for FileEventTransmuter {
                 None
             };
             if let Some(cached_process) = process_cache.get_mut(&msg.process) {
-                let high_level_event =
-                    FileEvent::new(cached_process.process.clone(), parent, &msg.event, ktime);
+                let rule_name = match self.get_rule_name(&msg.event, msg.rule_idx) {
+                    Ok(rule_name) => rule_name,
+                    Err(e) => {
+                        log::warn!("Could not determine rule name, error: {e}");
+                        None
+                    }
+                };
+                let high_level_event = FileEvent::new(
+                    cached_process.process.clone(),
+                    parent,
+                    &msg.event,
+                    rule_name,
+                    ktime,
+                );
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(

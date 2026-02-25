@@ -668,7 +668,7 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         event.fsuid = (*creds).fsuid.val;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -713,7 +713,7 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &proc_euid,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -781,7 +781,7 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         event.fsgid = (*creds).fsgid.val;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -826,7 +826,7 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &proc_egid,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -896,7 +896,7 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             Capabilities::from_bits_retain(*(&(*creds).cap_permitted as *const _ as *const u64));
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -941,7 +941,7 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &proc_pcap,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -1010,7 +1010,7 @@ fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
         }
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -1036,7 +1036,7 @@ fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                 binary_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
-                enrich_with_proc_info(msg, proc);
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                 return Ok(0);
             }
         }
@@ -1100,6 +1100,7 @@ fn try_create_user_ns_capture(
 
     unsafe {
         let Some(ref rule_array) = rules.0 else {
+            msg.rule_idx = None;
             util::process_key_init(&mut msg.process, proc);
             return Ok(0);
         };
@@ -1149,6 +1150,7 @@ fn try_create_user_ns_capture(
                     &proc_euid,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
+                    msg.rule_idx = Some(idx as u8);
                     util::process_key_init(&mut msg.process, proc);
                     return Ok(0);
                 }
@@ -1272,7 +1274,9 @@ fn enrich_ptrace_access_check_info(
 }
 
 #[inline(always)]
-fn enrich_with_proc_info(msg: &mut ProcessMsg, proc: &ProcInfo) {
+fn enrich_with_proc_info_and_rule_idx(msg: &mut ProcessMsg, proc: &ProcInfo, rule_idx: Option<u8>) {
+    msg.rule_idx = rule_idx;
+
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;

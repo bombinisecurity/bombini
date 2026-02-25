@@ -257,7 +257,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            return enrich_file_open_event(msg, proc, fp);
+            return enrich_file_open_event(msg, proc, fp, None);
         };
 
         // Get filtering attributes
@@ -324,7 +324,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                     &creation_flags,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    return enrich_file_open_event(msg, proc, fp);
+                    return enrich_file_open_event(msg, proc, fp, Some(idx as u8));
                 }
             }
         }
@@ -334,7 +334,12 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
 }
 
 #[inline(always)]
-fn enrich_file_open_event(msg: &mut FileMsg, proc: &ProcInfo, fp: *const file) -> Result<i32, i32> {
+fn enrich_file_open_event(
+    msg: &mut FileMsg,
+    proc: &ProcInfo,
+    fp: *const file,
+    rule_idx: Option<u8>,
+) -> Result<i32, i32> {
     let FileEventVariant::FileOpen(ref mut event) = msg.event else {
         return Err(0);
     };
@@ -348,7 +353,7 @@ fn enrich_file_open_event(msg: &mut FileMsg, proc: &ProcInfo, fp: *const file) -
             .val;
     }
 
-    enrich_with_proc_info(msg, proc);
+    enrich_with_proc_info_and_rule_idx(msg, proc, rule_idx);
 
     Ok(0)
 }
@@ -424,7 +429,7 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, event).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -475,7 +480,7 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                     file_prefix,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -575,7 +580,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
             .map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -622,7 +627,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                     file_prefix,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -725,7 +730,7 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
         bpf_probe_read_kernel_str_bytes(ctx.arg(2), &mut event.old_path).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -772,7 +777,7 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                     file_prefix,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -854,7 +859,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -913,7 +918,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     &chomd_value,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -999,7 +1004,7 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -1069,7 +1074,7 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     &owner_gid,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -1115,7 +1120,7 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         event.flags = ctx.arg(2);
     }
 
-    enrich_with_proc_info(msg, proc);
+    enrich_with_proc_info_and_rule_idx(msg, proc, None);
 
     Ok(0)
 }
@@ -1189,7 +1194,7 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -1240,7 +1245,7 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                     file_prefix,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -1323,7 +1328,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -1383,7 +1388,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                     &cmd,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -1394,7 +1399,9 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
 }
 
 #[inline(always)]
-fn enrich_with_proc_info(msg: &mut FileMsg, proc: &ProcInfo) {
+fn enrich_with_proc_info_and_rule_idx(msg: &mut FileMsg, proc: &ProcInfo, rule_idx: Option<u8>) {
+    msg.rule_idx = rule_idx;
+
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;

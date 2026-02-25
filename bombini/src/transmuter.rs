@@ -68,7 +68,7 @@ impl TransmuterRegistry {
         // Install transmuters according loaded detectors
         for detector_cfg in config.detector_configs.values() {
             match detector_cfg {
-                DetectorConfig::ProcMon(_) => {
+                DetectorConfig::ProcMon(cfg) => {
                     registry.handlers[MSG_PROCESS_EXEC as usize] =
                         Some(Arc::new(ProcessExecTransmuter));
                     registry.handlers[MSG_PROCESS_CLONE as usize] =
@@ -76,14 +76,16 @@ impl TransmuterRegistry {
                     registry.handlers[MSG_PROCESS_EXIT as usize] =
                         Some(Arc::new(ProcessExitTransmuter));
                     registry.handlers[MSG_PROCESS as usize] =
-                        Some(Arc::new(ProcessEventTransmuter));
+                        Some(Arc::new(ProcessEventTransmuter::new(cfg.as_ref())));
                 }
-                DetectorConfig::FileMon(_) => {
-                    registry.handlers[MSG_FILE as usize] = Some(Arc::new(FileEventTransmuter));
+                DetectorConfig::FileMon(cfg) => {
+                    //let rule_names = cfg.
+                    registry.handlers[MSG_FILE as usize] =
+                        Some(Arc::new(FileEventTransmuter::new(cfg.as_ref())));
                 }
-                DetectorConfig::NetMon(_) => {
+                DetectorConfig::NetMon(cfg) => {
                     registry.handlers[MSG_NETWORK as usize] =
-                        Some(Arc::new(NetworkEventTransmuter));
+                        Some(Arc::new(NetworkEventTransmuter::new(cfg.as_ref())));
                 }
                 DetectorConfig::IOUringMon => {
                     registry.handlers[MSG_IOURING as usize] =

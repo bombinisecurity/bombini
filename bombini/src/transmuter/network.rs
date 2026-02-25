@@ -11,13 +11,15 @@ use serde::Serialize;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+use crate::proto::config::{HookConfig, NetMonConfig};
+
 use super::{Transmuter, cache::process::ProcessCache, process::Process, transmute_ktime};
 
 /// Network event
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct NetworkEvent {
+struct NetworkEvent<'a> {
     /// Process information
     process: Arc<Process>,
     /// Parent process information
@@ -26,6 +28,9 @@ pub struct NetworkEvent {
     network_event: NetworkEventType,
     /// Event's date and time
     timestamp: String,
+    /// Rule name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rule: Option<&'a str>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -59,12 +64,13 @@ pub struct TcpConnection {
     cookie: u64,
 }
 
-impl NetworkEvent {
+impl<'a> NetworkEvent<'a> {
     /// Constructs High level event representation from low eBPF message
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
         event: &NetworkEventVariant,
+        rule: Option<&'a str>,
         ktime: u64,
     ) -> Self {
         match event {
@@ -73,6 +79,7 @@ impl NetworkEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -82,6 +89,7 @@ impl NetworkEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -91,6 +99,7 @@ impl NetworkEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -100,6 +109,7 @@ impl NetworkEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -109,6 +119,7 @@ impl NetworkEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -118,6 +129,7 @@ impl NetworkEvent {
                 Self {
                     process,
                     parent,
+                    rule,
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
@@ -148,7 +160,56 @@ fn transmute_connection_v6(con: &TcpConnectionV6) -> TcpConnection {
     }
 }
 
-pub struct NetworkEventTransmuter;
+pub struct NetworkEventTransmuter {
+    ingress_rule_names: Vec<String>,
+    egress_rule_names: Vec<String>,
+}
+
+impl NetworkEventTransmuter {
+    pub fn new(cfg: &NetMonConfig) -> Self {
+        #[inline(always)]
+        fn rule_names_from_hook_config(hook: &Option<HookConfig>) -> Vec<String> {
+            hook.as_ref().map_or(Vec::new(), |hcfg| {
+                hcfg.rules.iter().map(|x| x.name.clone()).collect()
+            })
+        }
+
+        Self {
+            ingress_rule_names: rule_names_from_hook_config(&cfg.ingress),
+            egress_rule_names: rule_names_from_hook_config(&cfg.egress),
+        }
+    }
+
+    fn get_rule_name(
+        &self,
+        netmon_event: &NetworkEventVariant,
+        rule_idx: Option<u8>,
+    ) -> Result<Option<&str>, anyhow::Error> {
+        let rule_names = match netmon_event {
+            NetworkEventVariant::TcpConV4Establish(_)
+            | NetworkEventVariant::TcpConV6Establish(_) => &self.egress_rule_names,
+            NetworkEventVariant::TcpConV4Close(_) | NetworkEventVariant::TcpConV6Close(_) => {
+                // Could be either ingress or egress
+                return Ok(None);
+            }
+            NetworkEventVariant::TcpConV4Accept(_) | NetworkEventVariant::TcpConV6Accept(_) => {
+                &self.ingress_rule_names
+            }
+        };
+
+        rule_idx
+            .map(|idx| {
+                rule_names
+                    .get(idx as usize)
+                    .map(|x| x.as_str())
+                    .ok_or(anyhow::anyhow!(
+                        "NetworkEvent: No rule name found for rule index: {}",
+                        idx
+                    ))
+            })
+            .transpose()
+    }
+}
 
 impl Transmuter for NetworkEventTransmuter {
     fn transmute(
@@ -169,8 +230,20 @@ impl Transmuter for NetworkEventTransmuter {
                 None
             };
             if let Some(cached_process) = process_cache.get_mut(&msg.process) {
-                let high_level_event =
-                    NetworkEvent::new(cached_process.process.clone(), parent, &msg.event, ktime);
+                let rule_name = match self.get_rule_name(&msg.event, msg.rule_idx) {
+                    Ok(rule_name) => rule_name,
+                    Err(e) => {
+                        log::warn!("Could not determine rule name, error: {e}");
+                        None
+                    }
+                };
+                let high_level_event = NetworkEvent::new(
+                    cached_process.process.clone(),
+                    parent,
+                    &msg.event,
+                    rule_name,
+                    ktime,
+                );
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(
