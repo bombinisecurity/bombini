@@ -113,6 +113,8 @@ file_open:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 3);
     ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 3);
+    ma::assert_ge!(events.matches("\"rule\":\"OpenTestRule\"").count(), 2);
+    ma::assert_ge!(events.matches("\"rule\":\"OpenTestRule2\"").count(), 1);
     ma::assert_ge!(events.matches("\"path\":\"/etc\"").count(), 1);
     ma::assert_ge!(events.matches("\"access_mode\":\"O_WRONLY\"").count(), 1);
     ma::assert_ge!(events.matches("\"creation_flags\":\"O_CREAT").count(), 1);
@@ -197,6 +199,7 @@ path_truncate:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathTruncate\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"TruncateTestRule\"").count(), 1);
     assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);
@@ -277,6 +280,7 @@ path_unlink:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathUnlink\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"UnlinkTestRule\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
     assert_eq!(events.matches(tmp_file.path().to_str().unwrap()).count(), 4); // FileEvent + ProcInfo
 
@@ -368,6 +372,7 @@ path_symlink:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathSymlink\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"SymlinkTestRule\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"ln\"").count(), 1);
     let mut file_path = String::from("\"old_path\":\"");
     file_path.push_str(&tmp_file_prefix.path().to_str().unwrap());
@@ -447,6 +452,7 @@ path_chmod:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathChmod\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"ChmodTestRule\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"chmod\"").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(&filemon_config.to_str().unwrap());
@@ -523,6 +529,7 @@ path_chown:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathChown\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"ChownTestRule\"").count(), 1);
     ma::assert_ge!(events.matches("\"filename\":\"chown\"").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(&filemon_config.to_str().unwrap());
@@ -610,6 +617,7 @@ mmap_file:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"MmapFile\"").count(), 1);
+    assert_eq!(events.matches("\"rule\":").count(), 0); // no rules
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(test_path);
     ma::assert_ge!(events.matches(&file_path).count(), 1);
@@ -685,6 +693,7 @@ file_ioctl:
     print_example_events!(&events);
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"FileIoctl\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"IoctlTestRule\"").count(), 1);
     ma::assert_ge!(events.matches("\"path\":\"/dev/").count(), 1);
 
     let _ = fs::remove_dir_all(bombini_temp_dir);

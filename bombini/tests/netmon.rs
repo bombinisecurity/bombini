@@ -110,6 +110,9 @@ egress:
             .count(),
         2
     );
+    ma::assert_ge!(events.matches("\"rule\":\"NetMonIpv4Test\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"NetMonIpv6Test\"").count(), 2);
+
     ma::assert_ge!(events.matches("\"args\":\"-q -6 google.com\"").count(), 3);
     ma::assert_ge!(events.matches("\"type\":\"TcpConnectionClose\"").count(), 1);
     ma::assert_ge!(events.matches("\"args\":\"localhost 7878\"").count(), 4);
