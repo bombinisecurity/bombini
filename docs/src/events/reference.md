@@ -30,6 +30,13 @@ JSON schema for all events.
       "description": "Process Information",
       "$ref": "#/$defs/Process"
     },
+    "rule": {
+      "description": "Rule name",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "timestamp": {
       "description": "Event's date and time",
       "type": "string"
@@ -878,6 +885,13 @@ JSON schema for all events.
       "description": "Process information",
       "$ref": "#/$defs/Process"
     },
+    "rule": {
+      "description": "Rule name",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "timestamp": {
       "description": "Event's date and time",
       "type": "string"
@@ -1583,6 +1597,13 @@ JSON schema for all events.
     "process_event": {
       "description": "Process event",
       "$ref": "#/$defs/ProcessEventType"
+    },
+    "rule": {
+      "description": "Rule name",
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "timestamp": {
       "description": "Event's date and time",

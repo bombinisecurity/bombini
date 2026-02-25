@@ -115,7 +115,8 @@ telnet localhost 7878
     "uid": 0
   },
   "timestamp": "2025-12-11T11:45:59.931Z",
-  "type": "NetworkEvent"
+  "type": "NetworkEvent",
+  "rule": "NetMonIpv4Test"
 }
 ```
 
@@ -172,7 +173,7 @@ Example: `wget -qO- -6 google.com`
     "dport": 80,
     "cookie": 63
   },
-  "timestamp": "2025-12-11T12:31:24.942Z"
+  "timestamp": "2025-12-11T12:31:24.942Z",
 }
 ```
 
@@ -231,7 +232,7 @@ telnet localhost 7878
     "uid": 0
   },
   "timestamp": "2025-12-11T11:45:59.932Z",
-  "type": "NetworkEvent"
+  "type": "NetworkEvent",
 }
 ```
 

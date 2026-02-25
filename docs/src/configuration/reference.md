@@ -4,21 +4,12 @@
 ## Table of Contents
 
 - [proto/config.proto](#proto_config-proto)
-    - [CapFilter](#config-CapFilter)
-    - [ConnectionsControl](#config-ConnectionsControl)
-    - [CredFilter](#config-CredFilter)
-    - [FileHookConfig](#config-FileHookConfig)
     - [FileMonConfig](#config-FileMonConfig)
     - [GTFOBinsConfig](#config-GTFOBinsConfig)
-    - [GidFilter](#config-GidFilter)
-    - [IOUringMonConfig](#config-IOUringMonConfig)
-    - [IpFilter](#config-IpFilter)
+    - [HookConfig](#config-HookConfig)
     - [NetMonConfig](#config-NetMonConfig)
-    - [PathFilter](#config-PathFilter)
-    - [ProcHookConfig](#config-ProcHookConfig)
     - [ProcMonConfig](#config-ProcMonConfig)
-    - [ProcessFilter](#config-ProcessFilter)
-    - [UidFilter](#config-UidFilter)
+    - [Rule](#config-Rule)
   
 - [Scalar Value Types](#scalar-value-types)
 
@@ -31,72 +22,6 @@
 
 
 
-<a name="config-CapFilter"></a>
-
-### CapFilter
-Capabilities filter
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| effective | [string](#string) | repeated | List of effective Capabilities. Special name ANY means if any cap is in effective cap set. |
-| deny_list | [bool](#bool) | optional | if true acts like deny list |
-
-
-
-
-
-
-<a name="config-ConnectionsControl"></a>
-
-### ConnectionsControl
-Connections control
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| enabled | [bool](#bool) |  | Load eBPF programs |
-| ipv4_filter | [IpFilter](#config-IpFilter) |  | Ipv4 filter connections |
-| ipv6_filter | [IpFilter](#config-IpFilter) |  | Ipv6 filter connections |
-
-
-
-
-
-
-<a name="config-CredFilter"></a>
-
-### CredFilter
-Filter Events using Cred information. Pattern uid_filter || cap_filter.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| uid_filter | [UidFilter](#config-UidFilter) |  | Filter by uids (euid, TODO: uid, fsuid). |
-| cap_filter | [CapFilter](#config-CapFilter) |  | Filter by caps (effective, TODO: permitted, inheritable). |
-| gid_filter | [GidFilter](#config-GidFilter) |  | Filter by gids (euid, TODO: gid, fsgid). |
-
-
-
-
-
-
-<a name="config-FileHookConfig"></a>
-
-### FileHookConfig
-FileMon hook configuration
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| enabled | [bool](#bool) |  | Load eBPF programs |
-| path_filter | [PathFilter](#config-PathFilter) | optional | Filter event by Path |
-
-
-
-
-
-
 <a name="config-FileMonConfig"></a>
 
 ### FileMonConfig
@@ -105,16 +30,15 @@ Configuration file for FileMon detector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| file_open | [FileHookConfig](#config-FileHookConfig) |  | security_file_open config. |
-| path_truncate | [FileHookConfig](#config-FileHookConfig) |  | security_path_truncate config. |
-| path_unlink | [FileHookConfig](#config-FileHookConfig) |  | security_path_unlink config. |
-| path_symlink | [FileHookConfig](#config-FileHookConfig) |  | security_path_symlink config. |
-| path_chmod | [FileHookConfig](#config-FileHookConfig) |  | security_path_chmod config. |
-| path_chown | [FileHookConfig](#config-FileHookConfig) |  | security_path_chown config. |
-| sb_mount | [FileHookConfig](#config-FileHookConfig) |  | security_sb_mount config. |
-| mmap_file | [FileHookConfig](#config-FileHookConfig) |  | security_mmap_file config. |
-| file_ioctl | [FileHookConfig](#config-FileHookConfig) |  | security_file_ioctl config. |
-| process_filter | [ProcessFilter](#config-ProcessFilter) |  | Filter File events by Process information. |
+| file_open | [HookConfig](#config-HookConfig) |  | security_file_open config. |
+| path_truncate | [HookConfig](#config-HookConfig) |  | security_path_truncate config. |
+| path_unlink | [HookConfig](#config-HookConfig) |  | security_path_unlink config. |
+| path_symlink | [HookConfig](#config-HookConfig) |  | security_path_symlink config. |
+| path_chmod | [HookConfig](#config-HookConfig) |  | security_path_chmod config. |
+| path_chown | [HookConfig](#config-HookConfig) |  | security_path_chown config. |
+| sb_mount | [HookConfig](#config-HookConfig) |  | security_sb_mount config. |
+| mmap_file | [HookConfig](#config-HookConfig) |  | security_mmap_file config. |
+| file_ioctl | [HookConfig](#config-HookConfig) |  | security_file_ioctl config. |
 
 
 
@@ -137,47 +61,16 @@ Configuration file for GTFOBinsDetector.
 
 
 
-<a name="config-GidFilter"></a>
+<a name="config-HookConfig"></a>
 
-### GidFilter
-GID filter
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| egid | [uint32](#uint32) | repeated | effective GID |
-
-
-
-
-
-
-<a name="config-IOUringMonConfig"></a>
-
-### IOUringMonConfig
-Configuration file for IOUringMon detector.
+### HookConfig
+Hook or group of hooks configuration
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| process_filter | [ProcessFilter](#config-ProcessFilter) |  | Filter io_uring events by Process information. |
-
-
-
-
-
-
-<a name="config-IpFilter"></a>
-
-### IpFilter
-IP filter configuration
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| src_ip | [string](#string) | repeated | Source IP list |
-| dst_ip | [string](#string) | repeated | Destination IP list |
-| deny_list | [bool](#bool) |  | deny_list |
+| enabled | [bool](#bool) |  | Load eBPF programs |
+| rules | [Rule](#config-Rule) | repeated | Filtering rules |
 
 
 
@@ -192,42 +85,8 @@ Configuration file for NetMon detector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| process_filter | [ProcessFilter](#config-ProcessFilter) |  | Filter Network events by Process information. |
-| ingress | [ConnectionsControl](#config-ConnectionsControl) |  | Ingress traffic connections |
-| egress | [ConnectionsControl](#config-ConnectionsControl) |  | Egress traffic connections |
-
-
-
-
-
-
-<a name="config-PathFilter"></a>
-
-### PathFilter
-Path filtering args
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| name | [string](#string) | repeated | List of executables names to filter. |
-| path | [string](#string) | repeated | List of full executable paths to filter. |
-| prefix | [string](#string) | repeated | List of executable path prefixes to filter. |
-
-
-
-
-
-
-<a name="config-ProcHookConfig"></a>
-
-### ProcHookConfig
-ProcMon hook configuration
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| enabled | [bool](#bool) |  | Load eBPF programs |
-| cred_filter | [CredFilter](#config-CredFilter) |  | Filter by Cred |
+| ingress | [HookConfig](#config-HookConfig) |  | Ingress traffic connections |
+| egress | [HookConfig](#config-HookConfig) |  | Egress traffic connections |
 
 
 
@@ -242,13 +101,12 @@ Configuration file for ProcMon detector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| setuid | [ProcHookConfig](#config-ProcHookConfig) |  | setuid hook config. |
-| capset | [ProcHookConfig](#config-ProcHookConfig) |  | capset hook config. |
-| prctl | [ProcHookConfig](#config-ProcHookConfig) |  | prctl hook config. |
-| create_user_ns | [ProcHookConfig](#config-ProcHookConfig) |  | create_user_ns hook config. |
-| ptrace_access_check | [ProcHookConfig](#config-ProcHookConfig) |  | ptrace_attach hook config. |
-| setgid | [ProcHookConfig](#config-ProcHookConfig) |  | setgid hook config. |
-| process_filter | [ProcessFilter](#config-ProcessFilter) |  | Process Filter Configuration. |
+| setuid | [HookConfig](#config-HookConfig) |  | setuid hook config. |
+| capset | [HookConfig](#config-HookConfig) |  | capset hook config. |
+| prctl | [HookConfig](#config-HookConfig) |  | prctl hook config. |
+| create_user_ns | [HookConfig](#config-HookConfig) |  | create_user_ns hook config. |
+| ptrace_access_check | [HookConfig](#config-HookConfig) |  | ptrace_attach hook config. |
+| setgid | [HookConfig](#config-HookConfig) |  | setgid hook config. |
 | ima_hash | [bool](#bool) | optional | Collect IMA hashes for executed binaries. |
 | gc_period | [uint64](#uint64) | optional | GC period for PROCMON_PROC_MAP default 30 sec. |
 
@@ -257,37 +115,17 @@ Configuration file for ProcMon detector
 
 
 
-<a name="config-ProcessFilter"></a>
+<a name="config-Rule"></a>
 
-### ProcessFilter
-Filter Events using process information.
-Filtering is based on pattern: uid AND euid AND auid AND (binary.name OR binary.prefix OR binary.path).
-All variables in the pattern are optional. if deny_list is true filter acts as a deny list, otherwise it
-is an allow list.
+### Rule
+Rule definition. Scope and event predicates are used as logical conjunction.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| uid | [uint32](#uint32) | repeated | List of UID&#39;s to filter. |
-| euid | [uint32](#uint32) | repeated | List of EUID&#39;s to filter. |
-| auid | [uint32](#uint32) | repeated | List of AUID&#39;s (login uid) to filter. |
-| binary | [PathFilter](#config-PathFilter) |  | Binary filter args |
-| deny_list | [bool](#bool) |  | if true acts like deny list |
-
-
-
-
-
-
-<a name="config-UidFilter"></a>
-
-### UidFilter
-UID filter
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| euid | [uint32](#uint32) | repeated | effective UID |
+| name | [string](#string) |  | Name of the rule. |
+| scope | [string](#string) |  | Logical predicate describes scope this rule will be applied, e.g. process, container. |
+| event | [string](#string) |  | Logical predicate for describes event rule will be applied |
 
 
 
