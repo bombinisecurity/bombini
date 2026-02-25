@@ -404,6 +404,7 @@ pub struct ProcessMsg {
     pub process: ProcessKey,
     pub parent: ProcessKey,
     pub event: ProcessEventVariant,
+    pub rule_idx: Option<u8>,
 }
 
 /// Raw Process event messages

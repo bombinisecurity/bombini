@@ -20,8 +20,9 @@ use aya_ebpf::{
 use bombini_detectors_ebpf::vmlinux::sock;
 
 use bombini_common::event::{
-    Event, GenericEvent, MSG_NETWORK, network::NetworkMsg, network::TcpConnectionV4,
-    network::TcpConnectionV6, process::ProcInfo,
+    Event, GenericEvent, MSG_NETWORK,
+    network::{NetworkMsg, TcpConnectionV4, TcpConnectionV6},
+    process::ProcInfo,
 };
 use bombini_common::{
     config::rule::{
@@ -359,7 +360,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
 
         let Some(ref rule_array) = rules.0 else {
             let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -422,7 +423,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 if event_filter.check_predicate(&rule.event)? {
                     let _ =
                         NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -469,7 +470,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
 
         let Some(ref rule_array) = rules.0 else {
             let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
-            enrich_with_proc_info(msg, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
@@ -530,7 +531,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 if event_filter.check_predicate(&rule.event)? {
                     let _ =
                         NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
             }
@@ -589,7 +590,7 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
 
             if rules_egress.0.is_none() && rules_ingress.0.is_none() {
-                enrich_with_proc_info(msg, proc);
+                enrich_with_proc_info_and_rule_idx(msg, proc, None);
                 return Ok(0);
             }
 
@@ -644,7 +645,7 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                             &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info(msg, proc);
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }
                     }
@@ -680,7 +681,7 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                             &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info(msg, proc);
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }
                     }
@@ -741,7 +742,7 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
 
             if rules_egress.0.is_none() && rules_ingress.0.is_none() {
-                enrich_with_proc_info(msg, proc);
+                enrich_with_proc_info_and_rule_idx(msg, proc, None);
                 return Ok(0);
             }
 
@@ -794,7 +795,7 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                             &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info(msg, proc);
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }
                     }
@@ -830,7 +831,7 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                             &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info(msg, proc);
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }
                     }
@@ -892,7 +893,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         &(Direction::Ingress as u8),
                         0,
                     );
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, None);
                     return Ok(0);
                 };
 
@@ -949,7 +950,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                                 &(Direction::Ingress as u8),
                                 0,
                             );
-                            enrich_with_proc_info(msg, proc);
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }
                     }
@@ -973,7 +974,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         &(Direction::Ingress as u8),
                         0,
                     );
-                    enrich_with_proc_info(msg, proc);
+                    enrich_with_proc_info_and_rule_idx(msg, proc, None);
                     return Ok(0);
                 };
 
@@ -1028,7 +1029,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                                 &(Direction::Ingress as u8),
                                 0,
                             );
-                            enrich_with_proc_info(msg, proc);
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }
                     }
@@ -1042,7 +1043,9 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
 }
 
 #[inline(always)]
-fn enrich_with_proc_info(msg: &mut NetworkMsg, proc: &ProcInfo) {
+fn enrich_with_proc_info_and_rule_idx(msg: &mut NetworkMsg, proc: &ProcInfo, rule_idx: Option<u8>) {
+    msg.rule_idx = rule_idx;
+
     if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;

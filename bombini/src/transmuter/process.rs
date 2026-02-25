@@ -14,6 +14,8 @@ use bombini_common::event::{
 
 use serde::{Serialize, Serializer};
 
+use crate::proto::config::{HookConfig, ProcMonConfig};
+
 use super::{
     Transmuter,
     cache::process::{CachedProcess, ProcessCache},
@@ -560,7 +562,7 @@ impl ProcessPtraceAccessCheck {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct ProcessEvent {
+struct ProcessEvent<'a> {
     /// Process information
     process: Arc<Process>,
     /// Parent process information
@@ -569,6 +571,9 @@ pub struct ProcessEvent {
     process_event: ProcessEventType,
     /// Event's date and time
     timestamp: String,
+    /// Rule name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rule: Option<&'a str>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -588,11 +593,12 @@ pub enum ProcessEventType {
     PtraceAccessCheck(ProcessPtraceAccessCheck),
 }
 
-impl ProcessEvent {
+impl<'a> ProcessEvent<'a> {
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
         event: &ProcessEventVariant,
+        rule: Option<&'a str>,
         ktime: u64,
     ) -> Self {
         match event {
@@ -600,30 +606,35 @@ impl ProcessEvent {
                 process_event: ProcessEventType::Setuid(ProcessSetUid::new(proc)),
                 process,
                 parent,
+                rule,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Setgid(proc) => Self {
                 process_event: ProcessEventType::Setgid(ProcessSetGid::new(proc)),
                 process,
                 parent,
+                rule,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Setcaps(proc) => Self {
                 process_event: ProcessEventType::Setcaps(ProcessCapset::new(proc)),
                 process,
                 parent,
+                rule,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Prctl(proc) => Self {
                 process_event: ProcessEventType::Prctl(ProcessPrctl::new(proc)),
                 process,
                 parent,
+                rule,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::CreateUserNs => Self {
                 process_event: ProcessEventType::CreateUserNs(ProcessCreateUserNs {}),
                 process,
                 parent,
+                rule,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::PtraceAccessCheck(proc) => Self {
@@ -632,13 +643,68 @@ impl ProcessEvent {
                 )),
                 process,
                 parent,
+                rule,
                 timestamp: transmute_ktime(ktime),
             },
         }
     }
 }
 
-pub struct ProcessEventTransmuter;
+pub struct ProcessEventTransmuter {
+    setuid_rule_names: Vec<String>,
+    setgid_rule_names: Vec<String>,
+    setcaps_rule_names: Vec<String>,
+    prctl_rule_names: Vec<String>,
+    create_user_ns_rule_names: Vec<String>,
+    ptrace_access_check_rule_names: Vec<String>,
+}
+
+impl ProcessEventTransmuter {
+    pub fn new(cfg: &ProcMonConfig) -> Self {
+        #[inline(always)]
+        fn rule_names_from_hook_config(hook: &Option<HookConfig>) -> Vec<String> {
+            hook.as_ref().map_or(Vec::new(), |hcfg| {
+                hcfg.rules.iter().map(|x| x.name.clone()).collect()
+            })
+        }
+
+        Self {
+            setuid_rule_names: rule_names_from_hook_config(&cfg.setuid),
+            setgid_rule_names: rule_names_from_hook_config(&cfg.setgid),
+            setcaps_rule_names: rule_names_from_hook_config(&cfg.capset),
+            prctl_rule_names: rule_names_from_hook_config(&cfg.prctl),
+            create_user_ns_rule_names: rule_names_from_hook_config(&cfg.create_user_ns),
+            ptrace_access_check_rule_names: rule_names_from_hook_config(&cfg.ptrace_access_check),
+        }
+    }
+
+    fn get_rule_name(
+        &self,
+        process_event: &ProcessEventVariant,
+        rule_idx: Option<u8>,
+    ) -> Result<Option<&str>, anyhow::Error> {
+        let rule_names = match process_event {
+            ProcessEventVariant::Setuid(_) => &self.setuid_rule_names,
+            ProcessEventVariant::Setgid(_) => &self.setgid_rule_names,
+            ProcessEventVariant::Setcaps(_) => &self.setcaps_rule_names,
+            ProcessEventVariant::Prctl(_) => &self.prctl_rule_names,
+            ProcessEventVariant::CreateUserNs => &self.create_user_ns_rule_names,
+            ProcessEventVariant::PtraceAccessCheck(_) => &self.ptrace_access_check_rule_names,
+        };
+
+        rule_idx
+            .map(|idx| {
+                rule_names
+                    .get(idx as usize)
+                    .map(|x| x.as_str())
+                    .ok_or(anyhow::anyhow!(
+                        "ProcessEvent: No rule name found for rule index: {}",
+                        idx
+                    ))
+            })
+            .transpose()
+    }
+}
 
 impl Transmuter for ProcessEventTransmuter {
     fn transmute(
@@ -659,8 +725,20 @@ impl Transmuter for ProcessEventTransmuter {
                 None
             };
             if let Some(cached_process) = process_cache.get_mut(&msg.process) {
-                let high_level_event =
-                    ProcessEvent::new(cached_process.process.clone(), parent, &msg.event, ktime);
+                let rule_name = match self.get_rule_name(&msg.event, msg.rule_idx) {
+                    Ok(rule_name) => rule_name,
+                    Err(e) => {
+                        log::warn!("Could not determine rule name, error: {e}");
+                        None
+                    }
+                };
+                let high_level_event = ProcessEvent::new(
+                    cached_process.process.clone(),
+                    parent,
+                    &msg.event,
+                    rule_name,
+                    ktime,
+                );
                 Ok(serde_json::to_vec(&high_level_event)?)
             } else {
                 Err(anyhow!(

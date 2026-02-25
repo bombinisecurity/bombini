@@ -13,6 +13,7 @@ pub struct FileMsg {
     pub process: ProcessKey,
     pub parent: ProcessKey,
     pub event: FileEventVariant,
+    pub rule_idx: Option<u8>,
 }
 
 /// FileOpen info
