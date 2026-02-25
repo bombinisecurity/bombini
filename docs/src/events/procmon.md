@@ -301,7 +301,8 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "uid": 0
   },
   "timestamp": "2025-12-11T11:46:20.693Z",
-  "type": "ProcessEvent"
+  "type": "ProcessEvent",
+  "rule": "SetuidTestRule"
 }
 ```
 
@@ -355,7 +356,8 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "type": "Setgid"
   },
   "timestamp": "2025-12-25T18:47:36.355Z",
-  "type": "ProcessEvent"
+  "type": "ProcessEvent",
+  "rule": "SetgidTestRule"
 }
 ```
 
@@ -408,7 +410,8 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "type": "Setcaps"
   },
   "timestamp": "2025-12-11T11:46:18.016Z",
-  "type": "ProcessEvent"
+  "type": "ProcessEvent",
+  "rule": "SetcapsTestRule"
 }
 ```
 
@@ -461,7 +464,8 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "type": "Prctl"
   },
   "timestamp": "2025-12-14T11:16:36.903Z",
-  "type": "ProcessEvent"
+  "type": "ProcessEvent",
+  "rule": "PrctlTestRule"
 }
 ```
 
@@ -493,7 +497,8 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     "type": "CreateUserNs"
   },
   "timestamp": "2025-12-14T11:16:29.113Z",
-  "type": "ProcessEvent"
+  "type": "ProcessEvent",
+  "rule": "CreateUserNsTestRule"
 }
 ```
 

@@ -51,7 +51,8 @@ Event is triggered when file is truncated by `truncate` syscall.
     "uid": 0
   },
   "timestamp": "2025-12-11T11:46:28.965Z",
-  "type": "FileEvent"
+  "type": "FileEvent",
+  "rule": "TruncateTestRule"
 }
 ```
 
@@ -104,7 +105,8 @@ Event is triggered when file is deleted.
     "uid": 0
   },
   "timestamp": "2025-12-11T11:46:31.742Z",
-  "type": "FileEvent"
+  "type": "FileEvent",
+  "rule": "UnlinkTestRule"
 }
 ```
 
@@ -158,7 +160,8 @@ Event is triggered when symbolic link is created.
     "link_path": "/home/lima.linux/not_a_passwrod",
     "old_path": "/etc/passwd"
   },
-  "timestamp": "2026-01-23T08:15:16.135Z"
+  "timestamp": "2026-01-23T08:15:16.135Z",
+  "rule": "SymlinkTestRule"
 }
 ```
 
@@ -214,7 +217,8 @@ Event is triggered when symbolic link is created.
     "uid": 0
   },
   "timestamp": "2025-12-11T11:45:57.094Z",
-  "type": "FileEvent"
+  "type": "FileEvent",
+  "rule": "OpenTestRule"
 }
 ```
 
@@ -266,7 +270,8 @@ Event is triggered when symbolic link is created.
     "uid": 0
   },
   "timestamp": "2025-12-11T11:46:23.488Z",
-  "type": "FileEvent"
+  "type": "FileEvent",
+  "rule": "ChmodTestRule"
 }
 ```
 
@@ -319,7 +324,8 @@ Event is triggered when symbolic link is created.
     "uid": 0
   },
   "timestamp": "2025-12-11T11:46:26.190Z",
-  "type": "FileEvent"
+  "type": "FileEvent",
+  "rule": "ChownTestRule"
 }
 ```
 
@@ -483,7 +489,8 @@ Event is triggered when block device is mounted.
     "uid": 1000
   },
   "timestamp": "2025-12-11T11:45:48.084Z",
-  "type": "FileEvent"
+  "type": "FileEvent",
+  "rule": "IoctlTestRule"
 }
 
 ```
