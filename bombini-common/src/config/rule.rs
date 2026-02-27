@@ -82,6 +82,16 @@ pub enum ConnectionAttributes {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
+pub enum MmapFileAttributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+    ProtMode,
+    Flags,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum FileIoctlAttributes {
     Path = 0,
     PathPrefix,
@@ -167,12 +177,14 @@ pub struct CapKey {
 
 pub type ImodeKey = CapKey;
 pub type CreationFlagsKey = CapKey;
+pub type ProtModeKey = CapKey;
+pub type FlagsKey = CapKey;
 
 #[cfg(feature = "user")]
 pub mod user {
     use super::*;
     use crate::event::{
-        file::{CreationFlags, Imode},
+        file::{CreationFlags, Imode, ProtMode, SharingType},
         process::Capabilities,
     };
 
@@ -189,4 +201,6 @@ pub mod user {
     unsafe impl aya::Pod for Imode {}
     unsafe impl aya::Pod for CreationFlags {}
     unsafe impl aya::Pod for AccessModeKey {}
+    unsafe impl aya::Pod for ProtMode {}
+    unsafe impl aya::Pod for SharingType {}
 }
