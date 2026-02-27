@@ -91,7 +91,7 @@ egress:
         .expect("can't start curl");
 
     // Wait Events being processed
-    thread::sleep(Duration::from_millis(1500));
+    thread::sleep(Duration::from_millis(3000));
 
     let _ = signal::kill(Pid::from_raw(nc.id() as i32), Signal::SIGKILL);
 
