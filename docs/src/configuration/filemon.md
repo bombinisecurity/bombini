@@ -176,6 +176,8 @@ path_chown:
 * `path` - the absolute path of mmaped file.
 * `path_prefix` - the absolute path prefix of mmaped file.
 * `name` - the name of mmaped file.
+* `prot_mode` - the memory protection of mmaped file. It is treated as mask and can have multiple values at a runtime (PROT_READ, PROT_WRITE, PROT_EXEC). See [man](https://man7.org/linux/man-pages/man2/mmap.2.html) for details.
+* `flags` - the flags of mmaped file. It is treated as mask and can have multiple values at a runtime (e.g., MAP_PRIVATE, MAP_SHARED, MAP_ANON). See [man](https://man7.org/linux/man-pages/man2/mmap.2.html) for details.
 
 **Example**
 
