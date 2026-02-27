@@ -17,13 +17,16 @@ use aya_ebpf::{
 };
 use bombini_common::{
     config::rule::{
-        AccessModeKey, CmdKey, CreationFlagsKey, FileNameMapKey, ImodeKey, PathMapKey,
-        PathPrefixMapKey, Rules, UIDKey,
+        AccessModeKey, CmdKey, CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, PathMapKey,
+        PathPrefixMapKey, ProtModeKey, Rules, UIDKey,
     },
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::{
         Event, GenericEvent, MSG_FILE,
-        file::{AccessMode, CreationFlags, FileEventNumber, FileEventVariant, FileMsg, Imode},
+        file::{
+            AccessMode, CreationFlags, FileEventNumber, FileEventVariant, FileMsg, Imode, ProtMode,
+            SharingType,
+        },
         process::ProcInfo,
     },
 };
@@ -34,6 +37,7 @@ use bombini_detectors_ebpf::{
         filemon::{
             chmod::{ChmodFilter, ImodeValue},
             fileopen::{CreationFlagsValue, FileOpenFilter},
+            mmap::{MmapFileFilter, MmapFlagsValue, ProtModeValue},
         },
         scope::ScopeFilter,
     },
@@ -1141,6 +1145,14 @@ static FILEMON_MMAP_FILE_PREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 
 #[map]
+static FILEMON_MMAP_FILE_PROT_MODE_MAP: HashMap<ProtModeKey, ProtMode> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_MMAP_FILE_FLAGS_MAP: HashMap<FlagsKey, SharingType> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
 static FILEMON_MMAP_FILE_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
@@ -1184,8 +1196,8 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             return Err(0);
         };
         let fp: *const file = ctx.arg(0);
-        event.prot = ctx.arg(1);
-        event.flags = ctx.arg(2);
+        event.prot = ProtMode::from_bits_truncate(ctx.arg(1));
+        event.flags = SharingType::from_bits_truncate(ctx.arg(2));
         let _ = bpf_d_path(
             &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
@@ -1212,6 +1224,16 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
+        let mut prot_mode = ProtModeValue {
+            prot_mode: event.prot,
+            rule_idx: 0,
+        };
+
+        let mut flags = MmapFlagsValue {
+            flags: event.flags,
+            rule_idx: 0,
+        };
+
         // Get binary name
         let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
@@ -1224,6 +1246,8 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
+            prot_mode.rule_idx = idx as u8;
+            flags.rule_idx = idx as u8;
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -1236,13 +1260,17 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                 binary_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
-                let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
+                let mut event_filter = interpreter::Interpreter::new(MmapFileFilter::new(
                     &FILEMON_MMAP_FILE_NAME_MAP,
                     &FILEMON_MMAP_FILE_PATH_MAP,
                     &FILEMON_MMAP_FILE_PREFIX_MAP,
+                    &FILEMON_MMAP_FILE_PROT_MODE_MAP,
+                    &FILEMON_MMAP_FILE_FLAGS_MAP,
                     file_name,
                     file_path,
                     file_prefix,
+                    &prot_mode,
+                    &flags,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));

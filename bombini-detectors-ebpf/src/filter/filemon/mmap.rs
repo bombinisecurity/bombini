@@ -1,102 +1,110 @@
-//! File open filter
+//! Mmap filter
 
 use aya_ebpf::maps::{HashMap, LpmTrie, lpm_trie::Key};
 use bombini_common::{
     config::rule::{
-        AccessModeKey, CreationFlagsKey, FileNameMapKey, FileOpenAttributes, PathMapKey,
-        PathPrefixMapKey,
+        FileNameMapKey, FlagsKey, MmapFileAttributes, PathMapKey, PathPrefixMapKey, ProtModeKey,
     },
-    event::file::CreationFlags,
+    event::file::{ProtMode, SharingType},
 };
 
 use crate::interpreter::CheckIn;
 
-pub struct CreationFlagsValue {
+pub struct ProtModeValue {
     pub rule_idx: u8,
-    pub creation_flags: CreationFlags,
+    pub prot_mode: ProtMode,
+}
+
+pub struct MmapFlagsValue {
+    pub rule_idx: u8,
+    pub flags: SharingType,
 }
 
 #[repr(C)]
-pub struct FileOpenFilter<'a> {
+pub struct MmapFileFilter<'a> {
     pub name_map: &'a HashMap<FileNameMapKey, u8>,
     pub path_map: &'a HashMap<PathMapKey, u8>,
     pub prefix_map: &'a LpmTrie<PathPrefixMapKey, u8>,
-    pub access_mode_map: &'a HashMap<AccessModeKey, u8>,
-    pub creation_flags_map: &'a HashMap<CreationFlagsKey, CreationFlags>,
+    pub prot_mode_map: &'a HashMap<ProtModeKey, ProtMode>,
+    pub flags_map: &'a HashMap<FlagsKey, SharingType>,
 
     pub name: &'a FileNameMapKey,
     pub path: &'a PathMapKey,
     pub prefix: &'a Key<PathPrefixMapKey>,
-    pub access_mode: &'a AccessModeKey,
-    pub creation_flags: &'a CreationFlagsValue,
+    pub prot_mode: &'a ProtModeValue,
+    pub flags: &'a MmapFlagsValue,
 }
 
-impl<'a> FileOpenFilter<'a> {
+impl<'a> MmapFileFilter<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         name_map: &'a HashMap<FileNameMapKey, u8>,
         path_map: &'a HashMap<PathMapKey, u8>,
         prefix_map: &'a LpmTrie<PathPrefixMapKey, u8>,
-        access_mode_map: &'a HashMap<AccessModeKey, u8>,
-        creation_flags_map: &'a HashMap<CreationFlagsKey, CreationFlags>,
+        prot_mode_map: &'a HashMap<ProtModeKey, ProtMode>,
+        flags_map: &'a HashMap<FlagsKey, SharingType>,
 
         name: &'a FileNameMapKey,
         path: &'a PathMapKey,
         prefix: &'a Key<PathPrefixMapKey>,
-        access_mode: &'a AccessModeKey,
-        creation_flags: &'a CreationFlagsValue,
+        prot_mode: &'a ProtModeValue,
+        flags: &'a MmapFlagsValue,
     ) -> Self {
         Self {
             name_map,
             path_map,
             prefix_map,
-            access_mode_map,
-            creation_flags_map,
+            prot_mode_map,
+            flags_map,
             name,
             path,
             prefix,
-            access_mode,
-            creation_flags,
+            prot_mode,
+            flags,
         }
     }
 }
 
-impl CheckIn for FileOpenFilter<'_> {
+impl CheckIn for MmapFileFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == FileOpenAttributes::Name as u8 => unsafe {
+            id if id == MmapFileAttributes::Name as u8 => unsafe {
                 let Some(mask_name) = self.name_map.get(self.name) else {
                     return Ok(false);
                 };
                 Ok(*mask_name & (1 << in_op_idx) != 0)
             },
-            id if id == FileOpenAttributes::Path as u8 => unsafe {
+            id if id == MmapFileAttributes::Path as u8 => unsafe {
                 let Some(mask_path) = self.path_map.get(self.path) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
-            id if id == FileOpenAttributes::PathPrefix as u8 => {
+            id if id == MmapFileAttributes::PathPrefix as u8 => {
                 let Some(mask_path) = self.prefix_map.get(self.prefix) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             }
-            id if id == FileOpenAttributes::AccessMode as u8 => unsafe {
-                let Some(mask_mode) = self.access_mode_map.get(self.access_mode) else {
-                    return Ok(false);
-                };
-                Ok(*mask_mode & (1 << in_op_idx) != 0)
-            },
-            id if id == FileOpenAttributes::CreationFlags as u8 => unsafe {
-                let cr_value = CreationFlagsKey {
-                    rule_idx: self.creation_flags.rule_idx,
+            id if id == MmapFileAttributes::ProtMode as u8 => unsafe {
+                let prot_key = ProtModeKey {
+                    rule_idx: self.prot_mode.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(flags) = self.creation_flags_map.get(&cr_value) else {
+                let Some(prot_mode) = self.prot_mode_map.get(&prot_key) else {
                     return Ok(false);
                 };
-                Ok(*flags & self.creation_flags.creation_flags != CreationFlags::empty())
+                Ok(*prot_mode & self.prot_mode.prot_mode != ProtMode::empty())
+            },
+            id if id == MmapFileAttributes::Flags as u8 => unsafe {
+                let flags_key = FlagsKey {
+                    rule_idx: self.flags.rule_idx,
+                    in_idx: in_op_idx,
+                };
+                let Some(flags) = self.flags_map.get(&flags_key) else {
+                    return Ok(false);
+                };
+                Ok(*flags & self.flags.flags != SharingType::empty())
             },
             _ => Err(0),
         }

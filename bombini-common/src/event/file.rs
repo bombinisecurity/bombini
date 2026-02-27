@@ -74,9 +74,9 @@ pub struct MmapFile {
     /// full path
     pub path: [u8; MAX_FILE_PATH],
     /// mmap flags
-    pub flags: u32,
+    pub flags: SharingType,
     /// protection flags
-    pub prot: u32,
+    pub prot: ProtMode,
 }
 
 /// FileIoctl info
@@ -195,6 +195,59 @@ impl core::str::FromStr for Imode {
 
     fn from_str(imode_str: &str) -> Result<Self, Self::Err> {
         bitflags::parser::from_str(imode_str)
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
+    #[repr(C)]
+    pub struct ProtMode: u32 {
+        const PROT_READ =   0b00000001;
+        const PROT_WRITE =  0b00000010;
+        const PROT_EXEC =   0b00000100;
+    }
+}
+
+#[cfg(feature = "user")]
+impl core::str::FromStr for ProtMode {
+    type Err = bitflags::parser::ParseError;
+
+    fn from_str(pmode_str: &str) -> Result<Self, Self::Err> {
+        bitflags::parser::from_str(pmode_str)
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[cfg_attr(feature = "user", derive(Serialize))]
+    #[repr(C)]
+    pub struct SharingType: u32 {
+        const MAP_SHARED     = 0x1;
+        const MAP_PRIVATE    = 0x2;
+        const MAP_DROPPABLAE = 0x8;
+        const MAP_TYPE       = 0xf;
+        const MAP_FIXED      = 0x10;
+        const MAP_ANONYMOUS  = 0x20;
+        const MAP_GROWSDOWN	 = 0x00100;
+        const MAP_DENYWRITE  = 0x00800;
+        const MAP_EXECUTABLE = 0x01000;
+        const MAP_LOCKED     = 0x02000;
+        const MAP_NORESERVE  = 0x04000;
+        const MAP_POPULATE   = 0x08000;
+        const MAP_NONBLOCK   = 0x10000;
+        const MAP_STACK      = 0x20000;
+        const MAP_HUGETLB    = 0x40000;
+        const MAP_SYNC       = 0x80000;
+    }
+}
+
+#[cfg(feature = "user")]
+impl core::str::FromStr for SharingType {
+    type Err = bitflags::parser::ParseError;
+
+    fn from_str(stype_str: &str) -> Result<Self, Self::Err> {
+        bitflags::parser::from_str(stype_str)
     }
 }
 
