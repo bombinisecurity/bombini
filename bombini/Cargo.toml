@@ -11,7 +11,7 @@ clap = { version = "4.5.60", features = ["derive"] }
 anyhow = "1"
 bitflags = { version = "2.11.0", features = ["serde"]}
 bytes = "1.11.1"
-env_logger = "0.11.8"
+env_logger = "0.11.9"
 libc = "0.2.180"
 log = "0.4.29"
 procfs = "0.18.0"
