@@ -553,7 +553,7 @@ mmap_file:
   enabled: true
   rules:
   - rule: MmapFileTestRule
-    event: prot_mode == "PROT_WRITE" AND flags in ["MAP_SHARED_VALIDATE", "MAP_EXECUTABLE"]
+    event: prot_mode == "PROT_WRITE" AND flags in ["MAP_SHARED", "MAP_EXECUTABLE"]
 "#;
     let filemon_config = tmp_config.join("filemon.yaml");
     let _ = fs::write(&filemon_config, config_contents);
@@ -627,6 +627,7 @@ mmap_file:
             .count(),
         1
     );
+    ma::assert_ge!(events.matches("\"flags\":\"MAP_SHARED\"").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(test_path);
     ma::assert_ge!(events.matches(&file_path).count(), 1);

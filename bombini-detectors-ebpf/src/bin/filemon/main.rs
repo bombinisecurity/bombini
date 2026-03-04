@@ -1163,6 +1163,14 @@ static FILEMON_MMAP_FILE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
+#[inline(always)]
+fn is_null_pointer<T>(addr: *const T) -> bool {
+    // Check if the address is null. I don't know why, but checking
+    // the null pointer with `is_null()` or explicitly comparing address to `0`
+    // leads to a wrong behavior of ebpf program despite of correct ebpf bytecode.
+    addr.addr() < 2
+}
+
 #[lsm(hook = "mmap_file")]
 pub fn mmap_file_capture(ctx: LsmContext) -> i32 {
     event_capture!(ctx, MSG_FILE, true, try_mmap_file)
@@ -1196,9 +1204,9 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             return Err(0);
         };
         let fp: *const file = ctx.arg(0);
-        event.prot = ProtMode::from_bits_truncate(ctx.arg(1));
+        event.prot = ProtMode::from_bits_truncate(ctx.arg(2));
 
-        let mut flags_bits = ctx.arg::<u32>(2);
+        let mut flags_bits = ctx.arg::<u32>(3);
         let visibility = flags_bits & 0x3;
         if visibility == 0x3 {
             // if visibility is 0x3, it means that the mapping is MAP_SHARED_VALIDATE
@@ -1206,12 +1214,15 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             flags_bits = flags_bits & !0x3 | 0x4;
         }
         event.flags = SharingType::from_bits_truncate(flags_bits);
-        let _ = bpf_d_path(
-            &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
-            path_ptr as *mut _,
-            MAX_FILE_PATH as u32,
-        );
-        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
+        if !is_null_pointer(fp) {
+            let _ = bpf_d_path(
+                &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
+                path_ptr as *mut _,
+                MAX_FILE_PATH as u32,
+            );
+            bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path)
+                .map_err(|_| 0i32)?;
+        }
 
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
@@ -1220,11 +1231,15 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
 
         // Get filtering attributes
         // Get file name
-        let path = bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
-
-        let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-            .map_err(|_| 0i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
+        let file_name = if !is_null_pointer(fp) {
+            let path =
+                bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
+            let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
+                .map_err(|_| 0i32)?;
+            fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name)
+        } else {
+            fill_name_map!(FILEMON_FILE_NAME_MAP, &event.path)
+        };
 
         // Get file path
         let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
