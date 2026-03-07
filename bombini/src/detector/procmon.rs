@@ -6,6 +6,7 @@ use crate::detector::Detector;
 use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME, ZERO_EVENT_MAP};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::dummy::DummyPredicate;
+use crate::rule::serializer::filemon::PathPredicate;
 use crate::rule::serializer::procmon::{CapPredicate, CredPredicate, GidPredicate, UidPredicate};
 use aya::maps::{Array, HashMap, Map, MapData, MapError};
 use aya::programs::{BtfTracePoint, Lsm};
@@ -74,6 +75,7 @@ enum ProcMonHook {
     Prctl,
     Userns,
     PtraceAccessCheck,
+    BprmCheck,
 }
 
 impl ProcMonHook {
@@ -85,6 +87,7 @@ impl ProcMonHook {
             ProcMonHook::Prctl => "PROCMON_PRCTL",
             ProcMonHook::Userns => "PROCMON_USERNS",
             ProcMonHook::PtraceAccessCheck => "PROCMON_PTRACE_ACCESS_CHECK",
+            ProcMonHook::BprmCheck => "PROCMON_BPRM_CHECK",
         }
     }
 
@@ -96,6 +99,7 @@ impl ProcMonHook {
             ProcMonHook::Prctl => "task_prctl",
             ProcMonHook::Userns => "userns_create",
             ProcMonHook::PtraceAccessCheck => "ptrace_access_check",
+            ProcMonHook::BprmCheck => "bprm_check",
         }
     }
 
@@ -107,6 +111,7 @@ impl ProcMonHook {
             ProcMonHook::Prctl => "prctl_capture",
             ProcMonHook::Userns => "create_user_ns_capture",
             ProcMonHook::PtraceAccessCheck => "ptrace_access_check_capture",
+            ProcMonHook::BprmCheck => "bprm_check_capture",
         }
     }
 }
@@ -175,6 +180,14 @@ impl ProcMon {
             hooks.push(Box::new(HookData::<DummyPredicate>::new(
                 ProcMonHook::PtraceAccessCheck,
                 &ptrace_access_check.rules,
+            )?));
+        }
+        if let Some(bprm_check) = &config.bprm_check
+            && bprm_check.enabled
+        {
+            hooks.push(Box::new(HookData::<PathPredicate>::new(
+                ProcMonHook::BprmCheck,
+                &bprm_check.rules,
             )?));
         }
 

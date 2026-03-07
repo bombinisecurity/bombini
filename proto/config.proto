@@ -16,6 +16,8 @@ message ProcMonConfig {
     HookConfig ptrace_access_check = 5;
     // setgid hook config.
     HookConfig setgid = 6;
+    // bprm_check hook config.
+    HookConfig bprm_check = 7;
     // Collect IMA hashes for executed binaries.
     optional bool ima_hash = 8;
     // GC period for PROCMON_PROC_MAP default 30 sec.
