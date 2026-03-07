@@ -20,6 +20,9 @@ pub struct ProcMonConfig {
     /// setgid hook config.
     #[prost(message, optional, tag = "6")]
     pub setgid: ::core::option::Option<HookConfig>,
+    /// bprm_check hook config.
+    #[prost(message, optional, tag = "7")]
+    pub bprm_check: ::core::option::Option<HookConfig>,
     /// Collect IMA hashes for executed binaries.
     #[prost(bool, optional, tag = "8")]
     pub ima_hash: ::core::option::Option<bool>,
