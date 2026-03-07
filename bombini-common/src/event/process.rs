@@ -397,6 +397,14 @@ bitflags! {
     }
 }
 
+/// BprmCheck info
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct ProcBprmCheck {
+    /// full path
+    pub binary: [u8; MAX_FILE_PATH],
+}
+
 /// Process event message with process info
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -424,6 +432,8 @@ pub enum ProcessEventVariant {
     PtraceAccessCheck(ProcPtraceAccessCheck) = ProcessEventNumber::PtraceAccessCheck as u8,
     /// Set gid/egid for process
     Setgid(ProcSetGid) = ProcessEventNumber::Setgid as u8,
+    /// Bprm_check for binary exec
+    BprmCheck(ProcBprmCheck) = ProcessEventNumber::BprmCheck as u8,
 }
 
 #[repr(C)]
@@ -434,6 +444,7 @@ pub enum ProcessEventNumber {
     CreateUserNs,
     PtraceAccessCheck,
     Setgid,
+    BprmCheck,
 
     TotalProcessEvents,
 }
