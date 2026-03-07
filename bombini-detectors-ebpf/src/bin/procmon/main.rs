@@ -40,6 +40,7 @@ use bombini_detectors_ebpf::{
     event_capture,
     event_map::rb_event_init,
     filter::{
+        filemon::path::PathFilter,
         procmon::cred::{CapFilter, CapValue, CredFilter, UidFilter},
         scope::ScopeFilter,
     },
@@ -81,6 +82,19 @@ static PROCMON_HEAP: PerCpuArray<ProcInfo> = PerCpuArray::with_max_entries(1, 0)
 
 #[map]
 static ZERO_MAP: Array<[u8; PAGE_SIZE]> = Array::with_max_entries(1, 0);
+
+#[map]
+static PATH_HEAP: PerCpuArray<[u8; MAX_FILE_PATH]> = PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PATH_MAP: PerCpuArray<PathMapKey> = PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> = PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
+    PerCpuArray::with_max_entries(1, 0);
 
 /// Fill file name map
 macro_rules! fill_name_map {
@@ -1239,6 +1253,140 @@ fn try_ptrace_access_check_capture(
         }
     }
 
+    Err(0)
+}
+
+// Bprm_check rules map
+#[map]
+static PROCMON_BPRM_CHECK_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter bprm_check maps begin
+#[map]
+static PROCMON_BPRM_CHECK_PATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_NAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_PREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
+
+#[lsm(hook = "bprm_check")]
+pub fn bprm_check_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_PROCESS, true, try_bprm_check_capture)
+}
+
+fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::Process(ref mut msg) = generic_event.event else {
+        return Err(0);
+    };
+
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(0);
+    };
+
+    let Some(rules) = PROCMON_BPRM_CHECK_RULE_MAP.get(0) else {
+        return Err(0);
+    };
+
+    unsafe {
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
+        *p = ProcessEventNumber::BprmCheck as u8;
+    }
+    let ProcessEventVariant::BprmCheck(ref mut event) = msg.event else {
+        return Err(0);
+    };
+
+    unsafe {
+        let binprm: *const linux_binprm = ctx.arg(0);
+        let fp: *mut file = (*binprm).file;
+
+        // Get full path
+        let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
+            return Err(0);
+        };
+
+        let _ = bpf_d_path(
+            &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
+            path_ptr as *mut _,
+            MAX_FILE_PATH as u32,
+        );
+        bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.binary)
+            .map_err(|_| 0i32)?;
+
+        let Some(ref rule_array) = rules.0 else {
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
+            return Ok(0);
+        };
+
+        // Get filtering attributes
+        // Get file name
+        let path = bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
+
+        let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
+            .map_err(|_| 0i32)?;
+        let file_name = fill_name_map!(PROCMON_FILE_NAME_MAP, d_name.name);
+
+        // Get file path
+        let file_path = fill_path_map!(PROCMON_PATH_MAP, &event.binary);
+
+        // Get file prefix
+        let file_prefix = fill_prefix_map!(PROCMON_PATH_PREFIX_MAP, &event.binary);
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            file_name.rule_idx = idx as u8;
+            file_path.rule_idx = idx as u8;
+            file_prefix.data.rule_idx = idx as u8;
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_BPRM_CHECK_BINNAME_MAP,
+                &PROCMON_BPRM_CHECK_BINPATH_MAP,
+                &PROCMON_BPRM_CHECK_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            if scope_filter.check_predicate(&rule.scope)? {
+                let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
+                    &PROCMON_BPRM_CHECK_NAME_MAP,
+                    &PROCMON_BPRM_CHECK_PATH_MAP,
+                    &PROCMON_BPRM_CHECK_PREFIX_MAP,
+                    file_name,
+                    file_path,
+                    file_prefix,
+                ))?;
+                if event_filter.check_predicate(&rule.event)? {
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                    return Ok(0);
+                }
+            }
+        }
+    }
     Err(0)
 }
 
