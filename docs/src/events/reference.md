@@ -1820,6 +1820,18 @@ JSON schema for all events.
         "args"
       ]
     },
+    "ProcessBprmCheck": {
+      "description": "Bprm_check event",
+      "type": "object",
+      "properties": {
+        "binary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "binary"
+      ]
+    },
     "ProcessCapset": {
       "description": "Capset event",
       "type": "object",
@@ -1921,6 +1933,19 @@ JSON schema for all events.
             }
           },
           "$ref": "#/$defs/ProcessPtraceAccessCheck",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "BprmCheck"
+            }
+          },
+          "$ref": "#/$defs/ProcessBprmCheck",
           "required": [
             "type"
           ]

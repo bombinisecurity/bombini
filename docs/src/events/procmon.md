@@ -571,3 +571,55 @@ ProcessEvents represent a collection of events somehow related to privilege esca
   "timestamp": "2025-12-11T12:07:20.712Z"
 }
 ```
+
+## BprmCheck
+
+```json
+{
+  "parent": {
+    "args": "-q --show-output --test-threads 1 test_6_2_procmon_bprm_check",
+    "auid": 1000,
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/procmon-a231bc096179efb9",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "filename": "procmon-a231bc096179efb9",
+    "gid": 0,
+    "pid": 2605086,
+    "ppid": 2605064,
+    "secureexec": "",
+    "start_time": "2026-03-08T14:49:55.896Z",
+    "tid": 2605086,
+    "uid": 0
+  },
+  "process": {
+    "args": "-q --show-output --test-threads 1 test_6_2_procmon_bprm_check",
+    "auid": 0,
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/procmon-a231bc096179efb9",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": true,
+    "egid": 0,
+    "euid": 0,
+    "filename": "procmon-a231bc096179efb9",
+    "gid": 0,
+    "pid": 2605173,
+    "ppid": 2605086,
+    "secureexec": "",
+    "start_time": "2026-03-08T14:49:57.908Z",
+    "tid": 2605173,
+    "uid": 0
+  },
+  "process_event": {
+    "binary": "/usr/bin/ls",
+    "type": "BprmCheck"
+  },
+  "rule": "BprmCheckTestRule",
+  "timestamp": "2026-03-08T14:49:57.909Z",
+  "type": "ProcessEvent"
+}
+```
