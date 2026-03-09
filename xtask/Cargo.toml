@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.102"
 clap = { version = "4.5.60", features = ["derive"] }
-which = "8.0.0"
+which = "8.0.2"
 tar = "0.4.44"
 flate2 = "1.1.9"
 prost-build = "0.14.3"
