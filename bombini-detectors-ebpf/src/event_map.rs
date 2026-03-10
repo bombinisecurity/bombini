@@ -32,7 +32,7 @@ pub fn rb_event_init(
         let Some(event_ref) = ring_entry.get_ptr_mut() else {
             return Err(0);
         };
-        let p = event_ref as *mut Event as *mut u8;
+        let p = &mut (*event_ref).event as *mut Event as *mut u8;
         *p = msg_code;
         (*event_ref).msg_code = msg_code;
         (*event_ref).ktime = bpf_ktime_get_boot_ns();

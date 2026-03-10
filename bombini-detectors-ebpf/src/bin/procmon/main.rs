@@ -686,6 +686,16 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             return Ok(0);
         };
 
+        let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[ProcessEventNumber::Setuid as usize];
+
         let mut proc_uid = UIDKey {
             rule_idx: 0,
             uid: event.uid,
@@ -726,14 +736,38 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &proc_uid,
                     &proc_euid,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
-
     Err(0)
 }
 
@@ -799,6 +833,16 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             return Ok(0);
         };
 
+        let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[ProcessEventNumber::Setgid as usize];
+
         let mut proc_gid = UIDKey {
             rule_idx: 0,
             uid: event.gid,
@@ -839,10 +883,35 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &proc_gid,
                     &proc_egid,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -914,6 +983,16 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             return Ok(0);
         };
 
+        let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[ProcessEventNumber::Setcaps as usize];
+
         let mut proc_ecap = CapValue {
             rule_idx: 0,
             caps: event.effective,
@@ -954,10 +1033,35 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &proc_ecap,
                     &proc_pcap,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -1114,10 +1218,19 @@ fn try_create_user_ns_capture(
 
     unsafe {
         let Some(ref rule_array) = rules.0 else {
-            msg.rule_idx = None;
-            util::process_key_init(&mut msg.process, proc);
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
+
+        let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[ProcessEventNumber::CreateUserNs as usize];
 
         let creds: *const cred = ctx.arg(0);
         let effective =
@@ -1163,15 +1276,38 @@ fn try_create_user_ns_capture(
                     &proc_ecap,
                     &proc_euid,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
-                    msg.rule_idx = Some(idx as u8);
-                    util::process_key_init(&mut msg.process, proc);
-                    return Ok(0);
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
-
     Err(0)
 }
 
@@ -1252,7 +1388,6 @@ fn try_ptrace_access_check_capture(
             }
         }
     }
-
     Err(0)
 }
 
@@ -1333,6 +1468,16 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             return Ok(0);
         };
 
+        let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[ProcessEventNumber::BprmCheck as usize];
+
         // Get filtering attributes
         // Get file name
         let path = bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
@@ -1380,10 +1525,35 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                     file_path,
                     file_prefix,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
