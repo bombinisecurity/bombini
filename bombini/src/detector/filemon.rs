@@ -10,7 +10,9 @@ use crate::rule::serializer::filemon::{
 use aya::maps::{Array, MapError};
 use aya::programs::Lsm;
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
-use bombini_common::constants::MAX_FILE_PATH;
+use bombini_common::{
+    config::filemon::FileMonKernelConfig, constants::MAX_FILE_PATH, event::file::FileEventNumber,
+};
 
 use crate::proto::config::{FileMonConfig, Rule};
 use crate::rule::serializer::SerializedRules;
@@ -187,6 +189,12 @@ impl FileMon {
 impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         // TODO: Change trait error type to anyhow::Error
+        let config = FileMonKernelConfig {
+            sandbox_mode: [None; FileEventNumber::TotalFileEvents as usize],
+        };
+        let mut config_map: Array<_, FileMonKernelConfig> =
+            Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
+        let _ = config_map.set(0, config, 0);
         init_all_filemon_maps(&self.hooks, &mut self.ebpf).map_err(|e| MapError::InvalidName {
             name: e.to_string(),
         })?;

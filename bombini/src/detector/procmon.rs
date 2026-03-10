@@ -13,7 +13,7 @@ use aya::programs::{BtfTracePoint, Lsm};
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 use bombini_common::config::procmon::ProcMonKernelConfig;
 use bombini_common::constants::{MAX_EVENT_SIZE, PAGE_SIZE};
-use bombini_common::event::process::ProcInfo;
+use bombini_common::event::process::{ProcInfo, ProcessEventNumber};
 use procfs::process;
 use tokio::time::interval;
 
@@ -242,6 +242,7 @@ impl Detector for ProcMon {
         // TODO: Change trait error type to anyhow::Error
         let config = ProcMonKernelConfig {
             ima_hash: self.ima_hash,
+            sandbox_mode: [None; ProcessEventNumber::TotalProcessEvents as usize],
         };
         let mut config_map: Array<_, ProcMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
