@@ -572,7 +572,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
 }
 ```
 
-## BprmCheck
+### BprmCheck
 
 ```json
 {
