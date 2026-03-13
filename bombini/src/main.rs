@@ -66,9 +66,16 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 
 async fn start_monitor(config: &Config, monitor: &Monitor) -> Result<(), anyhow::Error> {
-    if let Some(file) = &config.options.transmit_opts.event_log {
+    if config.options.transmit_opts.event_file.log_file.is_some() {
         monitor
-            .monitor(config, FileTransmitter::new(file).await?)
+            .monitor(
+                config,
+                FileTransmitter::new(
+                    config.options.transmit_opts.event_file.clone(),
+                    config.options.event_channel_size.unwrap(),
+                )
+                .await?,
+            )
             .await;
         Ok(())
     } else if let Some(file) = &config.options.transmit_opts.event_socket {

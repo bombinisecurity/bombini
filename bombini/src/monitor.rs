@@ -8,8 +8,6 @@ use tokio::{
     time::{Duration, Instant},
 };
 
-use bytes::Bytes;
-
 use std::convert::TryFrom;
 
 use bombini_common::event::GenericEvent;
@@ -33,7 +31,7 @@ impl Monitor {
         config: &Config,
         mut transmitter: T,
     ) {
-        let (tx, mut rx) = mpsc::channel::<Bytes>(config.options.event_channel_size.unwrap());
+        let (tx, mut rx) = mpsc::channel::<Vec<u8>>(config.options.event_channel_size.unwrap());
         let ring_buf = RingBuf::try_from(Map::RingBuf(
             aya::maps::MapData::from_pin(config.options.event_pin_path()).unwrap(),
         ))
@@ -48,7 +46,7 @@ impl Monitor {
                 let mut guard = poll.readable_mut().await.unwrap();
                 let ring_buf = guard.get_inner_mut();
                 while let Some(item) = ring_buf.next() {
-                    tx.send(Bytes::from(item.to_vec())).await.unwrap();
+                    tx.send(item.to_vec()).await.unwrap();
                 }
                 guard.clear_ready();
             }
@@ -58,7 +56,9 @@ impl Monitor {
                 let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
                 let transmuted = transmuters.transmute(event);
                 if let Ok(data) = transmuted {
-                    let _ = transmitter.transmit(data).await;
+                    if let Err(e) = transmitter.transmit(data).await {
+                        log::warn!("Failed to transmit event: {}", e);
+                    }
                 } else {
                     log::debug!("{}", transmuted.err().unwrap());
                 }
