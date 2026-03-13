@@ -21,13 +21,13 @@ procmon_proc_map_size: 8192
 gc_period: 30
 
 # Transmit events to log file
-log_file: /var/log/bombini/bombini_log
+log_file: /var/log/bombini/bombini.log
 
 # Log file size in MB
-log_file_size: 2
+log_file_size: 10
 
 # Number of log file rotations
-log_file_rotations: 2
+log_file_rotations: 5
 
 # Enable log file compression
 log_file_compression: false
