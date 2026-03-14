@@ -20,6 +20,7 @@ use crate::rule::serializer::SerializedRules;
 pub struct FileMon {
     ebpf: Ebpf,
     hooks: Vec<Box<dyn FileMonRuleContainer>>,
+    config: FileMonKernelConfig,
 }
 
 trait FileMonRuleContainer {
@@ -105,6 +106,9 @@ impl FileMon {
         let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
 
         let mut hooks: Vec<Box<dyn FileMonRuleContainer>> = Vec::new();
+        let mut detector_config = FileMonKernelConfig {
+            sandbox_mode: [None; FileEventNumber::TotalFileEvents as usize],
+        };
         if let Some(file_open) = &config.file_open
             && file_open.enabled
         {
@@ -112,6 +116,12 @@ impl FileMon {
                 FileMonHook::FileOpen,
                 &file_open.rules,
             )?));
+            if let Some(sandbox) = &file_open.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::FileOpen as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(path_truncate) = &config.path_truncate
             && path_truncate.enabled
@@ -120,6 +130,12 @@ impl FileMon {
                 FileMonHook::PathTruncate,
                 &path_truncate.rules,
             )?));
+            if let Some(sandbox) = &path_truncate.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::PathTruncate as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(path_unlink) = &config.path_unlink
             && path_unlink.enabled
@@ -128,6 +144,12 @@ impl FileMon {
                 FileMonHook::PathUnlink,
                 &path_unlink.rules,
             )?));
+            if let Some(sandbox) = &path_unlink.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::PathUnlink as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(path_symlink) = &config.path_symlink
             && path_symlink.enabled
@@ -136,6 +158,12 @@ impl FileMon {
                 FileMonHook::PathSymlink,
                 &path_symlink.rules,
             )?));
+            if let Some(sandbox) = &path_symlink.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::PathSymlink as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(path_chmod) = &config.path_chmod
             && path_chmod.enabled
@@ -144,6 +172,12 @@ impl FileMon {
                 FileMonHook::PathChmod,
                 &path_chmod.rules,
             )?));
+            if let Some(sandbox) = &path_chmod.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::PathChmod as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(path_chown) = &config.path_chown
             && path_chown.enabled
@@ -152,6 +186,12 @@ impl FileMon {
                 FileMonHook::PathChown,
                 &path_chown.rules,
             )?));
+            if let Some(sandbox) = &path_chown.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::PathChown as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(sb_mount) = &config.sb_mount
             && sb_mount.enabled
@@ -168,6 +208,12 @@ impl FileMon {
                 FileMonHook::MmapFile,
                 &mmap_file.rules,
             )?));
+            if let Some(sandbox) = &mmap_file.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::MmapFile as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(file_ioctl) = &config.file_ioctl
             && file_ioctl.enabled
@@ -176,25 +222,32 @@ impl FileMon {
                 FileMonHook::FileIoctl,
                 &file_ioctl.rules,
             )?));
+            if let Some(sandbox) = &file_ioctl.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[FileEventNumber::FileIoctl as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
 
         resize_all_filemon_maps(hooks.as_slice(), ebpf_loader_ref)?;
 
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
 
-        Ok(FileMon { ebpf, hooks })
+        Ok(FileMon {
+            ebpf,
+            hooks,
+            config: detector_config,
+        })
     }
 }
 
 impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         // TODO: Change trait error type to anyhow::Error
-        let config = FileMonKernelConfig {
-            sandbox_mode: [None; FileEventNumber::TotalFileEvents as usize],
-        };
         let mut config_map: Array<_, FileMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
-        let _ = config_map.set(0, config, 0);
+        let _ = config_map.set(0, self.config, 0);
         init_all_filemon_maps(&self.hooks, &mut self.ebpf).map_err(|e| MapError::InvalidName {
             name: e.to_string(),
         })?;
