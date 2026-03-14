@@ -33,6 +33,7 @@ tempfile = "3"
 more-asserts = "0.3"
 libc = "0.2.183"
 sha256 = "1.6.0"
+which = "8.0.2"
 
 [features]
 # Only for test to generate example events
