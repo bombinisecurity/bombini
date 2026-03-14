@@ -76,6 +76,16 @@ message Rule {
 message HookConfig {
     // Load eBPF programs
     bool enabled = 1;
+    // Sandbox capabilities.
+    SandboxMode sandbox = 2;
     // Filtering rules
-    repeated Rule rules = 2;
+    repeated Rule rules = 3;
+}
+
+// Sandbox  parameters.
+message SandboxMode {
+    // Enable sandbox mode.
+    bool enabled = 1;
+    // Consider rules as deny list.
+    bool deny_list = 2;
 }

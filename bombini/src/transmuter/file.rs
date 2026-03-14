@@ -126,6 +126,8 @@ struct FileEvent<'a> {
     process: Arc<Process>,
     /// Parent Information
     parent: Option<Arc<Process>>,
+    /// If event is blocked by sandbox mode
+    blocked: bool,
     /// LSM File hook info
     hook: LsmFileHook,
     /// Event's date and time
@@ -249,6 +251,7 @@ impl<'a> FileEvent<'a> {
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
+        blocked: bool,
         event: &FileEventVariant,
         rule: Option<&'a str>,
         ktime: u64,
@@ -266,6 +269,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::FileOpen(info),
                     timestamp: transmute_ktime(ktime),
@@ -278,6 +282,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::PathTruncate(info),
                     timestamp: transmute_ktime(ktime),
@@ -289,6 +294,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::PathUnlink(info),
                     timestamp: transmute_ktime(ktime),
@@ -302,6 +308,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::PathSymlink(info),
                     timestamp: transmute_ktime(ktime),
@@ -315,6 +322,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::PathChmod(info),
                     timestamp: transmute_ktime(ktime),
@@ -329,6 +337,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::PathChown(info),
                     timestamp: transmute_ktime(ktime),
@@ -343,6 +352,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::SbMount(info),
                     timestamp: transmute_ktime(ktime),
@@ -357,6 +367,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::MmapFile(info),
                     timestamp: transmute_ktime(ktime),
@@ -371,6 +382,7 @@ impl<'a> FileEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     hook: LsmFileHook::FileIoctl(info),
                     timestamp: transmute_ktime(ktime),
@@ -474,6 +486,7 @@ impl Transmuter for FileEventTransmuter {
                 let high_level_event = FileEvent::new(
                     cached_process.process.clone(),
                     parent,
+                    msg.blocked,
                     &msg.event,
                     rule_name,
                     ktime,

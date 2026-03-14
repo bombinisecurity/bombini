@@ -583,6 +583,8 @@ struct ProcessEvent<'a> {
     process: Arc<Process>,
     /// Parent process information
     parent: Option<Arc<Process>>,
+    /// If event is blocked by sandbox mode
+    blocked: bool,
     /// Process event
     process_event: ProcessEventType,
     /// Event's date and time
@@ -614,6 +616,7 @@ impl<'a> ProcessEvent<'a> {
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
+        blocked: bool,
         event: &ProcessEventVariant,
         rule: Option<&'a str>,
         ktime: u64,
@@ -624,6 +627,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Setgid(proc) => Self {
@@ -631,6 +635,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Setcaps(proc) => Self {
@@ -638,6 +643,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Prctl(proc) => Self {
@@ -645,6 +651,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::CreateUserNs => Self {
@@ -652,6 +659,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::PtraceAccessCheck(proc) => Self {
@@ -661,6 +669,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::BprmCheck(proc) => Self {
@@ -668,6 +677,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
         }
@@ -762,6 +772,7 @@ impl Transmuter for ProcessEventTransmuter {
                 let high_level_event = ProcessEvent::new(
                     cached_process.process.clone(),
                     parent,
+                    msg.blocked,
                     &msg.event,
                     rule_name,
                     ktime,
