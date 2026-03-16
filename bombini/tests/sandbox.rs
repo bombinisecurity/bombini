@@ -38,8 +38,7 @@ file_open:
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
-    let event_log =
-        File::create(bombini_temp_dir.join("events.log")).expect("can't create events file");
+    let event_log = temp_dir.path().join("events.log");
 
     let bombini = Command::new(EXE_BOMBINI)
         .args([
@@ -47,6 +46,8 @@ file_open:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
+            "--log-file",
+            event_log.to_str().unwrap(),
             "--detector",
             "procmon",
             "--detector",
@@ -54,7 +55,6 @@ file_open:
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
-        .stdout(event_log.try_clone().unwrap())
         .spawn();
 
     if bombini.is_err() {
@@ -123,8 +123,7 @@ bprm_check:
     let _ = fs::write(&procmon_config, config_contents);
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
-    let event_log =
-        File::create(bombini_temp_dir.join("events.log")).expect("can't create events file");
+    let event_log = temp_dir.path().join("events.log");
 
     let bombini = Command::new(EXE_BOMBINI)
         .args([
@@ -132,12 +131,13 @@ bprm_check:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
+            "--log-file",
+            event_log.to_str().unwrap(),
             "--detector",
             "procmon",
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
-        .stdout(event_log.try_clone().unwrap())
         .spawn();
 
     if bombini.is_err() {

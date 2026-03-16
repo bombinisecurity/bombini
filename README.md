@@ -1,4 +1,4 @@
-# Bombini: eBPF-based Security Monitoring Agent
+# Bombini: eBPF-based Security Monitoring and Sandboxing Agent
 
 <img align="right" src="./docs/src/img/bombini_logo.png" alt="Bombini logo" width="128" style="height: auto;;">
 

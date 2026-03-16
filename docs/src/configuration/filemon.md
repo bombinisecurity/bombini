@@ -45,7 +45,7 @@ For each file hook the following options are supported:
 
 ## Event Filtering
 
-The following list of hooks support event filtering by rules:
+The following list of hooks support event filtering by rules and sandbox mode:
 
 * file_open
 * path_truncate

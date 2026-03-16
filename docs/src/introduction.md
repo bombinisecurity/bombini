@@ -18,5 +18,6 @@ For advanced threat detection, Bombini also supports specialized Detectors, such
 
 * *GTFOBins*: Detects attempts to spawn a privileged shell through abuse of [GTFOBins](https://gtfobins.github.io/)-eligible binaries.
      
+Additionally, *ProcMon* and *FileMon* can optionally enforce sandboxing policies, allowing fine-grained control over process execution and file access based on configurable rules.
 
 By combining the safety of Rust, the power of eBPF, and the flexibility of LSM hooks, Bombini provides a lightweight, high-performance, and extensible runtime security monitoring solution for Linux systems. 
