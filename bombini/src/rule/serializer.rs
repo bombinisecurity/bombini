@@ -1,9 +1,10 @@
+use anyhow::bail;
 use aya::Ebpf;
 use aya::maps::Array;
 
 use bombini_common::{
     config::rule::{Predicate, Rule as BinaryRule, RuleOp, Rules as BinaryRules},
-    constants::{MAX_RULE_OPERATIONS, MAX_RULES_COUNT},
+    constants::{MAX_IN_OPERATIONS, MAX_RULE_OPERATIONS, MAX_RULES_COUNT},
 };
 
 use std::collections::HashMap;
@@ -40,15 +41,15 @@ pub trait PredicateSerializer {
 }
 
 struct RpnConverter {
-    in_counter: u8,
     op_idx: u8,
+    attribute_in_counters: HashMap<String, u8>,
 }
 
 impl RpnConverter {
     pub fn new() -> Self {
         Self {
-            in_counter: 0,
             op_idx: 0,
+            attribute_in_counters: HashMap::new(),
         }
     }
 
@@ -79,30 +80,51 @@ impl RpnConverter {
             }
             Expr::Eq(attribute, literal) => {
                 // Treat Eq as In with one element
+                let counter: &mut u8 = self
+                    .attribute_in_counters
+                    .entry(attribute.as_str().to_string())
+                    .or_insert(0);
+
+                // Counter is an index of IN operation
+                if (*counter + 1) as usize > MAX_IN_OPERATIONS {
+                    bail!(
+                        "max IN operations ({MAX_IN_OPERATIONS}) is exceeded for attribute: {attribute}"
+                    );
+                }
+
                 let id = serializer.serialize_attributes(
                     attribute.as_str(),
                     std::slice::from_ref(literal),
-                    self.in_counter,
+                    *counter,
                 )?;
                 let op = RuleOp::In {
                     attribute_map_id: id,
-                    in_op_idx: self.in_counter,
+                    in_op_idx: *counter,
                 };
                 serializer.set_operation(self.op_idx, op);
-                self.in_counter += 1;
+                *counter += 1;
             }
             Expr::In(attribute, literals) => {
-                let id = serializer.serialize_attributes(
-                    attribute.as_str(),
-                    &literals[..],
-                    self.in_counter,
-                )?;
+                let counter: &mut u8 = self
+                    .attribute_in_counters
+                    .entry(attribute.as_str().to_string())
+                    .or_insert(0);
+
+                // Counter is an index of IN operation
+                if (*counter + 1) as usize > MAX_IN_OPERATIONS {
+                    bail!(
+                        "max IN operations ({MAX_IN_OPERATIONS}) is exceeded for attribute: {attribute}"
+                    );
+                }
+
+                let id =
+                    serializer.serialize_attributes(attribute.as_str(), &literals[..], *counter)?;
                 let op = RuleOp::In {
                     attribute_map_id: id,
-                    in_op_idx: self.in_counter,
+                    in_op_idx: *counter,
                 };
                 serializer.set_operation(self.op_idx, op);
-                self.in_counter += 1;
+                *counter += 1;
             }
             Expr::Group(inner) => {
                 self.convert_expr(serializer, inner)?;
@@ -411,6 +433,98 @@ mod tests {
     }
 
     #[test]
+    fn test_fold_not_with_fold_or_optimization() {
+        let rules = vec![Rule {
+            name: "fold_not_or".to_string(),
+            scope: "".to_string(),
+            event: r#"NOT path == "/var" OR NOT name == "secret""#.to_string(),
+        }];
+
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
+
+        let result = serialized.serialize_rules(&rules);
+        assert!(result.is_ok());
+        assert_eq!(serialized.rules.len(), 1);
+
+        let rule = &serialized.rules[0];
+
+        match rule.event_predicate.predicate[0] {
+            RuleOp::In {
+                attribute_map_id,
+                in_op_idx,
+            } => {
+                assert_eq!(
+                    attribute_map_id,
+                    bombini_common::config::rule::PathAttributes::Path as u8
+                );
+                assert_eq!(in_op_idx, 0);
+            }
+            _ => panic!("Expected RuleOp::In at event predicate[0]"),
+        }
+        match rule.event_predicate.predicate[1] {
+            RuleOp::In {
+                attribute_map_id,
+                in_op_idx,
+            } => {
+                assert_eq!(
+                    attribute_map_id,
+                    bombini_common::config::rule::PathAttributes::Name as u8
+                );
+                assert_eq!(in_op_idx, 0);
+            }
+            _ => panic!("Expected RuleOp::In at event predicate[1]"),
+        }
+        assert_eq!(rule.event_predicate.predicate[2], RuleOp::And);
+        assert_eq!(rule.event_predicate.predicate[3], RuleOp::Not);
+
+        assert_eq!(*rule.event_predicate.path_map.get("/var").unwrap(), 1 << 0);
+        assert_eq!(
+            *rule.event_predicate.name_map.get("secret").unwrap(),
+            1 << 0
+        );
+    }
+
+    #[test]
+    fn test_fold_not_with_fold_and_optimization() {
+        let rules = vec![Rule {
+            name: "fold_not_and".to_string(),
+            scope: "".to_string(),
+            event: r#"NOT path == "/var" AND NOT path == "/tmp""#.to_string(),
+        }];
+
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
+
+        let result = serialized.serialize_rules(&rules);
+        assert!(result.is_ok());
+        assert_eq!(serialized.rules.len(), 1);
+
+        let rule = &serialized.rules[0];
+
+        match rule.event_predicate.predicate[0] {
+            RuleOp::In {
+                attribute_map_id,
+                in_op_idx,
+            } => {
+                assert_eq!(
+                    attribute_map_id,
+                    bombini_common::config::rule::PathAttributes::Path as u8
+                );
+                assert_eq!(in_op_idx, 0);
+            }
+            _ => panic!("Expected RuleOp::In at event predicate[0]"),
+        }
+        assert_eq!(rule.event_predicate.predicate[1], RuleOp::Not);
+        assert_eq!(rule.event_predicate.predicate[2], RuleOp::Fin);
+
+        assert_eq!(*rule.event_predicate.path_map.get("/var").unwrap(), 1 << 0);
+        assert_eq!(*rule.event_predicate.path_map.get("/tmp").unwrap(), 1 << 0);
+        assert_eq!(rule.event_predicate.path_map.len(), 2);
+
+        let map_sizes = serialized.map_sizes("FILEMON_OPEN");
+        assert_eq!(map_sizes.get("FILEMON_OPEN_PATH_MAP"), Some(&2));
+    }
+
+    #[test]
     fn test_serialize_rules_scope_parse_error() {
         let rules = vec![Rule {
             name: "bad_rule".to_string(),
@@ -573,7 +687,7 @@ mod tests {
                     attribute_map_id,
                     bombini_common::config::rule::ScopeAttributes::BinaryName as u8
                 );
-                assert_eq!(in_op_idx, 1);
+                assert_eq!(in_op_idx, 0);
             }
             _ => panic!("Expected In at scope[1]"),
         }
@@ -587,7 +701,7 @@ mod tests {
                     attribute_map_id,
                     bombini_common::config::rule::ScopeAttributes::BinaryName as u8
                 );
-                assert_eq!(in_op_idx, 2);
+                assert_eq!(in_op_idx, 1);
             }
             _ => panic!("Expected In at scope[3]"),
         }
@@ -616,7 +730,7 @@ mod tests {
                     attribute_map_id,
                     bombini_common::config::rule::PathAttributes::Name as u8
                 );
-                assert_eq!(in_op_idx, 1);
+                assert_eq!(in_op_idx, 0);
             }
             _ => panic!("Expected In at event[1]"),
         }
