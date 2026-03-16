@@ -11,6 +11,10 @@ JSON schema for all events.
   "description": "File Event",
   "type": "object",
   "properties": {
+    "blocked": {
+      "description": "If event is blocked by sandbox mode",
+      "type": "boolean"
+    },
     "hook": {
       "description": "LSM File hook info",
       "$ref": "#/$defs/LsmFileHook"
@@ -44,6 +48,7 @@ JSON schema for all events.
   },
   "required": [
     "process",
+    "blocked",
     "hook",
     "timestamp"
   ],
@@ -1579,6 +1584,10 @@ JSON schema for all events.
   "description": "Process Event",
   "type": "object",
   "properties": {
+    "blocked": {
+      "description": "If event is blocked by sandbox mode",
+      "type": "boolean"
+    },
     "parent": {
       "description": "Parent process information",
       "anyOf": [
@@ -1612,6 +1621,7 @@ JSON schema for all events.
   },
   "required": [
     "process",
+    "blocked",
     "process_event",
     "timestamp"
   ],

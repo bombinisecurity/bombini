@@ -302,6 +302,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
   },
   "timestamp": "2025-12-11T11:46:20.693Z",
   "type": "ProcessEvent",
+  "blocked": false,
   "rule": "SetuidTestRule"
 }
 ```
@@ -357,6 +358,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
   },
   "timestamp": "2025-12-25T18:47:36.355Z",
   "type": "ProcessEvent",
+  "blocked": false,
   "rule": "SetgidTestRule"
 }
 ```
@@ -411,6 +413,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
   },
   "timestamp": "2025-12-11T11:46:18.016Z",
   "type": "ProcessEvent",
+  "blocked": false,
   "rule": "SetcapsTestRule"
 }
 ```
@@ -465,6 +468,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
   },
   "timestamp": "2025-12-14T11:16:36.903Z",
   "type": "ProcessEvent",
+  "blocked": false,
   "rule": "PrctlTestRule"
 }
 ```
@@ -568,6 +572,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
     },
     "mode": "PTRACE_MODE_ATTACH | PTRACE_MODE_REALCREDS"
   },
+  "blocked": false,
   "timestamp": "2025-12-11T12:07:20.712Z"
 }
 ```
@@ -620,6 +625,7 @@ ProcessEvents represent a collection of events somehow related to privilege esca
   },
   "rule": "BprmCheckTestRule",
   "timestamp": "2026-03-08T14:49:57.909Z",
+  "blocked": false,
   "type": "ProcessEvent"
 }
 ```

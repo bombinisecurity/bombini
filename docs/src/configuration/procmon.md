@@ -47,7 +47,7 @@ To enable hook:
 
 All hooks support scope filtering.
 
-The following list of hooks support event filtering by rules:
+The following list of hooks support event filtering by rules and sandbox mode:
 
 * security_task_fix_setuid
 * security_task_fix_setgid

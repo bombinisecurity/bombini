@@ -10,6 +10,7 @@
     - [NetMonConfig](#config-NetMonConfig)
     - [ProcMonConfig](#config-ProcMonConfig)
     - [Rule](#config-Rule)
+    - [SandboxMode](#config-SandboxMode)
   
 - [Scalar Value Types](#scalar-value-types)
 
@@ -70,6 +71,7 @@ Hook or group of hooks configuration
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | enabled | [bool](#bool) |  | Load eBPF programs |
+| sandbox | [SandboxMode](#config-SandboxMode) |  | Sandbox capabilities. |
 | rules | [Rule](#config-Rule) | repeated | Filtering rules |
 
 
@@ -127,6 +129,22 @@ Rule definition. Scope and event predicates are used as logical conjunction.
 | name | [string](#string) |  | Name of the rule. |
 | scope | [string](#string) |  | Logical predicate describes scope this rule will be applied, e.g. process, container. |
 | event | [string](#string) |  | Logical predicate for describes event rule will be applied |
+
+
+
+
+
+
+<a name="config-SandboxMode"></a>
+
+### SandboxMode
+Sandbox  parameters.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| enabled | [bool](#bool) |  | Enable sandbox mode. |
+| deny_list | [bool](#bool) |  | Consider rules as deny list. |
 
 
 

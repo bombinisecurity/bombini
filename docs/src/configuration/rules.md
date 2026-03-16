@@ -148,3 +148,52 @@ file_open:
     - rule: monitor_sensitive_files
       event: path == "/log" AND path in ["/etc", "/tmp", "/opt"]
 ```
+
+## Sandbox Mode
+
+Bombini supports sandboxing for ProcMon and FileMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy.
+
+Sandbox configuration is added at the hook level and follows this pattern:
+
+```yaml
+<hook_name>:
+  enabled: <boolean>
+  sandbox:
+    enabled: <boolean> # optional, default: false
+    deny_list: <boolean>  # optional, default: false
+  rules:
+    - rule: <rule_name>
+      scope: <boolean_predicate>
+      event: <boolean_predicate>
+```
+
+### Sandbox Parameters
+
+* **enabled**: Activates sandbox enforcement for the hook. When false, rules operate in monitoring-only mode.
+* **deny_list**: Controls policy mode:
+  - false (default): *Allow-list mode* — only events matching rules are permitted; all others are denied.
+  - true: *Deny-list mode* — events matching rules are explicitly blocked; all others are permitted.
+
+### Examples
+
+```yaml
+file_open:
+  enabled: true
+  sandbox:
+    enabled: true
+    deny_list: true
+  rules:
+  - rule: OpenTestSandBoxRule
+    scope: binary_name in ["dash", "sh", "bash"]
+    event: name == "filemon.yaml" AND access_mode == "O_WRONLY"
+```
+
+```yaml
+bprm_check:
+  enabled: true
+  sandbox:
+    enabled: true
+  rules:
+  - rule: BprmCheckTestRule
+    event: path_prefix in ["/usr", "/bin", "/sbin", "/home"]
+```
