@@ -43,8 +43,7 @@ file_open:
     let _ = fs::write(&filemon_config, config_contents);
     let bombini_log =
         File::create(bombini_temp_dir.join("bombini.log")).expect("can't create log file");
-    let event_log =
-        File::create(bombini_temp_dir.join("events.log")).expect("can't create events file");
+    let event_log = temp_dir.path().join("events.log");
 
     let bombini = Command::new(EXE_BOMBINI)
         .args([
@@ -52,6 +51,8 @@ file_open:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
+            "--log-file",
+            event_log.to_str().unwrap(),
             "--detector",
             "procmon",
             "--detector",
@@ -59,7 +60,6 @@ file_open:
         ])
         .env("RUST_LOG", "debug")
         .stderr(bombini_log.try_clone().unwrap())
-        .stdout(event_log.try_clone().unwrap())
         .spawn();
 
     if bombini.is_err() {
@@ -157,7 +157,7 @@ path_truncate:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
-            "--event-log",
+            "--log-file",
             event_log.to_str().unwrap(),
             "--detector",
             "procmon",
@@ -234,7 +234,7 @@ path_unlink:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
-            "--event-log",
+            "--log-file",
             event_log.to_str().unwrap(),
             "--detector",
             "procmon",
@@ -316,7 +316,7 @@ path_symlink:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
-            "--event-log",
+            "--log-file",
             event_log.to_str().unwrap(),
             "--detector",
             "procmon",
@@ -413,7 +413,7 @@ path_chmod:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
-            "--event-log",
+            "--log-file",
             event_log.to_str().unwrap(),
             "--detector",
             "procmon",
@@ -490,7 +490,7 @@ path_chown:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
-            "--event-log",
+            "--log-file",
             event_log.to_str().unwrap(),
             "--detector",
             "procmon",
@@ -567,7 +567,7 @@ mmap_file:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
-            "--event-log",
+            "--log-file",
             event_log.to_str().unwrap(),
             "--detector",
             "procmon",
@@ -664,7 +664,7 @@ file_ioctl:
             tmp_config.to_str().unwrap(),
             "--bpf-objs",
             bpf_objs.to_str().unwrap(),
-            "--event-log",
+            "--log-file",
             event_log.to_str().unwrap(),
             "--detector",
             "procmon",
