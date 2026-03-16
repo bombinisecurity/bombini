@@ -17,6 +17,42 @@ pub enum Literal {
 }
 
 impl Expr {
+    /// Recursively folds adjacent `NOT` expressions.
+    /// For example:
+    /// not <expr> && not <expr> -> not (expr || expr)
+    /// not <expr> || not <expr> -> not (expr && expr)
+    pub fn fold_not(self) -> Self {
+        match self {
+            Expr::And(left, right) => {
+                let left = left.fold_not();
+                let right = right.fold_not();
+
+                match (&left, &right) {
+                    // not <expr1> && not <expr2> -> not (expr1 || expr2)
+                    (Expr::Not(inner1), Expr::Not(inner2)) => {
+                        Expr::Not(Box::new(Expr::Or(inner1.clone(), inner2.clone())))
+                    }
+                    _ => Expr::And(Box::new(left), Box::new(right)),
+                }
+            }
+            Expr::Or(left, right) => {
+                let left = left.fold_not();
+                let right = right.fold_not();
+
+                match (&left, &right) {
+                    // not <expr1> || not <expr2> -> not (expr1 && expr2)
+                    (Expr::Not(inner1), Expr::Not(inner2)) => {
+                        Expr::Not(Box::new(Expr::And(inner1.clone(), inner2.clone())))
+                    }
+                    _ => Expr::Or(Box::new(left), Box::new(right)),
+                }
+            }
+            Expr::Not(inner) => Expr::Not(Box::new(inner.fold_not())),
+            Expr::Group(inner) => inner.fold_not(),
+            _ => self,
+        }
+    }
+
     /// Recursively folds adjacent `OR` expressions with compatible `Eq`/`In`
     /// conditions on the same field into a single `In` expression.
     pub fn fold_or(self) -> Self {
@@ -134,7 +170,8 @@ impl Expr {
         }
     }
     pub fn optimize_ast(self) -> Result<Self, anyhow::Error> {
-        let ast = self.fold_and()?;
+        let ast = self.fold_not();
+        let ast = ast.fold_and()?;
         Ok(ast.fold_or())
     }
 }
