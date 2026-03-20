@@ -62,6 +62,8 @@ impl Registry {
             self.load_detector(name, &obj_path, &maps_pin_path, config)?;
             config_path.pop();
         }
+
+        debug!("All detectors are loaded, listening for events");
         Ok(())
     }
 

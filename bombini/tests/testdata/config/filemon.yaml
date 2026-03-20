@@ -1,0 +1,18 @@
+file_open:
+  enabled: false
+path_truncate:
+  enabled: false
+path_unlink:
+  enabled: false
+path_symlink:
+  enabled: false
+path_chmod:
+  enabled: false
+path_chown:
+  enabled: false
+sb_mount:
+  enabled: false
+mmap_file:
+  enabled: false
+file_ioctl:
+  enabled: false
