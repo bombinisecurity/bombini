@@ -1,0 +1,12 @@
+setuid:
+  enabled: false
+capset:
+  enabled: false
+prctl:
+  enabled: false
+create_user_ns:
+  enabled: false
+ptrace_access_check:
+  enabled: false
+bprm_check:
+  enabled: false
