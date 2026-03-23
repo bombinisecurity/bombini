@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1.0.102"
 clap = { version = "4.6.0", features = ["derive"] }
 which = "8.0.2"
-tar = "0.4.44"
+tar = "0.4.45"
 flate2 = "1.1.9"
 prost-build = "0.14.3"
 procfs = "0.18.0"
