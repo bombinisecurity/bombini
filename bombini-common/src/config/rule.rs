@@ -24,85 +24,31 @@ pub enum RuleOp {
 #[derive(Clone, Debug, Copy)]
 pub struct Rules(pub Option<[Rule; MAX_RULES_COUNT]>);
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum ScopeAttributes {
-    BinaryPath = 0,
+pub enum Attributes {
+    Path = 0,
+    PathPrefix,
+    Name,
+    BinaryPath,
     BinaryPrefix,
     BinaryName,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum PathAttributes {
-    Path = 0,
-    PathPrefix,
-    Name,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum FileOpenAttributes {
-    Path = 0,
-    PathPrefix,
-    Name,
+    // Filemon attributes
     CreationFlags,
     AccessMode,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum PathChmodAttributes {
-    Path = 0,
-    PathPrefix,
-    Name,
     Imode,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum PathChownAttributes {
-    Path = 0,
-    PathPrefix,
-    Name,
-    UID,
-    GID,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum ConnectionAttributes {
-    Ipv4Src = 0,
+    ProtMode,
+    MmapFlags,
+    Cmd,
+    // Netmon attributes
+    Ipv4Src,
     Ipv6Src,
     Ipv4Dst,
     Ipv6Dst,
     PortSrc,
     PortDst,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum MmapFileAttributes {
-    Path = 0,
-    PathPrefix,
-    Name,
-    ProtMode,
-    Flags,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum FileIoctlAttributes {
-    Path = 0,
-    PathPrefix,
-    Name,
-    Cmd,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-pub enum CredAttributes {
-    UID = 0,
+    // Procmon attributes
+    UID,
     EUID,
     GID,
     EGID,
