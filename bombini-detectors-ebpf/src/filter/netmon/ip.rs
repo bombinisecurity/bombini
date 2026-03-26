@@ -1,5 +1,5 @@
 use aya_ebpf::maps::{HashMap, LpmTrie, lpm_trie::Key};
-use bombini_common::config::rule::{ConnectionAttributes, Ipv4MapKey, Ipv6MapKey, PortKey};
+use bombini_common::config::rule::{Attributes, Ipv4MapKey, Ipv6MapKey, PortKey};
 
 use crate::interpreter::CheckIn;
 
@@ -46,31 +46,29 @@ impl<'a> Ipv4Filter<'a> {
 impl CheckIn for Ipv4Filter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == ConnectionAttributes::Ipv4Src as u8 => {
+            id if id == Attributes::Ipv4Src as u8 => {
                 let Some(mask_ip) = self.src_ip_addr_map.get(self.src_ip_addr) else {
                     return Ok(false);
                 };
                 Ok(*mask_ip & (1 << in_op_idx) != 0)
             }
-            id if id == ConnectionAttributes::Ipv4Dst as u8 => {
+            id if id == Attributes::Ipv4Dst as u8 => {
                 let Some(mask_ip) = self.dst_ip_addr_map.get(self.dst_ip_addr) else {
                     return Ok(false);
                 };
                 Ok(*mask_ip & (1 << in_op_idx) != 0)
             }
-            id if id == ConnectionAttributes::Ipv6Src as u8
-                || id == ConnectionAttributes::Ipv6Dst as u8 =>
-            {
+            id if id == Attributes::Ipv6Src as u8 || id == Attributes::Ipv6Dst as u8 => {
                 // lookups for IPv6 are not possible while processing IPv4
                 Ok(false)
             }
-            id if id == ConnectionAttributes::PortSrc as u8 => unsafe {
+            id if id == Attributes::PortSrc as u8 => unsafe {
                 let Some(mask_port) = self.src_port_map.get(self.src_port) else {
                     return Ok(false);
                 };
                 Ok(*mask_port & (1 << in_op_idx) != 0)
             },
-            id if id == ConnectionAttributes::PortDst as u8 => unsafe {
+            id if id == Attributes::PortDst as u8 => unsafe {
                 let Some(mask_port) = self.dst_port_map.get(self.dst_port) else {
                     return Ok(false);
                 };
@@ -124,31 +122,29 @@ impl<'a> Ipv6Filter<'a> {
 impl CheckIn for Ipv6Filter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == ConnectionAttributes::Ipv6Src as u8 => {
+            id if id == Attributes::Ipv6Src as u8 => {
                 let Some(mask_ip) = self.src_ip_addr_map.get(self.src_ip_addr) else {
                     return Ok(false);
                 };
                 Ok(*mask_ip & (1 << in_op_idx) != 0)
             }
-            id if id == ConnectionAttributes::Ipv6Dst as u8 => {
+            id if id == Attributes::Ipv6Dst as u8 => {
                 let Some(mask_ip) = self.dst_ip_addr_map.get(self.dst_ip_addr) else {
                     return Ok(false);
                 };
                 Ok(*mask_ip & (1 << in_op_idx) != 0)
             }
-            id if id == ConnectionAttributes::Ipv4Src as u8
-                || id == ConnectionAttributes::Ipv4Dst as u8 =>
-            {
+            id if id == Attributes::Ipv4Src as u8 || id == Attributes::Ipv4Dst as u8 => {
                 // lookups for IPv4 are not possible while processing IPv6
                 Ok(false)
             }
-            id if id == ConnectionAttributes::PortSrc as u8 => unsafe {
+            id if id == Attributes::PortSrc as u8 => unsafe {
                 let Some(mask_port) = self.src_port_map.get(self.src_port) else {
                     return Ok(false);
                 };
                 Ok(*mask_port & (1 << in_op_idx) != 0)
             },
-            id if id == ConnectionAttributes::PortDst as u8 => unsafe {
+            id if id == Attributes::PortDst as u8 => unsafe {
                 let Some(mask_port) = self.dst_port_map.get(self.dst_port) else {
                     return Ok(false);
                 };

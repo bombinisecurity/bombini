@@ -2,7 +2,7 @@
 
 use aya_ebpf::maps::{HashMap, LpmTrie, lpm_trie::Key};
 use bombini_common::{
-    config::rule::{FileNameMapKey, ImodeKey, PathChmodAttributes, PathMapKey, PathPrefixMapKey},
+    config::rule::{Attributes, FileNameMapKey, ImodeKey, PathMapKey, PathPrefixMapKey},
     event::file::Imode,
 };
 
@@ -55,25 +55,25 @@ impl<'a> ChmodFilter<'a> {
 impl CheckIn for ChmodFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == PathChmodAttributes::Name as u8 => unsafe {
+            id if id == Attributes::Name as u8 => unsafe {
                 let Some(mask_name) = self.name_map.get(self.name) else {
                     return Ok(false);
                 };
                 Ok(*mask_name & (1 << in_op_idx) != 0)
             },
-            id if id == PathChmodAttributes::Path as u8 => unsafe {
+            id if id == Attributes::Path as u8 => unsafe {
                 let Some(mask_path) = self.path_map.get(self.path) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
-            id if id == PathChmodAttributes::PathPrefix as u8 => {
+            id if id == Attributes::PathPrefix as u8 => {
                 let Some(mask_path) = self.prefix_map.get(self.prefix) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             }
-            id if id == PathChmodAttributes::Imode as u8 => unsafe {
+            id if id == Attributes::Imode as u8 => unsafe {
                 let imode_key = ImodeKey {
                     rule_idx: self.imode.rule_idx,
                     in_idx: in_op_idx,

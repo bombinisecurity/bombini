@@ -12,11 +12,13 @@ use std::fmt::Debug;
 
 use crate::proto::config::Rule;
 use crate::rule::ast::{Expr, Literal};
-use crate::rule::predicate;
+use crate::rule::predicate_parser;
 
+pub mod attribute;
 pub mod dummy;
 pub mod filemon;
 pub mod netmon;
+pub mod predicate;
 pub mod procmon;
 pub mod scope;
 
@@ -151,7 +153,7 @@ where
 {
     pub fn serialize_rule(&mut self, rule: &Rule) -> Result<(), anyhow::Error> {
         if !rule.scope.is_empty() {
-            let Ok(ast) = predicate::ExprParser::new().parse(&rule.scope) else {
+            let Ok(ast) = predicate_parser::ExprParser::new().parse(&rule.scope) else {
                 return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.scope));
             };
             let ast = ast.optimize_ast()?;
@@ -160,7 +162,7 @@ where
         }
 
         if !rule.event.is_empty() {
-            let Ok(ast) = predicate::ExprParser::new().parse(&rule.event) else {
+            let Ok(ast) = predicate_parser::ExprParser::new().parse(&rule.event) else {
                 return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.event));
             };
             let ast = ast.optimize_ast()?;
@@ -276,7 +278,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::proto::config::Rule;
+    use crate::{
+        proto::config::Rule,
+        rule::serializer::attribute::{
+            Attribute,
+            defs::{self, PathAttribute},
+        },
+    };
+    use std::any::Any;
+
+    pub trait AsAny {
+        fn as_any(&self) -> &dyn Any;
+    }
+
+    impl AsAny for dyn Attribute {
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
 
     #[test]
     fn test_or_fold_ast_optimization() {
@@ -301,15 +320,25 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::ScopeAttributes::BinaryPath as u8
+                    bombini_common::config::rule::Attributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
             _ => panic!("Expected RuleOp::In in event predicate[0]"),
         }
-        assert_eq!(*rule0.event_predicate.path_map.get("/var").unwrap(), 1 << 0);
-        assert_eq!(*rule0.event_predicate.path_map.get("/log").unwrap(), 1 << 0);
-        assert_eq!(*rule0.event_predicate.path_map.get("/tmp").unwrap(), 1 << 0);
+        let path_attr = rule0
+            .event_predicate
+            .attrs
+            .get("path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<PathAttribute>()
+            .unwrap();
+
+        assert_eq!(*path_attr.map.get("/var").unwrap(), 1 << 0);
+        assert_eq!(*path_attr.map.get("/log").unwrap(), 1 << 0);
+        assert_eq!(*path_attr.map.get("/tmp").unwrap(), 1 << 0);
     }
 
     #[test]
@@ -344,15 +373,17 @@ mod tests {
         let rule0 = &serialized.rules[0];
 
         // Scope: binary_path == "/usr/bin/ls"
-        assert_eq!(rule0.scope_predicate.binary_path_map.len(), 1);
-        assert_eq!(
-            *rule0
-                .scope_predicate
-                .binary_path_map
-                .get("/usr/bin/ls")
-                .unwrap(),
-            1 << 0
-        );
+        let scope_binpath_attr = rule0
+            .scope_predicate
+            .attrs
+            .get("binary_path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::BinaryPathAttribute>()
+            .unwrap();
+        assert_eq!(scope_binpath_attr.map.len(), 1);
+        assert_eq!(*scope_binpath_attr.map.get("/usr/bin/ls").unwrap(), 1 << 0);
         match rule0.scope_predicate.predicate[0] {
             RuleOp::In {
                 attribute_map_id,
@@ -360,17 +391,23 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::ScopeAttributes::BinaryPath as u8
+                    bombini_common::config::rule::Attributes::BinaryPath as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
             _ => panic!("Expected RuleOp::In in scope predicate[0]"),
         }
 
-        assert_eq!(
-            *rule0.event_predicate.path_map.get("/etc/passwd").unwrap(),
-            1 << 0
-        );
+        let event_path_attr = rule0
+            .event_predicate
+            .attrs
+            .get("path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::PathAttribute>()
+            .unwrap();
+        assert_eq!(*event_path_attr.map.get("/etc/passwd").unwrap(), 1 << 0);
         match rule0.event_predicate.predicate[0] {
             RuleOp::In {
                 attribute_map_id,
@@ -378,7 +415,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::PathAttributes::Path as u8
+                    bombini_common::config::rule::Attributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -387,28 +424,52 @@ mod tests {
 
         let rule1 = &serialized.rules[1];
 
-        assert_eq!(rule1.scope_predicate.binary_name_map.len(), 2);
-        assert_eq!(
-            *rule1.scope_predicate.binary_name_map.get("cat").unwrap(),
-            1 << 0
-        );
-        assert_eq!(
-            *rule1.scope_predicate.binary_name_map.get("grep").unwrap(),
-            1 << 0
-        );
+        let scope_binname_attr = rule1
+            .scope_predicate
+            .attrs
+            .get("binary_name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::BinaryNameAttribute>()
+            .unwrap();
+        assert_eq!(scope_binname_attr.map.len(), 2);
+        assert_eq!(*scope_binname_attr.map.get("cat").unwrap(), 1 << 0);
+        assert_eq!(*scope_binname_attr.map.get("grep").unwrap(), 1 << 0);
 
-        assert_eq!(rule1.event_predicate.name_map.len(), 2);
-        assert_eq!(
-            *rule1.event_predicate.name_map.get("shadow").unwrap(),
-            1 << 0
-        );
-        assert_eq!(
-            *rule1.event_predicate.name_map.get("passwd").unwrap(),
-            1 << 0
-        );
+        let event_name_attr = rule1
+            .event_predicate
+            .attrs
+            .get("name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::NameAttribute>()
+            .unwrap();
+        assert_eq!(event_name_attr.map.len(), 2);
+        assert_eq!(*event_name_attr.map.get("shadow").unwrap(), 1 << 0);
+        assert_eq!(*event_name_attr.map.get("passwd").unwrap(), 1 << 0);
 
-        assert!(rule1.scope_predicate.binary_path_map.is_empty());
-        assert!(rule1.event_predicate.path_map.is_empty());
+        let scope_binpath_attr1 = rule1
+            .scope_predicate
+            .attrs
+            .get("binary_path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::BinaryPathAttribute>()
+            .unwrap();
+        assert!(scope_binpath_attr1.map.is_empty());
+        let event_path_attr1 = rule1
+            .event_predicate
+            .attrs
+            .get("path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::PathAttribute>()
+            .unwrap();
+        assert!(event_path_attr1.map.is_empty());
     }
 
     #[test]
@@ -455,7 +516,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::PathAttributes::Path as u8
+                    bombini_common::config::rule::Attributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -468,7 +529,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::PathAttributes::Name as u8
+                    bombini_common::config::rule::Attributes::Name as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -477,11 +538,26 @@ mod tests {
         assert_eq!(rule.event_predicate.predicate[2], RuleOp::And);
         assert_eq!(rule.event_predicate.predicate[3], RuleOp::Not);
 
-        assert_eq!(*rule.event_predicate.path_map.get("/var").unwrap(), 1 << 0);
-        assert_eq!(
-            *rule.event_predicate.name_map.get("secret").unwrap(),
-            1 << 0
-        );
+        let path_attr = rule
+            .event_predicate
+            .attrs
+            .get("path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::PathAttribute>()
+            .unwrap();
+        let name_attr = rule
+            .event_predicate
+            .attrs
+            .get("name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::NameAttribute>()
+            .unwrap();
+        assert_eq!(*path_attr.map.get("/var").unwrap(), 1 << 0);
+        assert_eq!(*name_attr.map.get("secret").unwrap(), 1 << 0);
     }
 
     #[test]
@@ -507,7 +583,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::PathAttributes::Path as u8
+                    bombini_common::config::rule::Attributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -516,9 +592,18 @@ mod tests {
         assert_eq!(rule.event_predicate.predicate[1], RuleOp::Not);
         assert_eq!(rule.event_predicate.predicate[2], RuleOp::Fin);
 
-        assert_eq!(*rule.event_predicate.path_map.get("/var").unwrap(), 1 << 0);
-        assert_eq!(*rule.event_predicate.path_map.get("/tmp").unwrap(), 1 << 0);
-        assert_eq!(rule.event_predicate.path_map.len(), 2);
+        let path_attr = rule
+            .event_predicate
+            .attrs
+            .get("path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::PathAttribute>()
+            .unwrap();
+        assert_eq!(*path_attr.map.get("/var").unwrap(), 1 << 0);
+        assert_eq!(*path_attr.map.get("/tmp").unwrap(), 1 << 0);
+        assert_eq!(path_attr.map.len(), 2);
 
         let map_sizes = serialized.map_sizes("FILEMON_OPEN");
         assert_eq!(map_sizes.get("FILEMON_OPEN_PATH_MAP"), Some(&2));
@@ -560,7 +645,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("invalid scope attribute name")
+                .contains("unknown attribute: invalid_attr")
         );
     }
 
@@ -580,7 +665,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("invalid event attribute name")
+                .contains("unknown attribute: invalid_attr")
         );
     }
 
@@ -619,10 +704,46 @@ mod tests {
         assert_eq!(serialized.rules.len(), 1);
 
         let rule = &serialized.rules[0];
-        assert_eq!(rule.scope_predicate.binary_name_map.len(), 1);
-        assert!(rule.event_predicate.path_map.is_empty());
-        assert!(rule.event_predicate.name_map.is_empty());
-        assert!(rule.event_predicate.path_prefix_map.is_empty());
+        let scope_binname_attr = rule
+            .scope_predicate
+            .attrs
+            .get("binary_name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::BinaryNameAttribute>()
+            .unwrap();
+        assert_eq!(scope_binname_attr.map.len(), 1);
+        let event_path_attr = rule
+            .event_predicate
+            .attrs
+            .get("path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::PathAttribute>()
+            .unwrap();
+        assert!(event_path_attr.map.is_empty());
+        let event_name_attr = rule
+            .event_predicate
+            .attrs
+            .get("name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::NameAttribute>()
+            .unwrap();
+        assert!(event_name_attr.map.is_empty());
+        let event_prefix_attr = rule
+            .event_predicate
+            .attrs
+            .get("path_prefix")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::PrefixAttribute>()
+            .unwrap();
+        assert!(event_prefix_attr.map.is_empty());
     }
 
     #[test]
@@ -640,10 +761,46 @@ mod tests {
         assert_eq!(serialized.rules.len(), 1);
 
         let rule = &serialized.rules[0];
-        assert_eq!(rule.event_predicate.name_map.len(), 1);
-        assert!(rule.scope_predicate.binary_path_map.is_empty());
-        assert!(rule.scope_predicate.binary_name_map.is_empty());
-        assert!(rule.scope_predicate.binary_prefix_map.is_empty());
+        let event_name_attr = rule
+            .event_predicate
+            .attrs
+            .get("name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::NameAttribute>()
+            .unwrap();
+        assert_eq!(event_name_attr.map.len(), 1);
+        let scope_binpath_attr = rule
+            .scope_predicate
+            .attrs
+            .get("binary_path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::BinaryPathAttribute>()
+            .unwrap();
+        assert!(scope_binpath_attr.map.is_empty());
+        let scope_binname_attr = rule
+            .scope_predicate
+            .attrs
+            .get("binary_name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::BinaryNameAttribute>()
+            .unwrap();
+        assert!(scope_binname_attr.map.is_empty());
+        let scope_binprefix_attr = rule
+            .scope_predicate
+            .attrs
+            .get("binary_prefix")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::BinaryPrefixAttribute>()
+            .unwrap();
+        assert!(scope_binprefix_attr.map.is_empty());
     }
 
     #[test]
@@ -672,7 +829,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::ScopeAttributes::BinaryPath as u8
+                    bombini_common::config::rule::Attributes::BinaryPath as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -685,7 +842,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::ScopeAttributes::BinaryName as u8
+                    bombini_common::config::rule::Attributes::BinaryName as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -699,7 +856,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::ScopeAttributes::BinaryName as u8
+                    bombini_common::config::rule::Attributes::BinaryName as u8
                 );
                 assert_eq!(in_op_idx, 1);
             }
@@ -715,7 +872,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::PathAttributes::Path as u8
+                    bombini_common::config::rule::Attributes::Path as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }
@@ -728,7 +885,7 @@ mod tests {
             } => {
                 assert_eq!(
                     attribute_map_id,
-                    bombini_common::config::rule::PathAttributes::Name as u8
+                    bombini_common::config::rule::Attributes::Name as u8
                 );
                 assert_eq!(in_op_idx, 0);
             }

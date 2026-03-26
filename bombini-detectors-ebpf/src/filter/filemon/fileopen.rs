@@ -3,8 +3,7 @@
 use aya_ebpf::maps::{HashMap, LpmTrie, lpm_trie::Key};
 use bombini_common::{
     config::rule::{
-        AccessModeKey, CreationFlagsKey, FileNameMapKey, FileOpenAttributes, PathMapKey,
-        PathPrefixMapKey,
+        AccessModeKey, Attributes, CreationFlagsKey, FileNameMapKey, PathMapKey, PathPrefixMapKey,
     },
     event::file::CreationFlags,
 };
@@ -64,31 +63,31 @@ impl<'a> FileOpenFilter<'a> {
 impl CheckIn for FileOpenFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == FileOpenAttributes::Name as u8 => unsafe {
+            id if id == Attributes::Name as u8 => unsafe {
                 let Some(mask_name) = self.name_map.get(self.name) else {
                     return Ok(false);
                 };
                 Ok(*mask_name & (1 << in_op_idx) != 0)
             },
-            id if id == FileOpenAttributes::Path as u8 => unsafe {
+            id if id == Attributes::Path as u8 => unsafe {
                 let Some(mask_path) = self.path_map.get(self.path) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
-            id if id == FileOpenAttributes::PathPrefix as u8 => {
+            id if id == Attributes::PathPrefix as u8 => {
                 let Some(mask_path) = self.prefix_map.get(self.prefix) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             }
-            id if id == FileOpenAttributes::AccessMode as u8 => unsafe {
+            id if id == Attributes::AccessMode as u8 => unsafe {
                 let Some(mask_mode) = self.access_mode_map.get(self.access_mode) else {
                     return Ok(false);
                 };
                 Ok(*mask_mode & (1 << in_op_idx) != 0)
             },
-            id if id == FileOpenAttributes::CreationFlags as u8 => unsafe {
+            id if id == Attributes::CreationFlags as u8 => unsafe {
                 let cr_value = CreationFlagsKey {
                     rule_idx: self.creation_flags.rule_idx,
                     in_idx: in_op_idx,
