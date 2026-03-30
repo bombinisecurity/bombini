@@ -10,7 +10,7 @@ bombini-common = { path = "../bombini-common", features = ["user"] }
 clap = { version = "4.6.0", features = ["derive"] }
 anyhow = "1"
 bitflags = { version = "2.11.0", features = ["serde"]}
-env_logger = "0.11.9"
+env_logger = "0.11.10"
 libc = "0.2.183"
 log = "0.4.29"
 procfs = "0.18.0"
