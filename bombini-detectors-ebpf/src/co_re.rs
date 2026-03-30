@@ -103,6 +103,7 @@ macro_rules! rust_shim_kernel_impl {
 
 pub(crate) use rust_shim_kernel_impl;
 
+#[macro_export]
 macro_rules! core_read_kernel {
     ($struc:expr, $field:ident) => {
         $struc
@@ -118,4 +119,4 @@ macro_rules! core_read_kernel {
     };
 }
 
-pub(crate) use core_read_kernel;
+pub use core_read_kernel;
