@@ -10,3 +10,5 @@ pub mod util;
 #[allow(warnings)]
 #[rustfmt::skip]
 pub mod vmlinux;
+#[allow(unsafe_op_in_unsafe_fn)]
+pub mod co_re;
