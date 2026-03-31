@@ -97,6 +97,10 @@ typedef struct {
     __u64 val;
 } kernel_cap_t;
 
+///
+
+static __attribute__((always_inline)) pid_t shim_pid_type_helper(pid_t p) { return p; }
+
 struct cgroup
 {
     struct kernfs_node *kn;
