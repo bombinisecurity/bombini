@@ -4,7 +4,7 @@
 use aya_ebpf::{
     bindings::bpf_dynptr,
     helpers::{
-        bpf_d_path, bpf_get_current_pid_tgid, bpf_probe_read_kernel, bpf_probe_read_kernel_buf,
+        bpf_d_path, bpf_get_current_pid_tgid, bpf_probe_read_kernel_buf,
         bpf_probe_read_kernel_str_bytes,
         r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
@@ -32,6 +32,7 @@ use bombini_common::{
     },
 };
 use bombini_detectors_ebpf::{
+    co_re::{self, core_read_kernel},
     event_capture,
     filter::{
         filemon::{
@@ -43,7 +44,7 @@ use bombini_detectors_ebpf::{
     },
     interpreter::{self, rule::IsEmpty},
     util,
-    vmlinux::{dentry, file, kgid_t, kuid_t, path, qstr},
+    vmlinux::{dentry, file, path},
 };
 
 use bombini_detectors_ebpf::filter::filemon::{
@@ -254,18 +255,20 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             return Err(0);
         };
 
-        let fp: *const file = ctx.arg(0);
-        event.access_mode = AccessMode::from_bits_truncate(1 << ((*fp).f_flags & 3));
-        event.creation_flags = CreationFlags::from_bits_truncate((*fp).f_flags);
+        let fp = co_re::file::from_ptr(ctx.arg(0) as *const _);
+        let f_flags = core_read_kernel!(fp, f_flags).unwrap_or(0);
+        let f_path = core_read_kernel!(fp, f_path).ok_or(0i32)?;
+        event.access_mode = AccessMode::from_bits_truncate(1 << (f_flags & 3));
+        event.creation_flags = CreationFlags::from_bits_truncate(f_flags);
         let _ = bpf_d_path(
-            &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
+            f_path.as_ptr() as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.path).map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
-            return enrich_file_open_event(msg, proc, fp, None);
+            return enrich_file_open_event(msg, proc, &fp, None);
         };
 
         let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
@@ -280,12 +283,8 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
 
         // Get filtering attributes
         // Get file name
-        let path = bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
-
-        let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-            .map_err(|_| 0i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
-
+        let d_name = core_read_kernel!(fp, f_path, dentry, d_name, name).ok_or(0i32)?;
+        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
         // Get file path
         let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
 
@@ -344,12 +343,12 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
-                        enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                        enrich_file_open_event(msg, proc, &fp, Some(idx as u8))?;
                         return Ok(0);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
-                        enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                        enrich_file_open_event(msg, proc, &fp, Some(idx as u8))?;
                         msg.blocked = true;
                         return Ok(-1);
                     }
@@ -359,7 +358,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
-                    enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                    enrich_file_open_event(msg, proc, &fp, Some(idx as u8))?;
                     msg.blocked = true;
                     return Ok(-1);
                 }
@@ -367,7 +366,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                 && !deny_list
             {
                 // allow list is not satisfied: send event
-                enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                enrich_file_open_event(msg, proc, &fp, Some(idx as u8))?;
                 msg.blocked = true;
                 return Ok(-1);
             }
@@ -380,20 +379,17 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
 fn enrich_file_open_event(
     msg: &mut FileMsg,
     proc: &ProcInfo,
-    fp: *const file,
+    fp: &co_re::file,
     rule_idx: Option<u8>,
 ) -> Result<i32, i32> {
     let FileEventVariant::FileOpen(ref mut event) = msg.event else {
         return Err(0);
     };
     unsafe {
-        event.i_mode = Imode::from_bits_retain((*(*fp).f_inode).i_mode);
-        event.uid = bpf_probe_read_kernel::<kuid_t>(&(*(*fp).f_inode).i_uid as *const _)
-            .map_err(|_| 0i32)?
-            .val;
-        event.gid = bpf_probe_read_kernel::<kgid_t>(&(*(*fp).f_inode).i_gid as *const _)
-            .map_err(|_| 0i32)?
-            .val;
+        let inode = core_read_kernel!(fp, f_inode).ok_or(0i32)?;
+        event.i_mode = Imode::from_bits_retain(inode.i_mode().ok_or(0i32)?);
+        event.uid = inode.i_uid();
+        event.gid = inode.i_gid();
     }
 
     enrich_with_proc_info_and_rule_idx(msg, proc, rule_idx);
@@ -463,9 +459,9 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             return Err(0);
         };
 
-        let p: *const path = ctx.arg(0);
+        let p = co_re::path::from_ptr(ctx.arg(0));
         let _ = bpf_d_path(
-            p as *const _ as *mut aya_ebpf::bindings::path,
+            p.as_ptr() as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
@@ -488,12 +484,8 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
 
         // Get filtering attributes
         // Get file name
-        let path = bpf_probe_read_kernel::<path>(p).map_err(|_| 0i32)?;
-
-        let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-            .map_err(|_| 0i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
-
+        let d_name = core_read_kernel!(p, dentry, d_name, name).ok_or(0i32)?;
+        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
         // Get file path
         let file_path = fill_path_map!(FILEMON_PATH_MAP, event);
 
@@ -626,9 +618,9 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        let p: *const path = ctx.arg(0);
+        let p = co_re::path::from_ptr(ctx.arg(0));
         let len = bpf_d_path(
-            p as *const _ as *mut aya_ebpf::bindings::path,
+            p.as_ptr() as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
@@ -641,9 +633,8 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
             return Err(0);
         };
         path_buf[len as usize - 1] = b'/';
-        let entry: *const dentry = ctx.arg(1);
-        let d_name =
-            bpf_probe_read_kernel::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0i32)?;
+        let entry = co_re::dentry::from_ptr(ctx.arg(1));
+        let d_name = core_read_kernel!(entry, d_name, name).ok_or(0i32)?;
         let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
@@ -651,7 +642,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
         let Some(name) = name else {
             return Err(0);
         };
-        bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes(d_name, name).map_err(|_| 0i32)?;
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, event).map_err(|_| 0i32)?;
         bpf_probe_read_kernel_str_bytes(name.as_ptr(), &mut event[len as usize..])
             .map_err(|_| 0i32)?;
@@ -673,7 +664,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
 
         // Get filtering attributes
         // Get file name
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
+        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
         let file_path = fill_path_map!(FILEMON_PATH_MAP, event);
@@ -807,9 +798,9 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        let p: *const path = ctx.arg(0);
+        let p = co_re::path::from_ptr(ctx.arg(0));
         let len = bpf_d_path(
-            p as *const _ as *mut aya_ebpf::bindings::path,
+            p.as_ptr() as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
@@ -822,9 +813,8 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
             return Err(0);
         };
         path_buf[len as usize - 1] = b'/';
-        let entry: *const dentry = ctx.arg(1);
-        let d_name =
-            bpf_probe_read_kernel::<qstr>(&(*entry).d_name as *const _).map_err(|_| 0i32)?;
+        let entry = co_re::dentry::from_ptr(ctx.arg(1));
+        let d_name = core_read_kernel!(entry, d_name, name).ok_or(0i32)?;
         let Some(name_ptr) = FILENAME_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
@@ -832,7 +822,7 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
         let Some(name) = name else {
             return Err(0);
         };
-        bpf_probe_read_kernel_str_bytes(d_name.name, name).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes(d_name, name).map_err(|_| 0i32)?;
         bpf_probe_read_kernel_str_bytes(path_ptr as *const _, &mut event.link_path)
             .map_err(|_| 0i32)?;
         bpf_probe_read_kernel_str_bytes(name.as_ptr(), &mut event.link_path[len as usize..])
@@ -995,10 +985,10 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        let p: *const path = ctx.arg(0);
+        let p = co_re::path::from_ptr(ctx.arg(0));
         event.i_mode = Imode::from_bits_retain(ctx.arg(1));
         let _ = bpf_d_path(
-            p as *const _ as *mut aya_ebpf::bindings::path,
+            p.as_ptr() as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
@@ -1021,11 +1011,8 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
 
         // Get filtering attributes
         // Get file name
-        let path = bpf_probe_read_kernel::<path>(p).map_err(|_| 0i32)?;
-
-        let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-            .map_err(|_| 0i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
+        let d_name = core_read_kernel!(p, dentry, d_name, name).ok_or(0i32)?;
+        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
         let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
@@ -1174,11 +1161,11 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        let p: *const path = ctx.arg(0);
+        let p = co_re::path::from_ptr(ctx.arg(0));
         event.uid = ctx.arg(1);
         event.gid = ctx.arg(2);
         let _ = bpf_d_path(
-            p as *const _ as *mut aya_ebpf::bindings::path,
+            p.as_ptr() as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
@@ -1201,11 +1188,8 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
 
         // Get filtering attributes
         // Get file name
-        let path = bpf_probe_read_kernel::<path>(p).map_err(|_| 0i32)?;
-
-        let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-            .map_err(|_| 0i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
+        let d_name = core_read_kernel!(p, dentry, d_name, name).ok_or(0i32)?;
+        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
         let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
@@ -1326,10 +1310,10 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
 
     unsafe {
         let dev: *const u8 = ctx.arg(0);
-        let mnt: *const path = ctx.arg(1);
+        let mnt = co_re::path::from_ptr(ctx.arg(1));
         bpf_probe_read_kernel_str_bytes(dev, &mut event.name).map_err(|_| 0i32)?;
         let _ = bpf_d_path(
-            mnt as *const _ as *mut aya_ebpf::bindings::path,
+            mnt.as_ptr() as *mut aya_ebpf::bindings::path,
             event.path.as_mut_ptr() as *mut _,
             event.path.len() as u32,
         );
@@ -1415,7 +1399,8 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        let fp: *const file = ctx.arg(0);
+        let fp = co_re::file::from_ptr(ctx.arg(0));
+        let f_path = core_read_kernel!(fp, f_path).ok_or(0i32)?;
         event.prot = ProtMode::from_bits_truncate(ctx.arg(2));
 
         let mut flags_bits = ctx.arg::<u32>(3);
@@ -1426,9 +1411,9 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             flags_bits = flags_bits & !0x3 | 0x4;
         }
         event.flags = SharingType::from_bits_truncate(flags_bits);
-        if !is_null_pointer(fp) {
+        if !is_null_pointer(fp.as_ptr()) {
             let _ = bpf_d_path(
-                &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
+                f_path.as_ptr() as *mut aya_ebpf::bindings::path,
                 path_ptr as *mut _,
                 MAX_FILE_PATH as u32,
             );
@@ -1453,12 +1438,9 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
 
         // Get filtering attributes
         // Get file name
-        let file_name = if !is_null_pointer(fp) {
-            let path =
-                bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
-            let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-                .map_err(|_| 0i32)?;
-            fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name)
+        let file_name = if !is_null_pointer(fp.as_ptr()) {
+            let d_name = core_read_kernel!(fp, f_path, dentry, d_name, name).ok_or(0i32)?;
+            fill_name_map!(FILEMON_FILE_NAME_MAP, d_name)
         } else {
             fill_name_map!(FILEMON_FILE_NAME_MAP, &event.path)
         };
@@ -1612,14 +1594,16 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
     };
 
     unsafe {
-        let fp: *const file = ctx.arg(0);
+        let fp = co_re::file::from_ptr(ctx.arg(0));
+        let f_path = core_read_kernel!(fp, f_path).ok_or(0i32)?;
+        let inode = core_read_kernel!(fp, f_inode).ok_or(0i32)?;
         let Some(path_ptr) = PATH_HEAP.get_ptr_mut(0) else {
             return Err(0);
         };
-        event.i_mode = Imode::from_bits_retain((*(*fp).f_inode).i_mode);
+        event.i_mode = Imode::from_bits_retain(inode.i_mode().ok_or(0i32)?);
         event.cmd = ctx.arg(1);
         let _ = bpf_d_path(
-            &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
+            f_path.as_ptr() as *mut aya_ebpf::bindings::path,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
@@ -1642,11 +1626,8 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
 
         // Get filtering attributes
         // Get file name
-        let path = bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
-
-        let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-            .map_err(|_| 0i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
+        let d_name = core_read_kernel!(fp, f_path, dentry, d_name, name).ok_or(0i32)?;
+        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
         let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
