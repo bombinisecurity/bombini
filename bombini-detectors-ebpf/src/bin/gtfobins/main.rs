@@ -15,7 +15,6 @@ use bombini_common::constants::MAX_FILENAME_SIZE;
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, GenericEvent, MSG_GTFOBINS};
 use bombini_detectors_ebpf::co_re::{self, core_read_kernel};
-use bombini_detectors_ebpf::vmlinux::{file, kuid_t, linux_binprm, path, pid_t, qstr, task_struct};
 
 use bombini_detectors_ebpf::{event_capture, util};
 

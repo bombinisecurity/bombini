@@ -44,7 +44,6 @@ use bombini_detectors_ebpf::{
     },
     interpreter::{self, rule::IsEmpty},
     util,
-    vmlinux::{dentry, file, path},
 };
 
 use bombini_detectors_ebpf::filter::filemon::{
