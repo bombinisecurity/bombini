@@ -1,0 +1,8 @@
+bpf_map_create:
+  enabled: false
+bpf_map:
+  enabled: false
+bpf_prog_load:
+  enabled: false
+bpf_prog:
+  enabled: false

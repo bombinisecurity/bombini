@@ -1,5 +1,5 @@
 mod common;
-use common::*;
+use common::bombini_launcher::*;
 
 use std::time::Duration;
 use std::{

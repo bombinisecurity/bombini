@@ -12,7 +12,7 @@ use more_asserts as ma;
 
 mod common;
 
-use common::*;
+use common::bombini_launcher::*;
 
 #[test]
 fn test_6_2_detectors_load() {

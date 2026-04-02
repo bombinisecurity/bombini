@@ -61,6 +61,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-8 sudo update-grub
           ssh lima-ubuntu-kernel-v6-8 'sudo apt update && sudo apt install -y clang libbpf-dev'
           ssh lima-ubuntu-kernel-v6-8 'curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz'
+          ssh lima-ubuntu-kernel-v6-8 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
           ssh lima-ubuntu-kernel-v6-8 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
           ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
@@ -113,6 +114,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-14 sudo update-grub
           ssh lima-ubuntu-kernel-v6-14 'sudo apt update && sudo apt install -y clang libbpf-dev linux-generic-hwe-24.04'
           ssh lima-ubuntu-kernel-v6-14 'curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz'
+          ssh lima-ubuntu-kernel-v6-14 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
           ssh lima-ubuntu-kernel-v6-14 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
           ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
@@ -165,6 +167,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-2 sudo update-grub
           ssh lima-ubuntu-kernel-v6-2 'sudo apt update && sudo apt install -y clang libbpf-dev linux-image-6.2.0-39-generic linux-headers-6.2.0-39-generic'
           ssh lima-ubuntu-kernel-v6-2 'curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz'
+          ssh lima-ubuntu-kernel-v6-2 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
           ssh lima-ubuntu-kernel-v6-2 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
           ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'

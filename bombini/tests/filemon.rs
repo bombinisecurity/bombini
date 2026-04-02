@@ -1,5 +1,5 @@
 mod common;
-use common::*;
+use common::bombini_launcher::*;
 use libc::{MAP_FAILED, MAP_SHARED, PROT_READ, PROT_WRITE, mmap, truncate};
 use tempfile::Builder;
 
