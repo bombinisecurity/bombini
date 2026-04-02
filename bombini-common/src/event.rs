@@ -3,6 +3,7 @@
 pub mod file;
 pub mod gtfobins;
 pub mod io_uring;
+pub mod kernel;
 pub mod network;
 pub mod process;
 
@@ -32,6 +33,8 @@ pub enum Event {
     Network(network::NetworkMsg) = 5,
     /// IOUring submit request event type
     IOUring(io_uring::IOUringMsg) = 6,
+    /// Kernel event type
+    Kernel(kernel::KernelMsg) = 7,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
 }
@@ -52,5 +55,7 @@ pub const MSG_FILE: u8 = 4;
 pub const MSG_NETWORK: u8 = 5;
 /// IOUring submit request message code
 pub const MSG_IOURING: u8 = 6;
+/// Kernel message code
+pub const MSG_KERNEL: u8 = 7;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;

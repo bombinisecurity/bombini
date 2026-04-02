@@ -34,7 +34,6 @@ use bombini_common::{
 
 use bombini_detectors_ebpf::{
     event_capture,
-    event_map::rb_event_init,
     filter::{
         netmon::ip::{Ipv4Filter, Ipv6Filter},
         scope::ScopeFilter,

@@ -21,3 +21,7 @@ pub const MAX_RULES_COUNT: usize = 32;
 pub const PAGE_SIZE: usize = 4096;
 
 pub const MAX_EVENT_SIZE: usize = PAGE_SIZE;
+
+pub const MAX_BPFNAME_SIZE: usize = 16;
+
+pub const MAX_HOOKNAME_SIZE: usize = 1024;

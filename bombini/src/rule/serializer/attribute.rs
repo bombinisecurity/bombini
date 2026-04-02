@@ -49,6 +49,14 @@ impl AttributeMeta for Attributes {
             Self::BinaryPath => Box::new(defs::BinaryPathAttribute::default()),
             Self::BinaryName => Box::new(defs::BinaryNameAttribute::default()),
             Self::BinaryPrefix => Box::new(defs::BinaryPrefixAttribute::default()),
+            Self::MapType => Box::new(defs::BpfMapTypeAttribute::default()),
+            Self::MapId => Box::new(defs::BpfIdAttribute::default()),
+            Self::MapName => Box::new(defs::BpfNameAttribute::default()),
+            Self::MapPrefix => Box::new(defs::BpfPrefixAttribute::default()),
+            Self::ProgType => Box::new(defs::BpfProgTypeAttribute::default()),
+            Self::ProgId => Box::new(defs::BpfIdAttribute::default()),
+            Self::ProgName => Box::new(defs::BpfNameAttribute::default()),
+            Self::ProgPrefix => Box::new(defs::BpfPrefixAttribute::default()),
         }
     }
 
@@ -78,6 +86,10 @@ impl AttributeMeta for Attributes {
             Self::BinaryPath => "binary_path",
             Self::BinaryName => "binary_name",
             Self::BinaryPrefix => "binary_prefix",
+            Self::MapType | Self::ProgType => "type",
+            Self::MapId | Self::ProgId => "id",
+            Self::MapName | Self::ProgName => "name",
+            Self::MapPrefix | Self::ProgPrefix => "prefix",
         }
     }
 }

@@ -17,7 +17,7 @@ use bombini_common::constants::MAX_FILENAME_SIZE;
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, GenericEvent, MSG_GTFOBINS};
 
-use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
+use bombini_detectors_ebpf::{event_capture, util};
 
 #[map]
 static GTFOBINS_NAME_MAP: HashMap<[u8; MAX_FILENAME_SIZE], u32> = HashMap::with_max_entries(128, 0);

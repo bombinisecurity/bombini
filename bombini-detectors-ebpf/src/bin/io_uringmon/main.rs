@@ -21,7 +21,7 @@ use bombini_common::event::{Event, GenericEvent, MSG_IOURING};
 
 use bombini_detectors_ebpf::vmlinux::{file, filename, io_kiocb, open_how, sockaddr};
 
-use bombini_detectors_ebpf::{event_capture, event_map::rb_event_init, util};
+use bombini_detectors_ebpf::{event_capture, util};
 
 #[map]
 static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);

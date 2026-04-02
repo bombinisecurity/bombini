@@ -8,11 +8,15 @@ use aya::maps::LpmTrie;
 use aya::maps::hash_map::HashMap as EbpfHashMap;
 use aya::maps::lpm_trie::Key;
 use bombini_common::config::rule::{
-    AccessModeKey, CapKey, CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, Ipv4MapKey,
-    Ipv6MapKey, PathMapKey, PathPrefixMapKey, PortKey, ProtModeKey, UIDKey,
+    AccessModeKey, BpfIdKey, BpfMapTypeKey, BpfNameKey, BpfPrefixKey, BpfProgTypeKey, CapKey,
+    CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, Ipv4MapKey, Ipv6MapKey, PathMapKey,
+    PathPrefixMapKey, PortKey, ProtModeKey, UIDKey,
 };
-use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE};
+use bombini_common::constants::{
+    MAX_BPFNAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE,
+};
 use bombini_common::event::file::{AccessMode, CreationFlags, Imode, ProtMode, SharingType};
+use bombini_common::event::kernel::{BpfMapType, BpfProgType};
 use bombini_common::event::process::Capabilities;
 
 use crate::rule::{
@@ -437,7 +441,7 @@ impl Attribute for UIDAttribute {
         for (uid, value) in self.map.iter() {
             let key = UIDKey {
                 rule_idx: rule_idx as u32,
-                uid: *uid,
+                value: *uid,
             };
             let _ = uid_map.insert(key, value, 0);
         }
@@ -472,7 +476,7 @@ impl Attribute for EUIDAttribute {
         for (uid, value) in self.map.iter() {
             let key = UIDKey {
                 rule_idx: rule_idx as u32,
-                uid: *uid,
+                value: *uid,
             };
             let _ = uid_map.insert(key, value, 0);
         }
@@ -507,7 +511,7 @@ impl Attribute for GIDAttribute {
         for (uid, value) in self.map.iter() {
             let key = UIDKey {
                 rule_idx: rule_idx as u32,
-                uid: *uid,
+                value: *uid,
             };
             let _ = uid_map.insert(key, value, 0);
         }
@@ -542,7 +546,7 @@ impl Attribute for EGIDAttribute {
         for (uid, value) in self.map.iter() {
             let key = UIDKey {
                 rule_idx: rule_idx as u32,
-                uid: *uid,
+                value: *uid,
             };
             let _ = uid_map.insert(key, value, 0);
         }
@@ -577,7 +581,7 @@ impl Attribute for CmdAttribute {
         for (uid, value) in self.map.iter() {
             let key = UIDKey {
                 rule_idx: rule_idx as u32,
-                uid: *uid,
+                value: *uid,
             };
             let _ = uid_map.insert(key, value, 0);
         }
@@ -1231,5 +1235,247 @@ impl Attribute for PortDstAttribute {
             format!("{map_name_prefix}_DST_PORT_MAP"),
             self.map.len() as u32,
         )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+
+pub(crate) struct BpfNameAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for BpfNameAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut name_map: EbpfHashMap<_, BpfNameKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_NAME_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (name, value) in self.map.iter() {
+            let mut key = BpfNameKey {
+                rule_idx,
+                name: [0u8; MAX_BPFNAME_SIZE],
+            };
+            let name_bytes = name.as_bytes();
+            let len = name_bytes.len();
+            if len < MAX_BPFNAME_SIZE {
+                key.name[..len].clone_from_slice(name_bytes);
+            } else {
+                key.name.clone_from_slice(&name_bytes[..MAX_BPFNAME_SIZE]);
+            }
+            let _ = name_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (format!("{map_name_prefix}_NAME_MAP"), self.map.len() as u32)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct BpfPrefixAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for BpfPrefixAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut prefix_map: LpmTrie<_, BpfPrefixKey, u8> = LpmTrie::try_from(
+            ebpf.map_mut(&format!("{}_PREFIX_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (prefix, value) in self.map.iter() {
+            let mut key = BpfPrefixKey {
+                rule_idx,
+                name: [0u8; MAX_BPFNAME_SIZE],
+            };
+            let prefix_bytes = prefix.as_bytes();
+            let len = prefix_bytes.len();
+            if len < MAX_BPFNAME_SIZE {
+                key.name[..len].clone_from_slice(prefix_bytes);
+            } else {
+                key.name.clone_from_slice(&prefix_bytes[..MAX_BPFNAME_SIZE]);
+            }
+            let map_key = Key::new(((prefix.len() + 1) * 8) as u32, key);
+            let _ = prefix_map.insert(&map_key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_PREFIX_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct BpfIdAttribute {
+    pub map: HashMap<u32, u8>,
+}
+
+impl Attribute for BpfIdAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_u32_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut uid_map: EbpfHashMap<_, BpfIdKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_ID_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (uid, value) in self.map.iter() {
+            let key = BpfIdKey {
+                rule_idx: rule_idx as u32,
+                value: *uid,
+            };
+            let _ = uid_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (format!("{map_name_prefix}_ID_MAP"), self.map.len() as u32)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct BpfMapTypeAttribute {
+    pub map: HashMap<BpfMapType, u8>,
+}
+
+impl Attribute for BpfMapTypeAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        let values: Result<Vec<BpfMapType>, anyhow::Error> = values
+            .iter()
+            .map(|lit| match lit {
+                Literal::String(s) => Ok(s.clone()),
+                Literal::Uint(i) => Err(anyhow::anyhow!(
+                    "expected String literal, found Uint: {}",
+                    i
+                )),
+            })
+            .map(|s| {
+                s.and_then(|s| {
+                    serde_json::from_str(&format!("\"{s}\"")).map_err(|x| {
+                        anyhow::anyhow!("Error while parsing bpf map type: {s}, {}", x)
+                    })
+                })
+            })
+            .collect();
+        let values = values?;
+        for key in values {
+            self.map
+                .entry(key)
+                .and_modify(|value| *value |= 1 << in_idx)
+                .or_insert(1 << in_idx);
+        }
+        Ok(())
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut uid_map: EbpfHashMap<_, BpfMapTypeKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_TYPE_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (map_type, value) in self.map.iter() {
+            let key = BpfMapTypeKey {
+                rule_idx: rule_idx as u32,
+                map_type: *map_type,
+            };
+            let _ = uid_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (format!("{map_name_prefix}_TYPE_MAP"), self.map.len() as u32)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct BpfProgTypeAttribute {
+    pub map: HashMap<BpfProgType, u8>,
+}
+
+impl Attribute for BpfProgTypeAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        let values: Result<Vec<BpfProgType>, anyhow::Error> = values
+            .iter()
+            .map(|lit| match lit {
+                Literal::String(s) => Ok(s.clone()),
+                Literal::Uint(i) => Err(anyhow::anyhow!(
+                    "expected String literal, found Uint: {}",
+                    i
+                )),
+            })
+            .map(|s| {
+                s.and_then(|s| {
+                    serde_json::from_str(&format!("\"{s}\"")).map_err(|x| {
+                        anyhow::anyhow!("Error while parsing bpf map type: {s}, {}", x)
+                    })
+                })
+            })
+            .collect();
+        let values = values?;
+        for key in values {
+            self.map
+                .entry(key)
+                .and_modify(|value| *value |= 1 << in_idx)
+                .or_insert(1 << in_idx);
+        }
+        Ok(())
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut uid_map: EbpfHashMap<_, BpfProgTypeKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_TYPE_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (prog_type, value) in self.map.iter() {
+            let key = BpfProgTypeKey {
+                rule_idx: rule_idx as u32,
+                prog_type: *prog_type,
+            };
+            let _ = uid_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (format!("{map_name_prefix}_TYPE_MAP"), self.map.len() as u32)
     }
 }

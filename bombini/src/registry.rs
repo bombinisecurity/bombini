@@ -2,7 +2,7 @@
 
 use log::debug;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +12,7 @@ use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::io_uringmon::IOUringMon;
 
 use crate::detector::Detector;
+use crate::detector::kernelmon::KernelMon;
 use crate::detector::netmon::NetMon;
 use crate::detector::procmon::ProcMon;
 
@@ -52,7 +53,11 @@ impl Registry {
         debug!("Detector procmon is loaded");
 
         let names = config.options.detectors.as_ref().unwrap();
-        for name in names.iter().map(|e| e.as_str()).filter(|e| *e != "procmon") {
+        for name in names
+            .iter()
+            .map(|e| e.as_str())
+            .filter(|e| *e != "procmon" && *e != "kernelmon")
+        {
             obj_path.pop();
             obj_path.push(name);
 
@@ -61,6 +66,21 @@ impl Registry {
             };
             self.load_detector(name, &obj_path, &maps_pin_path, config)?;
             config_path.pop();
+        }
+
+        // Load KernelMon last.
+        // KernelMon may use sandbox mode and we want to load it after all other detectors to avoid sandboxing them.
+        let name = "kernelmon".to_string();
+        if let Some(config) = config.detector_configs.get(&name) {
+            let DetectorConfig::KernelMon(kernelmon_cfg) = config else {
+                return Err(anyhow!("KernelMon config is not found"));
+            };
+            obj_path.pop();
+            obj_path.push(&name);
+            let mut kernelmon = KernelMon::new(&obj_path, &maps_pin_path, kernelmon_cfg.clone())?;
+            kernelmon.load()?;
+            self.detectors.insert(name, Box::new(kernelmon));
+            debug!("Detector kernelmon is loaded");
         }
 
         debug!("All detectors are loaded, listening for events");
@@ -85,6 +105,9 @@ impl Registry {
                 detector.load()?;
                 self.detectors.insert(name.to_string(), Box::new(detector));
             }
+            DetectorConfig::KernelMon(_) => {
+                bail!("KernelMon should be loaded last");
+            }
             DetectorConfig::IOUringMon => {
                 let mut detector = IOUringMon::new(obj_path, maps_pin_path)?;
                 detector.load()?;
@@ -95,8 +118,8 @@ impl Registry {
                 detector.load()?;
                 self.detectors.insert(name.to_string(), Box::new(detector));
             }
-            _ => {
-                return Err(anyhow!("{} unknown detector", name));
+            DetectorConfig::ProcMon(_) => {
+                bail!("ProcMon should be loaded first");
             }
         }
         debug!("Detector {name} is loaded");

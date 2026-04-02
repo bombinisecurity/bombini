@@ -58,7 +58,7 @@ macro_rules! event_capture {
         use bombini_detectors_ebpf::dyn_ringbuf::DynRingBufEntry;
         let mut ring_entry = DynRingBufEntry::new();
 
-        if rb_event_init($msg_code, $zero, &mut ring_entry).is_err() {
+        if $crate::event_map::rb_event_init($msg_code, $zero, &mut ring_entry).is_err() {
             ring_entry.discard(0);
             return 0;
         };

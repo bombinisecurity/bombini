@@ -17,6 +17,7 @@ use crate::rule::predicate_parser;
 pub mod attribute;
 pub mod dummy;
 pub mod filemon;
+pub mod kernelmon;
 pub mod netmon;
 pub mod predicate;
 pub mod procmon;
