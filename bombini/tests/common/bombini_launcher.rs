@@ -85,6 +85,7 @@ impl BombiniBuilder {
         self
     }
 
+    #[allow(unused)]
     pub fn bombini_start_timeout(&mut self, secs: u64) -> &mut BombiniBuilder {
         self.bombini_timeout = Duration::from_secs(secs);
         self
@@ -95,6 +96,7 @@ impl BombiniBuilder {
         self
     }
 
+    #[allow(unused)]
     pub fn temp_dir_prefix(&mut self, prefix: &str) -> &mut BombiniBuilder {
         self.temp_dir_prefix = prefix.to_string();
         self
@@ -315,6 +317,7 @@ impl BombiniCommand {
         let _ = self.bombini.process.wait();
     }
 
+    #[allow(unused)]
     pub fn get_working_dir(&self) -> PathBuf {
         self.paths.temp_dir.path().to_path_buf()
     }

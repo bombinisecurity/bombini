@@ -1,5 +1,5 @@
 mod common;
-use common::*;
+use common::bombini_launcher::*;
 
 use libc::{memfd_create, write};
 use std::ffi::CString;
