@@ -33,7 +33,6 @@ use bombini_common::{
 };
 use bombini_detectors_ebpf::{
     event_capture,
-    event_map::rb_event_init,
     filter::{
         filemon::{
             chmod::{ChmodFilter, ImodeValue},
@@ -1226,13 +1225,13 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         // Get UID
         let mut owner_uid = UIDKey {
             rule_idx: 0,
-            uid: event.uid,
+            value: event.uid,
         };
 
         // Get GID
         let mut owner_gid = UIDKey {
             rule_idx: 0,
-            uid: event.gid,
+            value: event.gid,
         };
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
@@ -1667,7 +1666,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
         // Get Cmd
         let mut cmd = CmdKey {
             rule_idx: 0,
-            uid: event.cmd,
+            value: event.cmd,
         };
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;

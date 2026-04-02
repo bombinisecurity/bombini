@@ -61,6 +61,22 @@ pub struct FileMonConfig {
     #[prost(message, optional, tag = "9")]
     pub file_ioctl: ::core::option::Option<HookConfig>,
 }
+/// Configuration file for KernelMon detector.
+#[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct KernelMonConfig {
+    /// Getting access to bpf map
+    #[prost(message, optional, tag = "1")]
+    pub bpf_map: ::core::option::Option<HookConfig>,
+    /// Creating bpf map
+    #[prost(message, optional, tag = "2")]
+    pub bpf_map_create: ::core::option::Option<HookConfig>,
+    /// Getting access to bpf program
+    #[prost(message, optional, tag = "3")]
+    pub bpf_prog: ::core::option::Option<HookConfig>,
+    /// Creating to bpf program
+    #[prost(message, optional, tag = "4")]
+    pub bpf_prog_load: ::core::option::Option<HookConfig>,
+}
 /// Configuration file for NetMon detector.
 #[derive(serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct NetMonConfig {

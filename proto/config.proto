@@ -46,6 +46,18 @@ message FileMonConfig {
     HookConfig file_ioctl = 9;
 }
 
+// Configuration file for KernelMon detector.
+message KernelMonConfig {
+    // Getting access to bpf map
+    HookConfig bpf_map = 1;
+    // Creating bpf map
+    HookConfig bpf_map_create = 2;
+    // Getting access to bpf program
+    HookConfig bpf_prog = 3;
+    // Creating to bpf program
+    HookConfig bpf_prog_load = 4;
+}
+
 // Configuration file for NetMon detector.
 message NetMonConfig {
     // Ingress traffic connections

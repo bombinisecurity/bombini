@@ -8,7 +8,7 @@ use anyhow::anyhow;
 use std::{sync::Arc, time::Duration};
 
 use bombini_common::event::{
-    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_NETWORK, MSG_PROCESS,
+    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_KERNEL, MSG_NETWORK, MSG_PROCESS,
     MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
     process::{ProcInfo, ProcessKey},
 };
@@ -17,6 +17,7 @@ mod cache;
 mod file;
 mod gtfobins;
 mod io_uring;
+mod kernel;
 mod network;
 mod process;
 
@@ -28,6 +29,7 @@ use crate::{
 use file::FileEventTransmuter;
 use gtfobins::GTFOBinsEventTransmuter;
 use io_uring::IOUringEventTransmuter;
+use kernel::KernelEventTransmuter;
 use network::NetworkEventTransmuter;
 use process::{
     Process, ProcessCloneTransmuter, ProcessEventTransmuter, ProcessExecTransmuter,
@@ -86,6 +88,10 @@ impl TransmuterRegistry {
                 DetectorConfig::NetMon(cfg) => {
                     registry.handlers[MSG_NETWORK as usize] =
                         Some(Arc::new(NetworkEventTransmuter::new(cfg.as_ref())));
+                }
+                DetectorConfig::KernelMon(cfg) => {
+                    registry.handlers[MSG_KERNEL as usize] =
+                        Some(Arc::new(KernelEventTransmuter::new(cfg.as_ref())));
                 }
                 DetectorConfig::IOUringMon => {
                     registry.handlers[MSG_IOURING as usize] =

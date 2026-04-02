@@ -38,7 +38,6 @@ use bombini_common::{
 
 use bombini_detectors_ebpf::{
     event_capture,
-    event_map::rb_event_init,
     filter::{
         filemon::path::PathFilter,
         procmon::cred::{CapFilter, CapValue, CredFilter, UidFilter},
@@ -698,12 +697,12 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         let mut proc_uid = UIDKey {
             rule_idx: 0,
-            uid: event.uid,
+            value: event.uid,
         };
 
         let mut proc_euid = UIDKey {
             rule_idx: 0,
-            uid: event.euid,
+            value: event.euid,
         };
 
         // Get binary name
@@ -845,12 +844,12 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         let mut proc_gid = UIDKey {
             rule_idx: 0,
-            uid: event.gid,
+            value: event.gid,
         };
 
         let mut proc_egid = UIDKey {
             rule_idx: 0,
-            uid: event.egid,
+            value: event.egid,
         };
 
         // Get binary name
@@ -1243,7 +1242,7 @@ fn try_create_user_ns_capture(
         };
         let mut proc_euid = UIDKey {
             rule_idx: 0,
-            uid: euid,
+            value: euid,
         };
 
         // Get binary name
