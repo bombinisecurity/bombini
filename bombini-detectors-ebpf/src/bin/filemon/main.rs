@@ -255,7 +255,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             return Err(0);
         };
 
-        let fp = co_re::file::from_ptr(ctx.arg(0) as *const _);
+        let fp = co_re::file::from_ptr(ctx.arg(0));
         let f_flags = core_read_kernel!(fp, f_flags).unwrap_or(0);
         let f_path = core_read_kernel!(fp, f_path).ok_or(0i32)?;
         event.access_mode = AccessMode::from_bits_truncate(1 << (f_flags & 3));
