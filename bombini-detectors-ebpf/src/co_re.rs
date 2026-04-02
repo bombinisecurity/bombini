@@ -120,3 +120,22 @@ macro_rules! core_read_kernel {
 }
 
 pub use core_read_kernel;
+
+#[macro_export]
+macro_rules! rust_shim_kernel_trusted_impl {
+    ($pub:vis, $fn_name:ident, $struct:ident, $member:ident, $ret:ty) => {
+        #[inline(always)]
+        $pub unsafe fn $fn_name(&self) -> Option<$ret> {
+            if !self.is_null()
+                && paste::paste! {[<shim_ $struct _ $member _trusted_exists>]}(self.as_ptr_mut())
+            {
+                return Some(
+                    paste::paste! {[<shim_ $struct _ $member _trusted>]}(self.as_ptr_mut()).into()
+                );
+            }
+            None
+        }
+    };
+}
+
+pub use rust_shim_kernel_trusted_impl;

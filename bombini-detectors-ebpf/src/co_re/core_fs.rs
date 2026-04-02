@@ -1,5 +1,5 @@
 use super::r#gen::{self, *};
-use super::{CoRe, rust_shim_kernel_impl};
+use super::{CoRe, rust_shim_kernel_impl, rust_shim_kernel_trusted_impl};
 
 #[allow(non_camel_case_types)]
 pub type qstr = CoRe<r#gen::qstr>;
@@ -19,6 +19,7 @@ impl dentry {
 pub type path = CoRe<r#gen::path>;
 
 impl path {
+    rust_shim_kernel_trusted_impl!(pub, dentry_trusted, path, dentry, dentry);
     rust_shim_kernel_impl!(pub, path, dentry, dentry);
 }
 
@@ -45,6 +46,7 @@ impl inode {
 pub type file = CoRe<r#gen::file>;
 
 impl file {
+    rust_shim_kernel_trusted_impl!(pub, f_inode_trusted, file, f_inode, inode);
     rust_shim_kernel_impl!(pub, file, f_path, path);
     rust_shim_kernel_impl!(pub, file, f_inode, inode);
     rust_shim_kernel_impl!(pub, file, f_flags, u32);

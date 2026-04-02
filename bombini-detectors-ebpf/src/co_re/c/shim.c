@@ -83,6 +83,13 @@
 		return bpf_core_enum_value_exists(enum enum_type, enum_value);              \
 	}
 
+#define SHIM_TRUSTED(struc, memb)                                            \
+    _SHIM_GETTER(                                                            \
+        typeof(((struct struc *)0)->memb),                                   \
+        shim_##struc##_##memb##_trusted(struct struc *struc),                \
+        struc->memb)                                                         \
+    _FIELD_EXISTS_DEF(struc, memb, memb##_trusted)
+
 struct kgid_t
 {
 	gid_t val;
@@ -156,6 +163,7 @@ struct path
 } __attribute__((preserve_access_index));
 
 SHIM(path, dentry);
+SHIM_TRUSTED(path, dentry);
 
 struct mm_struct
 {
@@ -202,6 +210,7 @@ struct file
 SHIM_REF(file, f_path);   // inline struct → SHIM_REF
 SHIM(file, f_inode);       // pointer → SHIM
 SHIM(file, f_flags);       // value → SHIM
+SHIM_TRUSTED(file, f_inode);
 
 struct filename
 {
@@ -247,6 +256,7 @@ struct linux_binprm
 SHIM(linux_binprm, file);
 SHIM(linux_binprm, cred);
 SHIM(linux_binprm, per_clear);
+SHIM_TRUSTED(linux_binprm, file);
 
 struct in6_addr
 {
