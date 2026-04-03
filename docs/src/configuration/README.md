@@ -10,5 +10,6 @@ Next look and detector configuration guides:
 * [ProcMon](./procmon.md)
 * [FileMon](./filemon.md)
 * [NetMon](./netmon.md)
+* [KernelMon](./kernelmon.md)
 * [IOUringMon](./io_uringmon.md)
 * [GTFOBins](./gtfobins.md)

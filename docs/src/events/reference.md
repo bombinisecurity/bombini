@@ -2,6 +2,10 @@
 
 JSON schema for all events.
 
+# Reference
+
+JSON schema for all events.
+
 ## FileMon
 
 ```json
@@ -735,6 +739,356 @@ JSON schema for all events.
         },
         {
           "type": "null"
+        }
+      ]
+    },
+    "Process": {
+      "description": "Process information",
+      "type": "object",
+      "properties": {
+        "args": {
+          "description": "current work directory",
+          "type": "string"
+        },
+        "auid": {
+          "description": "login UID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "binary_ima_hash": {
+          "description": "IMA binary hash",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "binary_path": {
+          "description": "full binary path",
+          "type": "string"
+        },
+        "cap_effective": {
+          "type": "string"
+        },
+        "cap_inheritable": {
+          "type": "string"
+        },
+        "cap_permitted": {
+          "type": "string"
+        },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
+        "container_id": {
+          "description": "skip for host",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "egid": {
+          "description": "EGID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "euid": {
+          "description": "EUID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "filename": {
+          "description": "executable name",
+          "type": "string"
+        },
+        "gid": {
+          "description": "GID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "pid": {
+          "description": "PID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ppid": {
+          "description": "Parent PID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "secureexec": {
+          "description": "SETUID, SETGID, FILECAPS, FILELESS_EXEC",
+          "type": "string"
+        },
+        "start_time": {
+          "description": "last exec or clone time",
+          "type": "string"
+        },
+        "tid": {
+          "description": "TID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "uid": {
+          "description": "UID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "start_time",
+        "cloned",
+        "pid",
+        "tid",
+        "ppid",
+        "uid",
+        "euid",
+        "gid",
+        "egid",
+        "auid",
+        "cap_inheritable",
+        "cap_permitted",
+        "cap_effective",
+        "secureexec",
+        "filename",
+        "binary_path",
+        "args"
+      ]
+    }
+  }
+}
+```
+
+## KernelMon
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KernelEvent",
+  "description": "Kernel Event",
+  "type": "object",
+  "properties": {
+    "blocked": {
+      "description": "If event is blocked by sandbox mode",
+      "type": "boolean"
+    },
+    "kernel_event": {
+      "description": "Kernel event",
+      "$ref": "#/$defs/KernelEventType"
+    },
+    "parent": {
+      "description": "Parent process information",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Process"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "process": {
+      "description": "Process information",
+      "$ref": "#/$defs/Process"
+    },
+    "rule": {
+      "description": "Rule name",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "timestamp": {
+      "description": "Event's date and time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "process",
+    "blocked",
+    "kernel_event",
+    "timestamp"
+  ],
+  "$defs": {
+    "BpfMapAccessInfo": {
+      "description": "BPF map access information",
+      "type": "object",
+      "properties": {
+        "access_mode": {
+          "description": "Access mode",
+          "type": "string"
+        },
+        "id": {
+          "description": "BPF map ID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "map_type": {
+          "description": "BPF map type",
+          "type": "string"
+        },
+        "name": {
+          "description": "BPF map name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "map_type",
+        "access_mode"
+      ]
+    },
+    "BpfMapCreateInfo": {
+      "description": "BPF map access information",
+      "type": "object",
+      "properties": {
+        "key_size": {
+          "description": "BPF map key size",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "map_type": {
+          "description": "BPF map type",
+          "type": "string"
+        },
+        "max_entries": {
+          "description": "BPF map max entries",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "description": "BPF map name",
+          "type": "string"
+        },
+        "value_size": {
+          "description": "BPF map value size",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "name",
+        "map_type",
+        "key_size",
+        "value_size",
+        "max_entries"
+      ]
+    },
+    "BpfProgAccessInfo": {
+      "description": "BPF map access information",
+      "type": "object",
+      "properties": {
+        "hook": {
+          "description": "hook if available",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "BPF prog ID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "description": "BPF prog name",
+          "type": "string"
+        },
+        "prog_type": {
+          "description": "BPF prog type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "prog_type"
+      ]
+    },
+    "BpfProgLoadInfo": {
+      "description": "BPF map loading information",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "BPF prog name",
+          "type": "string"
+        },
+        "prog_type": {
+          "description": "BPF prog type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "prog_type"
+      ]
+    },
+    "KernelEventType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "BpfMapAccess"
+            }
+          },
+          "$ref": "#/$defs/BpfMapAccessInfo",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "BpfMapCreate"
+            }
+          },
+          "$ref": "#/$defs/BpfMapCreateInfo",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "BpfProgAccess"
+            }
+          },
+          "$ref": "#/$defs/BpfProgAccessInfo",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "BpfProgLoad"
+            }
+          },
+          "$ref": "#/$defs/BpfProgLoadInfo",
+          "required": [
+            "type"
+          ]
         }
       ]
     },

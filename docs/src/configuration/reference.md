@@ -7,6 +7,7 @@
     - [FileMonConfig](#config-FileMonConfig)
     - [GTFOBinsConfig](#config-GTFOBinsConfig)
     - [HookConfig](#config-HookConfig)
+    - [KernelMonConfig](#config-KernelMonConfig)
     - [NetMonConfig](#config-NetMonConfig)
     - [ProcMonConfig](#config-ProcMonConfig)
     - [Rule](#config-Rule)
@@ -73,6 +74,24 @@ Hook or group of hooks configuration
 | enabled | [bool](#bool) |  | Load eBPF programs |
 | sandbox | [SandboxMode](#config-SandboxMode) |  | Sandbox capabilities. |
 | rules | [Rule](#config-Rule) | repeated | Filtering rules |
+
+
+
+
+
+
+<a name="config-KernelMonConfig"></a>
+
+### KernelMonConfig
+Configuration file for KernelMon detector.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bpf_map | [HookConfig](#config-HookConfig) |  | Getting access to bpf map |
+| bpf_map_create | [HookConfig](#config-HookConfig) |  | Creating bpf map |
+| bpf_prog | [HookConfig](#config-HookConfig) |  | Getting access to bpf program |
+| bpf_prog_load | [HookConfig](#config-HookConfig) |  | Creating to bpf program |
 
 
 

@@ -51,6 +51,7 @@ detectors:
    - procmon
    #- filemon
    #- netmon
+   # -kernelmon
    #- io_uringmon
    #- gtfobins
 ```
