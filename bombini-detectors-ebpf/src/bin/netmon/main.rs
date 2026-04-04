@@ -139,16 +139,31 @@ macro_rules! fill_prefix_map {
         let Some(prefix) = prefix else {
             return Err(0);
         };
-        let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
-        };
-        core::ptr::copy_nonoverlapping(
-            zero_ptr as *const u8,
-            prefix.data.path_prefix.as_mut_ptr(),
-            core::mem::size_of_val(&prefix.data.path_prefix),
-        );
+        {
+            let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+            let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            bpf_dynptr_from_mem(
+                prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
+                core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+                0,
+                &mut tmp as *mut _,
+            );
+            bpf_dynptr_write(
+                &tmp as *const _,
+                0,
+                zero_ptr as *mut _,
+                core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+                0,
+            );
+        }
+        let clear_stack = 0u64;
+        core::hint::black_box(&clear_stack);
+
         bpf_probe_read_kernel_buf($src as *const u8, &mut prefix.data.path_prefix)
             .map_err(|_| 0i32)?;
+
         prefix.prefix_len = (MAX_FILE_PREFIX * 8) as u32;
         prefix
     }};

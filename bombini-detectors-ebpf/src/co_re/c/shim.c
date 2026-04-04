@@ -131,9 +131,23 @@ _SHIM_GETTER_BPF_CORE_READ(gid_t, shim_cred_gid(struct cred *cred), cred, gid.va
 _SHIM_GETTER_BPF_CORE_READ(uid_t, shim_cred_euid(struct cred *cred), cred, euid.val);
 _SHIM_GETTER_BPF_CORE_READ(gid_t, shim_cred_egid(struct cred *cred), cred, egid.val);
 
-_SHIM_GETTER_BPF_CORE_READ(__u64, shim_cred_cap_effective(struct cred *cred), cred, cap_effective.val);
-_SHIM_GETTER_BPF_CORE_READ(__u64, shim_cred_cap_inheritable(struct cred *cred), cred, cap_inheritable.val);
-_SHIM_GETTER_BPF_CORE_READ(__u64, shim_cred_cap_permitted(struct cred *cred), cred, cap_permitted.val);
+__attribute__((always_inline)) __u64 shim_cred_cap_effective(struct cred *cred) {
+    __u64 val = 0;
+    bpf_probe_read_kernel(&val, sizeof(val), &cred->cap_effective);
+    return val;
+}
+
+__attribute__((always_inline)) __u64 shim_cred_cap_inheritable(struct cred *cred) {
+    __u64 val = 0;
+    bpf_probe_read_kernel(&val, sizeof(val), &cred->cap_inheritable);
+    return val;
+}
+
+__attribute__((always_inline)) __u64 shim_cred_cap_permitted(struct cred *cred) {
+    __u64 val = 0;
+    bpf_probe_read_kernel(&val, sizeof(val), &cred->cap_permitted);
+    return val;
+}
 
 struct css_set
 {

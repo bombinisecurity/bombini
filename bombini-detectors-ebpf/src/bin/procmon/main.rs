@@ -1389,7 +1389,7 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
 
     unsafe {
         let binrpm = co_re::linux_binprm::from_ptr(ctx.arg(0));
-        let file = core_read_kernel!(binrpm, file).ok_or(0i32)?;
+        let file = core_read_kernel!(binrpm, file_trusted).ok_or(0i32)?;
         let f_path = core_read_kernel!(file, f_path).ok_or(0i32)?;
 
         // Get full path
