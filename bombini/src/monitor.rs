@@ -9,6 +9,7 @@ use tokio::{
 };
 
 use std::convert::TryFrom;
+use std::mem;
 use std::sync::Arc;
 
 use bombini_common::event::GenericEvent;
@@ -17,7 +18,6 @@ use crate::config::Config;
 use crate::k8s::K8sResolver;
 use crate::transmitter::Transmitter;
 use crate::transmuter::TransmuterRegistry;
-use crate::transmuter::process::{ProcessClone, ProcessExec, ProcessExit};
 
 use serde_json;
 
@@ -68,8 +68,16 @@ impl Monitor {
         tokio::spawn(async move {
             let k8s_resolver = k8s_resolver;
             while let Some(message) = rx.recv().await {
-                let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
-                let transmuted = transmuters.transmute(event);
+                if message.len() < mem::size_of::<GenericEvent>() {
+                    log::debug!(
+                        "Skipping short event message: {} bytes (need at least {})",
+                        message.len(),
+                        mem::size_of::<GenericEvent>()
+                    );
+                    continue;
+                }
+                let event = unsafe { message.as_ptr().cast::<GenericEvent>().read_unaligned() };
+                let transmuted = transmuters.transmute(&event);
                 if let Ok(mut data) = transmuted {
                     if let Some(resolver) = &k8s_resolver {
                         if let Ok(enriched) =
@@ -103,40 +111,26 @@ async fn enrich_process_with_k8s(
         return Ok(data);
     }
 
-    // Порядок: наиболее частые и простые события.
-    if let Ok(mut ev) = serde_json::from_slice::<ProcessExec>(&data) {
-        if let Some(cid) = non_empty(&ev.process.container_id) {
-            if let Some(loc) = resolver.find_container(cid).await? {
-                apply_location(&mut ev.process, &loc);
-                return Ok(serde_json::to_vec(&ev)?);
-            }
-        }
-        return Ok(data);
-    }
+    let mut value: serde_json::Value = match serde_json::from_slice(&data) {
+        Ok(v) => v,
+        Err(_) => return Ok(data),
+    };
 
-    if let Ok(mut ev) = serde_json::from_slice::<ProcessClone>(&data) {
-        if let Some(cid) = non_empty(&ev.process.container_id) {
-            if let Some(loc) = resolver.find_container(cid).await? {
-                apply_location(&mut ev.process, &loc);
-                return Ok(serde_json::to_vec(&ev)?);
-            }
-        }
+    let Some(process) = value.get_mut("process").and_then(|v| v.as_object_mut()) else {
         return Ok(data);
-    }
-
-    if let Ok(mut ev) = serde_json::from_slice::<ProcessExit>(&data) {
-        if let Some(cid) = non_empty(&ev.process.container_id) {
-            if let Some(loc) = resolver.find_container(cid).await? {
-                apply_location(&mut ev.process, &loc);
-                return Ok(serde_json::to_vec(&ev)?);
-            }
-        }
+    };
+    let Some(cid) = process
+        .get("container_id")
+        .and_then(|v| v.as_str())
+        .and_then(non_empty)
+    else {
         return Ok(data);
-    }
+    };
 
-    // Для ProcessEvent (LSM хуки) у нас нет отдельного типа наружу, поэтому
-    // здесь пока ничего не делаем; при необходимости можно добавить десериализацию
-    // аналогично остальным структурам.
+    if let Some(loc) = resolver.find_container(cid).await? {
+        apply_location_json(process, &loc);
+        return Ok(serde_json::to_vec(&value)?);
+    }
 
     Ok(data)
 }
@@ -158,9 +152,35 @@ fn non_empty(s: &str) -> Option<&str> {
     }
 }
 
-fn apply_location(proc: &mut crate::transmuter::process::Process, loc: &crate::k8s::ContainerLocation) {
-    proc.k8s_namespace = Some(loc.namespace.clone());
-    proc.k8s_pod = Some(loc.pod_name.clone());
-    proc.k8s_node = loc.node_name.clone();
-    proc.k8s_container = loc.container_name.clone();
+fn apply_location_json(
+    process: &mut serde_json::Map<String, serde_json::Value>,
+    loc: &crate::k8s::ContainerLocation,
+) {
+    process.insert(
+        "k8s_namespace".to_string(),
+        serde_json::Value::String(loc.namespace.clone()),
+    );
+    process.insert(
+        "k8s_pod".to_string(),
+        serde_json::Value::String(loc.pod_name.clone()),
+    );
+    match &loc.node_name {
+        Some(node) => {
+            process.insert("k8s_node".to_string(), serde_json::Value::String(node.clone()));
+        }
+        None => {
+            process.remove("k8s_node");
+        }
+    }
+    match &loc.container_name {
+        Some(container) => {
+            process.insert(
+                "k8s_container".to_string(),
+                serde_json::Value::String(container.clone()),
+            );
+        }
+        None => {
+            process.remove("k8s_container");
+        }
+    }
 }
