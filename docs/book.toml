@@ -2,7 +2,7 @@
 authors = ["Andrei Fedotov"]
 language = "en"
 src = "src"
-title = "Bombini: eBPF-based Security Monitoring Agent"
+title = "Bombini: eBPF-based Security Monitoring and Sandboxing Agent"
 
 [preprocessor.mermaid]
 command = "mdbook-mermaid"

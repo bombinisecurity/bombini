@@ -34,6 +34,7 @@ ProcMon helps to monitor privilege escalation during process execution. It uses 
 * security_task_prctl (config name: prctl)
 * security_create_user_ns (config name: create_user_ns)
 * security_ptrace_access_check (config name: ptrace_access_check)
+* security_bprm_check (config name: bprm_check)
 
 To enable hook:
 
@@ -46,12 +47,13 @@ To enable hook:
 
 All hooks support scope filtering.
 
-The following list of hooks support event filtering by rules:
+The following list of hooks support event filtering by rules and sandbox mode:
 
 * security_task_fix_setuid
 * security_task_fix_setgid
 * security_capset
 * security_create_user_ns
+* security_bprm_check
 
 ### security_task_fix_setuid
 
@@ -122,4 +124,22 @@ create_user_ns:
   rules:
   - rule: UnprivNsTestRule
     event: NOT ecaps == "CAP_SYS_ADMIN"
+```
+
+### security_bprm_check
+
+`bprm_check` supports the following filtering attributes:
+
+* `path` - absolute path of executed binary via exec
+* `name` - name of executed binary via exec
+* `path_prefix` - absolute path prefix of executed binary via exec
+
+**Example**
+
+```yaml
+bprm_check:
+  enabled: true
+  rules:
+  - rule: TestBprmCheck
+    event: path_prefix == "/tmp" AND name == "ls"
 ```

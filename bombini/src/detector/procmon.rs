@@ -6,13 +6,14 @@ use crate::detector::Detector;
 use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME, ZERO_EVENT_MAP};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::dummy::DummyPredicate;
+use crate::rule::serializer::filemon::PathPredicate;
 use crate::rule::serializer::procmon::{CapPredicate, CredPredicate, GidPredicate, UidPredicate};
 use aya::maps::{Array, HashMap, Map, MapData, MapError};
 use aya::programs::{BtfTracePoint, Lsm};
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
 use bombini_common::config::procmon::ProcMonKernelConfig;
 use bombini_common::constants::{MAX_EVENT_SIZE, PAGE_SIZE};
-use bombini_common::event::process::ProcInfo;
+use bombini_common::event::process::{ProcInfo, ProcessEventNumber};
 use procfs::process;
 use tokio::time::interval;
 
@@ -21,7 +22,7 @@ use crate::rule::serializer::SerializedRules;
 
 pub struct ProcMon {
     ebpf: Ebpf,
-    ima_hash: bool,
+    config: ProcMonKernelConfig,
     hooks: Vec<Box<dyn ProcMonRuleContainer>>,
 }
 
@@ -74,6 +75,7 @@ enum ProcMonHook {
     Prctl,
     Userns,
     PtraceAccessCheck,
+    BprmCheck,
 }
 
 impl ProcMonHook {
@@ -85,6 +87,7 @@ impl ProcMonHook {
             ProcMonHook::Prctl => "PROCMON_PRCTL",
             ProcMonHook::Userns => "PROCMON_USERNS",
             ProcMonHook::PtraceAccessCheck => "PROCMON_PTRACE_ACCESS_CHECK",
+            ProcMonHook::BprmCheck => "PROCMON_BPRM_CHECK",
         }
     }
 
@@ -96,6 +99,7 @@ impl ProcMonHook {
             ProcMonHook::Prctl => "task_prctl",
             ProcMonHook::Userns => "userns_create",
             ProcMonHook::PtraceAccessCheck => "ptrace_access_check",
+            ProcMonHook::BprmCheck => "bprm_check_security",
         }
     }
 
@@ -107,6 +111,7 @@ impl ProcMonHook {
             ProcMonHook::Prctl => "prctl_capture",
             ProcMonHook::Userns => "create_user_ns_capture",
             ProcMonHook::PtraceAccessCheck => "ptrace_access_check_capture",
+            ProcMonHook::BprmCheck => "bprm_check_capture",
         }
     }
 }
@@ -129,6 +134,10 @@ impl ProcMon {
             .set_max_entries(PROCMON_PROC_MAP_NAME, proc_map_size);
 
         let mut hooks: Vec<Box<dyn ProcMonRuleContainer>> = Vec::new();
+        let mut detector_config = ProcMonKernelConfig {
+            ima_hash: config.ima_hash.unwrap_or_default(),
+            sandbox_mode: [None; ProcessEventNumber::TotalProcessEvents as usize],
+        };
         if let Some(setuid) = &config.setuid
             && setuid.enabled
         {
@@ -136,6 +145,12 @@ impl ProcMon {
                 ProcMonHook::Setuid,
                 &setuid.rules,
             )?));
+            if let Some(sandbox) = &setuid.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[ProcessEventNumber::Setuid as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(setgid) = &config.setgid
             && setgid.enabled
@@ -144,6 +159,12 @@ impl ProcMon {
                 ProcMonHook::Setgid,
                 &setgid.rules,
             )?));
+            if let Some(sandbox) = &setgid.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[ProcessEventNumber::Setgid as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(setcaps) = &config.capset
             && setcaps.enabled
@@ -152,6 +173,12 @@ impl ProcMon {
                 ProcMonHook::SetCaps,
                 &setcaps.rules,
             )?));
+            if let Some(sandbox) = &setcaps.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[ProcessEventNumber::Setcaps as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(prctl) = &config.prctl
             && prctl.enabled
@@ -168,6 +195,12 @@ impl ProcMon {
                 ProcMonHook::Userns,
                 &userns.rules,
             )?));
+            if let Some(sandbox) = &userns.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[ProcessEventNumber::CreateUserNs as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
         if let Some(ptrace_access_check) = &config.ptrace_access_check
             && ptrace_access_check.enabled
@@ -176,6 +209,20 @@ impl ProcMon {
                 ProcMonHook::PtraceAccessCheck,
                 &ptrace_access_check.rules,
             )?));
+        }
+        if let Some(bprm_check) = &config.bprm_check
+            && bprm_check.enabled
+        {
+            hooks.push(Box::new(HookData::<PathPredicate>::new(
+                ProcMonHook::BprmCheck,
+                &bprm_check.rules,
+            )?));
+            if let Some(sandbox) = &bprm_check.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[ProcessEventNumber::BprmCheck as usize] =
+                    Some(sandbox.deny_list);
+            }
         }
 
         resize_all_procmon_filter_maps(hooks.as_slice(), ebpf_loader_ref)?;
@@ -187,7 +234,7 @@ impl ProcMon {
 
         Ok(ProcMon {
             ebpf,
-            ima_hash: config.ima_hash.unwrap_or_default(),
+            config: detector_config,
             hooks,
         })
     }
@@ -227,12 +274,9 @@ fn start_proc_map_gc<P: AsRef<Path>>(
 impl Detector for ProcMon {
     fn map_initialize(&mut self) -> Result<(), EbpfError> {
         // TODO: Change trait error type to anyhow::Error
-        let config = ProcMonKernelConfig {
-            ima_hash: self.ima_hash,
-        };
         let mut config_map: Array<_, ProcMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
-        let _ = config_map.set(0, config, 0);
+        let _ = config_map.set(0, self.config, 0);
 
         let current_processes = process::all_processes().unwrap();
         let mut proc_map: HashMap<_, u32, ProcInfo> =

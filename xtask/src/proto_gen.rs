@@ -13,6 +13,7 @@ pub fn proto_gen(_opts: Options) -> Result<(), anyhow::Error> {
         .out_dir(&out_dir)
         .type_attribute(".", "#[derive(serde::Deserialize)]")
         .type_attribute("config.Rule", "#[serde(default)]")
+        .type_attribute("config.SandboxMode", "#[serde(default)]")
         .field_attribute("config.HookConfig.rules", "#[serde(default)]")
         .field_attribute("config.Rule.name", r#"#[serde(rename = "rule")]"#)
         .field_attribute("config.Rule.scope", "#[serde(default)]")

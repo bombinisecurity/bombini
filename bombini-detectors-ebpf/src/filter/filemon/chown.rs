@@ -2,7 +2,7 @@
 
 use aya_ebpf::maps::{HashMap, LpmTrie, lpm_trie::Key};
 use bombini_common::config::rule::{
-    FileNameMapKey, PathChownAttributes, PathMapKey, PathPrefixMapKey, UIDKey,
+    Attributes, FileNameMapKey, PathMapKey, PathPrefixMapKey, UIDKey,
 };
 
 use crate::interpreter::CheckIn;
@@ -56,31 +56,31 @@ impl<'a> ChownFilter<'a> {
 impl CheckIn for ChownFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == PathChownAttributes::Name as u8 => unsafe {
+            id if id == Attributes::Name as u8 => unsafe {
                 let Some(mask_name) = self.name_map.get(self.name) else {
                     return Ok(false);
                 };
                 Ok(*mask_name & (1 << in_op_idx) != 0)
             },
-            id if id == PathChownAttributes::Path as u8 => unsafe {
+            id if id == Attributes::Path as u8 => unsafe {
                 let Some(mask_path) = self.path_map.get(self.path) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
-            id if id == PathChownAttributes::PathPrefix as u8 => {
+            id if id == Attributes::PathPrefix as u8 => {
                 let Some(mask_path) = self.prefix_map.get(self.prefix) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             }
-            id if id == PathChownAttributes::UID as u8 => unsafe {
+            id if id == Attributes::UID as u8 => unsafe {
                 let Some(mask_uid) = self.uid_map.get(self.uid) else {
                     return Ok(false);
                 };
                 Ok(*mask_uid & (1 << in_op_idx) != 0)
             },
-            id if id == PathChownAttributes::GID as u8 => unsafe {
+            id if id == Attributes::GID as u8 => unsafe {
                 let Some(mask_gid) = self.gid_map.get(self.gid) else {
                     return Ok(false);
                 };

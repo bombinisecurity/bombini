@@ -6,9 +6,9 @@ use std::sync::Arc;
 use bombini_common::event::{
     Event,
     process::{
-        Capabilities, Cgroup, ImaHash, LsmSetIdFlags, PrctlCmd, ProcCapset, ProcInfo, ProcPrctl,
-        ProcPtraceAccessCheck, ProcSetGid, ProcSetUid, ProcessEventVariant, ProcessKey, PtraceMode,
-        SecureExec,
+        Capabilities, Cgroup, ImaHash, LsmSetIdFlags, PrctlCmd, ProcBprmCheck, ProcCapset,
+        ProcInfo, ProcPrctl, ProcPtraceAccessCheck, ProcSetGid, ProcSetUid, ProcessEventVariant,
+        ProcessKey, PtraceMode, SecureExec,
     },
 };
 
@@ -182,6 +182,13 @@ pub enum PrctlCmdUser {
     PrSetKeepCaps(u8) = 8,
     PrSetName { name: String } = 15,
     PrSetSecurebits(u32) = 28,
+}
+
+/// Bprm_check event
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct ProcessBprmCheck {
+    binary: String,
 }
 
 fn serialize_capabilities<S>(caps: &Capabilities, serializer: S) -> Result<S::Ok, S::Error>
@@ -574,6 +581,15 @@ impl ProcessPtraceAccessCheck {
     }
 }
 
+impl ProcessBprmCheck {
+    /// Constructs High level event representation from low eBPF message
+    pub fn new(event: &ProcBprmCheck) -> Self {
+        Self {
+            binary: str_from_bytes(&event.binary),
+        }
+    }
+}
+
 /// Process Event
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -583,6 +599,8 @@ struct ProcessEvent<'a> {
     process: Arc<Process>,
     /// Parent process information
     parent: Option<Arc<Process>>,
+    /// If event is blocked by sandbox mode
+    blocked: bool,
     /// Process event
     process_event: ProcessEventType,
     /// Event's date and time
@@ -607,12 +625,14 @@ pub enum ProcessEventType {
     Prctl(ProcessPrctl),
     CreateUserNs(ProcessCreateUserNs),
     PtraceAccessCheck(ProcessPtraceAccessCheck),
+    BprmCheck(ProcessBprmCheck),
 }
 
 impl<'a> ProcessEvent<'a> {
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
+        blocked: bool,
         event: &ProcessEventVariant,
         rule: Option<&'a str>,
         ktime: u64,
@@ -623,6 +643,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Setgid(proc) => Self {
@@ -630,6 +651,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Setcaps(proc) => Self {
@@ -637,6 +659,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::Prctl(proc) => Self {
@@ -644,6 +667,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::CreateUserNs => Self {
@@ -651,6 +675,7 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
             ProcessEventVariant::PtraceAccessCheck(proc) => Self {
@@ -660,6 +685,15 @@ impl<'a> ProcessEvent<'a> {
                 process,
                 parent,
                 rule,
+                blocked,
+                timestamp: transmute_ktime(ktime),
+            },
+            ProcessEventVariant::BprmCheck(proc) => Self {
+                process_event: ProcessEventType::BprmCheck(ProcessBprmCheck::new(proc)),
+                process,
+                parent,
+                rule,
+                blocked,
                 timestamp: transmute_ktime(ktime),
             },
         }
@@ -673,6 +707,7 @@ pub struct ProcessEventTransmuter {
     prctl_rule_names: Vec<String>,
     create_user_ns_rule_names: Vec<String>,
     ptrace_access_check_rule_names: Vec<String>,
+    bprm_check_rule_names: Vec<String>,
 }
 
 impl ProcessEventTransmuter {
@@ -691,6 +726,7 @@ impl ProcessEventTransmuter {
             prctl_rule_names: rule_names_from_hook_config(&cfg.prctl),
             create_user_ns_rule_names: rule_names_from_hook_config(&cfg.create_user_ns),
             ptrace_access_check_rule_names: rule_names_from_hook_config(&cfg.ptrace_access_check),
+            bprm_check_rule_names: rule_names_from_hook_config(&cfg.bprm_check),
         }
     }
 
@@ -706,6 +742,7 @@ impl ProcessEventTransmuter {
             ProcessEventVariant::Prctl(_) => &self.prctl_rule_names,
             ProcessEventVariant::CreateUserNs => &self.create_user_ns_rule_names,
             ProcessEventVariant::PtraceAccessCheck(_) => &self.ptrace_access_check_rule_names,
+            ProcessEventVariant::BprmCheck(_) => &self.bprm_check_rule_names,
         };
 
         rule_idx
@@ -751,6 +788,7 @@ impl Transmuter for ProcessEventTransmuter {
                 let high_level_event = ProcessEvent::new(
                     cached_process.process.clone(),
                     parent,
+                    msg.blocked,
                     &msg.event,
                     rule_name,
                     ktime,

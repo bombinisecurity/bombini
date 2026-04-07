@@ -20,6 +20,18 @@ procmon_proc_map_size: 8192
 # Retain Transmuters caches every <gc_period> sec
 gc_period: 30
 
+# Transmit events to log file
+log_file: /var/log/bombini/bombini.log
+
+# Log file size in MB
+log_file_size: 10
+
+# Number of log file rotations
+log_file_rotations: 5
+
+# Enable log file compression
+log_file_compression: false
+
 # List of the detectors to load
 detectors:
    - procmon

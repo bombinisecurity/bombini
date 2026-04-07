@@ -13,6 +13,8 @@ pub struct FileMsg {
     pub process: ProcessKey,
     pub parent: ProcessKey,
     pub event: FileEventVariant,
+    /// true if event is blocked by corresponding LSM hook
+    pub blocked: bool,
     pub rule_idx: Option<u8>,
 }
 

@@ -16,6 +16,7 @@ use aya_ebpf::{
     programs::LsmContext,
 };
 use bombini_common::{
+    config::filemon::FileMonKernelConfig,
     config::rule::{
         AccessModeKey, CmdKey, CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, PathMapKey,
         PathPrefixMapKey, ProtModeKey, Rules, UIDKey,
@@ -49,6 +50,10 @@ use bombini_detectors_ebpf::{
 use bombini_detectors_ebpf::filter::filemon::{
     chown::ChownFilter, ioctl::FileIoctlFilter, path::PathFilter,
 };
+
+// Detector config
+#[map]
+static FILEMON_CONFIG: Array<FileMonKernelConfig> = Array::with_max_entries(1, 0);
 
 // Helpers
 #[map]
@@ -264,6 +269,16 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             return enrich_file_open_event(msg, proc, fp, None);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::FileOpen as usize];
+
         // Get filtering attributes
         // Get file name
         let path = bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
@@ -327,13 +342,38 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                     &access_mode,
                     &creation_flags,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
-                    return enrich_file_open_event(msg, proc, fp, Some(idx as u8));
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
+                    enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
-
     Err(0)
 }
 
@@ -437,6 +477,16 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             return Ok(0);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::PathTruncate as usize];
+
         // Get filtering attributes
         // Get file name
         let path = bpf_probe_read_kernel::<path>(p).map_err(|_| 0i32)?;
@@ -483,14 +533,38 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                     file_path,
                     file_prefix,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
-
     Err(0)
 }
 
@@ -588,6 +662,16 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
             return Ok(0);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::PathUnlink as usize];
+
         // Get filtering attributes
         // Get file name
         let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name.name);
@@ -630,14 +714,38 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                     file_path,
                     file_prefix,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
-
     Err(0)
 }
 
@@ -738,6 +846,16 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
             return Ok(0);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::PathSymlink as usize];
+
         // Get filtering attributes
         // File name is not used in symlink, just copy old path for compatibility
         let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, &event.old_path as *const _);
@@ -780,10 +898,35 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                     file_path,
                     file_prefix,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -867,6 +1010,16 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             return Ok(0);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::PathChmod as usize];
+
         // Get filtering attributes
         // Get file name
         let path = bpf_probe_read_kernel::<path>(p).map_err(|_| 0i32)?;
@@ -921,10 +1074,35 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     file_prefix,
                     &chomd_value,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -1012,6 +1190,16 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             return Ok(0);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::PathChown as usize];
+
         // Get filtering attributes
         // Get file name
         let path = bpf_probe_read_kernel::<path>(p).map_err(|_| 0i32)?;
@@ -1077,10 +1265,35 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     &owner_uid,
                     &owner_gid,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -1229,6 +1442,16 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             return Ok(0);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::MmapFile as usize];
+
         // Get filtering attributes
         // Get file name
         let file_name = if !is_null_pointer(fp) {
@@ -1295,10 +1518,35 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                     &prot_mode,
                     &flags,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -1383,6 +1631,16 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
             return Ok(0);
         };
 
+        let Some(config_ptr) = FILEMON_CONFIG.get_ptr(0) else {
+            return Err(0);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(0);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[FileEventNumber::FileIoctl as usize];
+
         // Get filtering attributes
         // Get file name
         let path = bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
@@ -1438,10 +1696,35 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                     file_prefix,
                     &cmd,
                 ))?;
-                if event_filter.check_predicate(&rule.event)? {
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    msg.blocked = true;
+                    return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }

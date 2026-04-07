@@ -7,6 +7,7 @@ pub mod network;
 pub mod process;
 
 /// Generic event for ring buffer
+#[repr(C)]
 pub struct GenericEvent {
     pub ktime: u64,
     /// event enum discriminant for fast access

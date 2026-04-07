@@ -10,6 +10,7 @@
     - [NetMonConfig](#config-NetMonConfig)
     - [ProcMonConfig](#config-ProcMonConfig)
     - [Rule](#config-Rule)
+    - [SandboxMode](#config-SandboxMode)
   
 - [Scalar Value Types](#scalar-value-types)
 
@@ -70,6 +71,7 @@ Hook or group of hooks configuration
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | enabled | [bool](#bool) |  | Load eBPF programs |
+| sandbox | [SandboxMode](#config-SandboxMode) |  | Sandbox capabilities. |
 | rules | [Rule](#config-Rule) | repeated | Filtering rules |
 
 
@@ -107,6 +109,7 @@ Configuration file for ProcMon detector
 | create_user_ns | [HookConfig](#config-HookConfig) |  | create_user_ns hook config. |
 | ptrace_access_check | [HookConfig](#config-HookConfig) |  | ptrace_attach hook config. |
 | setgid | [HookConfig](#config-HookConfig) |  | setgid hook config. |
+| bprm_check | [HookConfig](#config-HookConfig) |  | bprm_check hook config. |
 | ima_hash | [bool](#bool) | optional | Collect IMA hashes for executed binaries. |
 | gc_period | [uint64](#uint64) | optional | GC period for PROCMON_PROC_MAP default 30 sec. |
 
@@ -126,6 +129,22 @@ Rule definition. Scope and event predicates are used as logical conjunction.
 | name | [string](#string) |  | Name of the rule. |
 | scope | [string](#string) |  | Logical predicate describes scope this rule will be applied, e.g. process, container. |
 | event | [string](#string) |  | Logical predicate for describes event rule will be applied |
+
+
+
+
+
+
+<a name="config-SandboxMode"></a>
+
+### SandboxMode
+Sandbox  parameters.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| enabled | [bool](#bool) |  | Enable sandbox mode. |
+| deny_list | [bool](#bool) |  | Consider rules as deny list. |
 
 
 

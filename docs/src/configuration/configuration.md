@@ -34,6 +34,18 @@ procmon_proc_map_size: 8192
 # Retain Transmuters caches every <gc_period> sec
 gc_period: 30
 
+# Transmit events to log file
+log_file: /var/log/bombini/bombini.log
+
+# Log file size in MB
+log_file_size: 10
+
+# Number of log file rotations
+log_file_rotations: 5
+
+# Enable log file compression
+log_file_compression: false
+
 # List of the detectors to load
 detectors:
    - procmon
@@ -58,16 +70,20 @@ Usage: bombini [OPTIONS]
 Options:
       --bpf-objs <FILE>                Directory with bpf detector object files
       --maps-pin-path <FILE>           Path to pin bpf maps
-      --event-map-size <VALUE>         Event map size (ring buffer size in bytes) default value: 65536
-      --event-channel-size <VALUE>     Raw event channel size (number of event messages) default value: 64
-      --procmon-proc-map-size <VALUE>  Procmon process map size default value: 8192
+      --event-map-size <VALUE>         Event map size (ring buffer size in bytes) [default: 65536]
+      --event-channel-size <VALUE>     Raw event channel size (number of event messages) [default: 64]
+      --procmon-proc-map-size <VALUE>  Procmon process map size [default: 8192]
   -D, --detector <NAME>                Detector to load. Can be specified multiple times. Overrides the config
+      --gc-period <SEC>                GC period for user mode caches in seconds
       --config-dir <DIR>               YAML config dir with global config and detector configs [default: /usr/local/lib/bombini/config]
-      --event-log <FILE>               File path to save events
+      --log-file <FILE>                File path to save events
+      --log-file-rotations <VALUE>     Number of rotated files to keep [default: 5]
+      --log-file-size <VALUE>          Max size of rotated file in mb [default: 10]
+      --log-file-compression           Enable compression for rotated files
       --event-socket <FILE>            Unix socket path to send events
   -h, --help                           Print help
   -V, --version                        Print version
 ```
 
 `--bpf-objs`, `--maps-pin-path`, `--event-map-size`, `--event-channel-size`, `detector` options can override corresponding config options.
-`--event-log`, `--event-socket` can override default stdout json serialized events output.
+`--log-file`, `--event-socket` can override default stdout json serialized events output.

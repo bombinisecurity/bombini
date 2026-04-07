@@ -2,7 +2,7 @@
 
 use aya_ebpf::maps::HashMap;
 use bombini_common::{
-    config::rule::{CapKey, CredAttributes, UIDKey},
+    config::rule::{Attributes, CapKey, UIDKey},
     event::process::Capabilities,
 };
 
@@ -42,13 +42,13 @@ impl<'a> UidFilter<'a> {
 impl CheckIn for UidFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == CredAttributes::UID as u8 || id == CredAttributes::GID as u8 => unsafe {
+            id if id == Attributes::UID as u8 || id == Attributes::GID as u8 => unsafe {
                 let Some(mask_name) = self.id_map.get(self.id) else {
                     return Ok(false);
                 };
                 Ok(*mask_name & (1 << in_op_idx) != 0)
             },
-            id if id == CredAttributes::EUID as u8 || id == CredAttributes::EGID as u8 => unsafe {
+            id if id == Attributes::EUID as u8 || id == Attributes::EGID as u8 => unsafe {
                 let Some(mask_path) = self.eid_map.get(self.eid) else {
                     return Ok(false);
                 };
@@ -88,7 +88,7 @@ impl<'a> CapFilter<'a> {
 impl CheckIn for CapFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == CredAttributes::ECAPS as u8 => unsafe {
+            id if id == Attributes::ECAPS as u8 => unsafe {
                 let ecap_key = CapKey {
                     rule_idx: self.ecap.rule_idx,
                     in_idx: in_op_idx,
@@ -98,7 +98,7 @@ impl CheckIn for CapFilter<'_> {
                 };
                 Ok(*caps & self.ecap.caps != Capabilities::empty())
             },
-            id if id == CredAttributes::PCAPS as u8 => unsafe {
+            id if id == Attributes::PCAPS as u8 => unsafe {
                 let pcap_key = CapKey {
                     rule_idx: self.pcap.rule_idx,
                     in_idx: in_op_idx,
@@ -142,7 +142,7 @@ impl<'a> CredFilter<'a> {
 impl CheckIn for CredFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == CredAttributes::ECAPS as u8 => unsafe {
+            id if id == Attributes::ECAPS as u8 => unsafe {
                 let ecap_key = CapKey {
                     rule_idx: self.ecap.rule_idx,
                     in_idx: in_op_idx,
@@ -152,7 +152,7 @@ impl CheckIn for CredFilter<'_> {
                 };
                 Ok(*caps & self.ecap.caps != Capabilities::empty())
             },
-            id if id == CredAttributes::EUID as u8 => unsafe {
+            id if id == Attributes::EUID as u8 => unsafe {
                 let Some(mask_path) = self.euid_map.get(self.euid) else {
                     return Ok(false);
                 };

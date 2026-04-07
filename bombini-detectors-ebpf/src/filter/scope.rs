@@ -1,5 +1,5 @@
 use aya_ebpf::maps::{HashMap, LpmTrie, lpm_trie::Key};
-use bombini_common::config::rule::{FileNameMapKey, PathMapKey, PathPrefixMapKey, ScopeAttributes};
+use bombini_common::config::rule::{Attributes, FileNameMapKey, PathMapKey, PathPrefixMapKey};
 
 use crate::interpreter::CheckIn;
 
@@ -38,19 +38,19 @@ impl<'a> ScopeFilter<'a> {
 impl CheckIn for ScopeFilter<'_> {
     fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
         match attribute_map_id {
-            id if id == ScopeAttributes::BinaryName as u8 => unsafe {
+            id if id == Attributes::BinaryName as u8 => unsafe {
                 let Some(mask_name) = self.name_map.get(self.name) else {
                     return Ok(false);
                 };
                 Ok(*mask_name & (1 << in_op_idx) != 0)
             },
-            id if id == ScopeAttributes::BinaryPath as u8 => unsafe {
+            id if id == Attributes::BinaryPath as u8 => unsafe {
                 let Some(mask_path) = self.path_map.get(self.path) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
-            id if id == ScopeAttributes::BinaryPrefix as u8 => {
+            id if id == Attributes::BinaryPrefix as u8 => {
                 let Some(mask_path) = self.prefix_map.get(self.prefix) else {
                     return Ok(false);
                 };

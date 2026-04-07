@@ -1,42 +1,65 @@
 //! Transmit serialized event into file
 
-use tokio::fs::{File, OpenOptions};
-use tokio::io::AsyncWriteExt;
+use anyhow::Ok;
+use file_rotate::compression::Compression;
+use file_rotate::suffix::AppendCount;
+use file_rotate::{ContentLimit, FileRotate};
+use std::fs::OpenOptions;
+use std::io::Write;
+use tokio::sync::mpsc::{Receiver, Sender};
 
-use std::path::Path;
-
+use crate::options::FileLogOptions;
 use crate::transmitter::Transmitter;
 
+const MEGABYTE: usize = 1024 * 1024;
+
 pub struct FileTransmitter {
-    file: File,
+    /// Channel for sending events to log thread.
+    tx: Sender<Vec<u8>>,
 }
 
 impl FileTransmitter {
     /// Construct transmitter for sending events to file.
     /// File options: create + append
-    pub async fn new<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path.as_ref())
-            .await?;
-        Ok(FileTransmitter { file })
-    }
-}
+    pub async fn new(
+        mut log_options: FileLogOptions,
+        channel_size: usize,
+    ) -> Result<Self, anyhow::Error> {
+        if log_options.log_file.is_none() {
+            anyhow::bail!("Log file path is not set");
+        }
 
-impl Drop for FileTransmitter {
-    fn drop(&mut self) {
-        futures_executor::block_on(async {
-            self.file.shutdown().await.unwrap();
+        let (tx, mut rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
+            tokio::sync::mpsc::channel(channel_size);
+
+        std::thread::spawn(move || {
+            let mut file_options = OpenOptions::new();
+            file_options.create(true).append(true);
+            let compression = if log_options.log_file_compression {
+                Compression::OnRotate(0)
+            } else {
+                Compression::None
+            };
+            let mut log = FileRotate::new(
+                log_options.log_file.take().unwrap(),
+                AppendCount::new(log_options.log_file_rotations),
+                ContentLimit::BytesSurpassed(log_options.log_file_size * MEGABYTE),
+                compression,
+                Some(file_options),
+            );
+            while let Some(data) = rx.blocking_recv() {
+                // delimiter
+                log.write_all(b"\n").unwrap();
+                log.write_all(&data).unwrap();
+            }
         });
+        Ok(FileTransmitter { tx })
     }
 }
 
 impl Transmitter for FileTransmitter {
-    async fn transmit(&mut self, mut data: Vec<u8>) -> Result<(), anyhow::Error> {
-        // delimiter
-        data.push(b'\n');
-        self.file.write_all(&data).await?;
+    async fn transmit(&mut self, data: Vec<u8>) -> Result<(), anyhow::Error> {
+        self.tx.send(data).await?;
         Ok(())
     }
 }

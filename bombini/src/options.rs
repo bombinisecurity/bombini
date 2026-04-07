@@ -1,5 +1,6 @@
 //! Options for agent configuration
 
+use anyhow::bail;
 use serde::Deserialize;
 
 use clap::{Args, Parser};
@@ -29,18 +30,15 @@ pub struct Options {
     pub maps_pin_path: Option<String>,
 
     /// Event map size (ring buffer size in bytes)
-    /// default value: 65536
-    #[arg(long, value_name = "VALUE")]
+    #[arg(long, value_name = "VALUE", default_value = "65536")]
     pub event_map_size: Option<u32>,
 
     /// Raw event channel size (number of event messages)
-    /// default value: 64
-    #[arg(long, value_name = "VALUE")]
+    #[arg(long, value_name = "VALUE", default_value = "64")]
     pub event_channel_size: Option<usize>,
 
     /// Procmon process map size
-    /// default value: 8192
-    #[arg(long, value_name = "VALUE")]
+    #[arg(long, value_name = "VALUE", default_value = "8192")]
     pub procmon_proc_map_size: Option<u32>,
 
     /// Detector to load. Can be specified multiple times.
@@ -49,7 +47,7 @@ pub struct Options {
     pub detectors: Option<Vec<String>>,
 
     /// GC period for user mode caches in seconds.
-    #[arg(long, value_name = "SEC")]
+    #[arg(long, value_name = "SEC", default_value = "30")]
     pub gc_period: Option<u64>,
 
     /// YAML config dir with global config and detector configs
@@ -58,20 +56,60 @@ pub struct Options {
     pub config_dir: String,
 
     #[command(flatten)]
-    #[serde(skip)]
+    #[serde(flatten)]
     pub transmit_opts: TransmitterOpts,
 }
 
-#[derive(Default, Clone, Debug, Args)]
+#[derive(Default, Clone, Debug, Args, Deserialize)]
 #[group(multiple = false)]
+#[serde(default)]
 pub struct TransmitterOpts {
     /// File path to save events
-    #[arg(long, value_name = "FILE")]
-    pub event_log: Option<String>,
+    #[command(flatten)]
+    #[serde(flatten)]
+    pub event_file: FileLogOptions,
 
     /// Unix socket path to send events
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, value_name = "FILE", conflicts_with = "file_log")]
     pub event_socket: Option<String>,
+}
+
+const DEFAULT_LOG_FILE_ROTATIONS: &str = "5";
+const DEFAULT_LOG_FILE_SIZE_MB: &str = "10";
+const DEFAULT_LOG_FILE_COMPRESSION: &str = "false";
+
+fn default_log_file_rotations() -> usize {
+    DEFAULT_LOG_FILE_ROTATIONS.parse().unwrap()
+}
+fn default_log_file_size() -> usize {
+    DEFAULT_LOG_FILE_SIZE_MB.parse().unwrap()
+}
+fn default_log_file_compression() -> bool {
+    DEFAULT_LOG_FILE_COMPRESSION.parse().unwrap()
+}
+
+#[derive(Default, Clone, Debug, Args, Deserialize)]
+#[group(id = "file_log", required = false, multiple = true)]
+#[serde(default)]
+pub struct FileLogOptions {
+    /// File path to save events
+    #[arg(long, value_name = "FILE")]
+    pub log_file: Option<String>,
+
+    /// Number of rotated files to keep
+    #[arg(long, value_name = "VALUE", default_value = DEFAULT_LOG_FILE_ROTATIONS)]
+    #[serde(default = "default_log_file_rotations")]
+    pub log_file_rotations: usize,
+
+    /// Max size of rotated file in mb
+    #[arg(long, value_name = "VALUE", default_value = DEFAULT_LOG_FILE_SIZE_MB)]
+    #[serde(default = "default_log_file_size")]
+    pub log_file_size: usize,
+
+    /// Enable compression for rotated files
+    #[arg(long, value_name = "VALUE", default_value = DEFAULT_LOG_FILE_COMPRESSION)]
+    #[serde(default = "default_log_file_compression")]
+    pub log_file_compression: bool,
 }
 
 impl Options {
@@ -100,6 +138,7 @@ impl Options {
         self.procmon_proc_map_size = config.procmon_proc_map_size;
         self.detectors = config.detectors;
         self.gc_period = config.gc_period;
+        self.transmit_opts = config.transmit_opts;
 
         // Redefine config from file if command args are set
         if let Some(v) = args.bpf_objs.as_deref() {
@@ -125,8 +164,26 @@ impl Options {
             self.detectors = Some(detectors.to_vec());
         }
 
-        // Use transmitter options only from args
-        self.transmit_opts = args.transmit_opts;
+        // Serde doesn't support group validation, so we do it manually
+        if self.transmit_opts.event_file.log_file.is_some()
+            && self.transmit_opts.event_socket.is_some()
+        {
+            bail!("Only one of log-file or event-socket can be specified");
+        }
+
+        if args.transmit_opts.event_file.log_file.is_some() {
+            self.transmit_opts.event_file.log_file = args.transmit_opts.event_file.log_file;
+            self.transmit_opts.event_file.log_file_rotations =
+                args.transmit_opts.event_file.log_file_rotations;
+            self.transmit_opts.event_file.log_file_size =
+                args.transmit_opts.event_file.log_file_size;
+            self.transmit_opts.event_file.log_file_compression =
+                args.transmit_opts.event_file.log_file_compression;
+        }
+
+        if args.transmit_opts.event_socket.is_some() {
+            self.transmit_opts.event_socket = args.transmit_opts.event_socket;
+        }
 
         Ok(())
     }

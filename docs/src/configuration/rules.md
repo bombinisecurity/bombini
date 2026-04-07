@@ -58,7 +58,7 @@ The scope and event predicates are combined using logical *AND*. This means both
 | Equality    | `==`        | Shorthand for single-element membership check    | `binary_path == "/usr/bin/cat"`              |
 
 
-**Operator Precedence** 
+**Operator Precedence**
 
 The following precedence order applies (from highest to lowest):
 
@@ -80,7 +80,7 @@ for example, for `ecaps` attribute map, `["CAP_SYS_ADMIN", "CAP_SYS_PTRACE"]` wi
 
 1. Maximum rules per hook: 32
 2. Maximum operations per rule: 16
-3. Maximum in operations per rule: 8
+3. Maximum in operations per attribute in rule: 8
 
 The last two constraints are applied to optimized rule.
 
@@ -88,6 +88,7 @@ The last two constraints are applied to optimized rule.
 
 Bombini agent applies several optimizations to rules to improve performance:
 
+* fold_not
 * fold_or
 * fold_and
 
@@ -147,4 +148,87 @@ file_open:
   rules:
     - rule: monitor_sensitive_files
       event: path == "/log" AND path in ["/etc", "/tmp", "/opt"]
+```
+
+### Fold_not Optimization
+
+The `fold_not` optimization combines multiple NOT operations into a single NOT operation using De Morgan's laws.
+
+**Example**
+
+```yaml
+file_open:
+  enabled: true
+  rules:
+    - rule: fold_not_and
+      event: NOT path == "/var" AND NOT path == "/tmp"
+```
+
+This rule firstly will be optimized to:
+
+```yaml
+file_open:
+  enabled: true
+  rules:
+    - rule: fold_not_and
+      event: NOT (path == "/var" OR path == "/tmp")
+```
+
+And resulting rule after `fold_or` optimization will be:
+
+```yaml
+file_open:
+  enabled: true
+  rules:
+    - rule: fold_not_and
+      event: NOT path in ["/var", "/tmp"]
+```
+
+## Sandbox Mode
+
+Bombini supports sandboxing for ProcMon and FileMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy.
+
+Sandbox configuration is added at the hook level and follows this pattern:
+
+```yaml
+<hook_name>:
+  enabled: <boolean>
+  sandbox:
+    enabled: <boolean> # optional, default: false
+    deny_list: <boolean>  # optional, default: false
+  rules:
+    - rule: <rule_name>
+      scope: <boolean_predicate>
+      event: <boolean_predicate>
+```
+
+### Sandbox Parameters
+
+* **enabled**: Activates sandbox enforcement for the hook. When false, rules operate in monitoring-only mode.
+* **deny_list**: Controls policy mode:
+  - false (default): *Allow-list mode* — only events matching rules are permitted; all others are denied.
+  - true: *Deny-list mode* — events matching rules are explicitly blocked; all others are permitted.
+
+### Examples
+
+```yaml
+file_open:
+  enabled: true
+  sandbox:
+    enabled: true
+    deny_list: true
+  rules:
+  - rule: OpenTestSandBoxRule
+    scope: binary_name in ["dash", "sh", "bash"]
+    event: name == "filemon.yaml" AND access_mode == "O_WRONLY"
+```
+
+```yaml
+bprm_check:
+  enabled: true
+  sandbox:
+    enabled: true
+  rules:
+  - rule: BprmCheckTestRule
+    event: path_prefix in ["/usr", "/bin", "/sbin", "/home"]
 ```

@@ -52,6 +52,7 @@ Event is triggered when file is truncated by `truncate` syscall.
   },
   "timestamp": "2025-12-11T11:46:28.965Z",
   "type": "FileEvent",
+  "blocked": false,
   "rule": "TruncateTestRule"
 }
 ```
@@ -106,6 +107,7 @@ Event is triggered when file is deleted.
   },
   "timestamp": "2025-12-11T11:46:31.742Z",
   "type": "FileEvent",
+  "blocked": false,
   "rule": "UnlinkTestRule"
 }
 ```
@@ -218,6 +220,7 @@ Event is triggered when symbolic link is created.
   },
   "timestamp": "2025-12-11T11:45:57.094Z",
   "type": "FileEvent",
+  "blocked": false,
   "rule": "OpenTestRule"
 }
 ```
@@ -271,6 +274,7 @@ Event is triggered when symbolic link is created.
   },
   "timestamp": "2025-12-11T11:46:23.488Z",
   "type": "FileEvent",
+  "blocked": false,
   "rule": "ChmodTestRule"
 }
 ```
@@ -325,6 +329,7 @@ Event is triggered when symbolic link is created.
   },
   "timestamp": "2025-12-11T11:46:26.190Z",
   "type": "FileEvent",
+  "blocked": false,
   "rule": "ChownTestRule"
 }
 ```
@@ -382,6 +387,7 @@ Event is triggered when block device is mounted.
     "mnt": "/mnt",
     "flags": 1306860944
   },
+  "blocked": false,
   "timestamp": "2025-12-11T13:07:53.637Z"
 }
 ```
@@ -435,6 +441,7 @@ Event is triggered when block device is mounted.
     "uid": 0
   },
   "timestamp": "2025-12-11T11:45:52.856Z",
+  "blocked": false,
   "type": "FileEvent"
 }
 ```
@@ -490,6 +497,7 @@ Event is triggered when block device is mounted.
   },
   "timestamp": "2025-12-11T11:45:48.084Z",
   "type": "FileEvent",
+  "blocked": false,
   "rule": "IoctlTestRule"
 }
 
