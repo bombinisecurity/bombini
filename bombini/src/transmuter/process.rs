@@ -12,7 +12,7 @@ use bombini_common::event::{
     },
 };
 
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::proto::config::{HookConfig, ProcMonConfig};
 
@@ -22,7 +22,7 @@ use super::{
     str_from_bytes, transmute_ktime,
 };
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 /// Process exec event
@@ -35,7 +35,7 @@ pub struct ProcessExec {
     timestamp: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 /// Process clone event
@@ -48,7 +48,7 @@ pub struct ProcessClone {
     timestamp: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 /// Process exit event
@@ -62,7 +62,7 @@ pub struct ProcessExit {
 }
 
 /// Process information
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Process {
     /// last exec or clone time
@@ -112,10 +112,22 @@ pub struct Process {
     #[serde(serialize_with = "serialize_ima")]
     #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub binary_ima_hash: ImaHash,
+    /// Kubernetes namespace (если процесс в контейнере)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub k8s_namespace: Option<String>,
+    /// Kubernetes Pod name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub k8s_pod: Option<String>,
+    /// Kubernetes Node name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub k8s_node: Option<String>,
+    /// Kubernetes container name внутри Pod'а
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub k8s_container: Option<String>,
 }
 
 /// Setuid event
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessSetUid {
     euid: u32,
@@ -127,7 +139,7 @@ pub struct ProcessSetUid {
 }
 
 /// Setgid event
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessSetGid {
     egid: u32,
@@ -139,7 +151,7 @@ pub struct ProcessSetGid {
 }
 
 /// Capset event
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessCapset {
     #[serde(serialize_with = "serialize_capabilities")]
@@ -154,14 +166,14 @@ pub struct ProcessCapset {
 }
 
 /// Prctl event
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessPrctl {
     cmd: PrctlCmdUser,
 }
 
 /// Enumeration of prctl supported commands
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[repr(u8)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PrctlCmdUser {
@@ -288,12 +300,12 @@ fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
 }
 
 /// CreateUserNs event
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessCreateUserNs {}
 
 /// PtraceAttach event
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessPtraceAccessCheck {
     child: Process,
@@ -331,6 +343,10 @@ impl Process {
             args,
             container_id: container_id_from_cgroup(&proc.cgroup),
             binary_ima_hash: proc.ima_hash,
+            k8s_namespace: None,
+            k8s_pod: None,
+            k8s_node: None,
+            k8s_container: None,
         }
     }
 }
@@ -576,7 +592,7 @@ struct ProcessEvent<'a> {
     rule: Option<&'a str>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[repr(u8)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
