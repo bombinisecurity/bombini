@@ -1,6 +1,7 @@
 //! Transmutes Process to serializable struct
 
 use anyhow::anyhow;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use bombini_common::event::{
@@ -112,18 +113,25 @@ pub struct Process {
     #[serde(serialize_with = "serialize_ima")]
     #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub binary_ima_hash: ImaHash,
-    /// Kubernetes namespace (если процесс в контейнере)
+    /// Kubernetes Pod metadata (если процесс в контейнере)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub k8s_namespace: Option<String>,
-    /// Kubernetes Pod name
+    pub pod: Option<PodMeta>,
+}
+
+/// Kubernetes Pod metadata for process events.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PodMeta {
+    pub namespace: String,
+    pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub k8s_pod: Option<String>,
-    /// Kubernetes Node name
+    pub node: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub k8s_node: Option<String>,
-    /// Kubernetes container name внутри Pod'а
+    pub container: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub k8s_container: Option<String>,
+    pub labels: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<HashMap<String, String>>,
 }
 
 /// Setuid event
@@ -350,10 +358,7 @@ impl Process {
             args,
             container_id: container_id_from_cgroup(&proc.cgroup),
             binary_ima_hash: proc.ima_hash,
-            k8s_namespace: None,
-            k8s_pod: None,
-            k8s_node: None,
-            k8s_container: None,
+            pod: None,
         }
     }
 }

@@ -23,6 +23,8 @@ pub struct ContainerLocation {
     pub pod_name: String,
     pub node_name: Option<String>,
     pub container_name: Option<String>,
+    pub labels: Option<HashMap<String, String>>,
+    pub annotations: Option<HashMap<String, String>>,
 }
 
 /// Resolver maps a container runtime ID to Pod/Node using an in-memory index
@@ -36,21 +38,25 @@ struct ResolverState {
     by_container_prefix: HashMap<String, ContainerLocation>,
     pod_to_prefixes: HashMap<String, Vec<String>>,
     negative_cache: HashMap<String, Instant>,
+    include_pod_labels: bool,
+    include_pod_annotations: bool,
 }
 
 impl ResolverState {
-    fn new() -> Self {
+    fn new(include_pod_labels: bool, include_pod_annotations: bool) -> Self {
         Self {
             by_container_prefix: HashMap::new(),
             pod_to_prefixes: HashMap::new(),
             negative_cache: HashMap::new(),
+            include_pod_labels,
+            include_pod_annotations,
         }
     }
 }
 
 impl K8sResolver {
     /// Создать in-cluster клиент Kubernetes из service account.
-    pub async fn new() -> Result<Self> {
+    pub async fn new(include_pod_labels: bool, include_pod_annotations: bool) -> Result<Self> {
         // Ensure classic Kubernetes ServiceAccount token mount exists and is readable.
         let token = fs::read_to_string(SA_TOKEN_PATH)?;
         if token.trim().is_empty() {
@@ -60,7 +66,10 @@ impl K8sResolver {
         // ServiceAccount-only mode: use in-cluster config and credentials.
         let cfg = KubeConfig::incluster_env()?;
         let client = Client::try_from(cfg)?;
-        let state = Arc::new(RwLock::new(ResolverState::new()));
+        let state = Arc::new(RwLock::new(ResolverState::new(
+            include_pod_labels,
+            include_pod_annotations,
+        )));
         let resolver = Self {
             state: state.clone(),
         };
@@ -174,6 +183,16 @@ fn apply_pod_state(state: &mut ResolverState, pod: &Pod) {
     let name = pod.metadata.name.clone().unwrap_or_default();
     let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
     let pod_key = format!("{ns}/{name}");
+    let labels = if state.include_pod_labels {
+        pod.metadata.labels.clone()
+    } else {
+        None
+    };
+    let annotations = if state.include_pod_annotations {
+        pod.metadata.annotations.clone()
+    } else {
+        None
+    };
 
     // Remove stale keys for the same pod before re-adding.
     if let Some(prev_keys) = state.pod_to_prefixes.remove(&pod_key) {
@@ -191,6 +210,8 @@ fn apply_pod_state(state: &mut ResolverState, pod: &Pod) {
                 &ns,
                 &name,
                 node_name.as_deref(),
+                labels.as_ref(),
+                annotations.as_ref(),
                 statuses,
             );
         }
@@ -201,6 +222,8 @@ fn apply_pod_state(state: &mut ResolverState, pod: &Pod) {
                 &ns,
                 &name,
                 node_name.as_deref(),
+                labels.as_ref(),
+                annotations.as_ref(),
                 statuses,
             );
         }
@@ -211,6 +234,8 @@ fn apply_pod_state(state: &mut ResolverState, pod: &Pod) {
                 &ns,
                 &name,
                 node_name.as_deref(),
+                labels.as_ref(),
+                annotations.as_ref(),
                 statuses,
             );
         }
@@ -238,6 +263,8 @@ fn collect_statuses(
     ns: &str,
     pod_name: &str,
     node_name: Option<&str>,
+    labels: Option<&HashMap<String, String>>,
+    annotations: Option<&HashMap<String, String>>,
     statuses: &[ContainerStatus],
 ) {
     for cs in statuses {
@@ -249,6 +276,8 @@ fn collect_statuses(
                 pod_name: pod_name.to_string(),
                 node_name: node_name.map(str::to_string),
                 container_name: Some(cs.name.clone()),
+                labels: labels.cloned(),
+                annotations: annotations.cloned(),
             };
             index.insert(key.clone(), loc);
             keys.push(key);

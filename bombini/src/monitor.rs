@@ -46,12 +46,21 @@ impl Monitor {
         let mut transmuters = TransmuterRegistry::new(config);
 
         // Initialize Kubernetes resolver (best-effort).
-        let k8s_resolver = match K8sResolver::new().await {
-            Ok(r) => Some(Arc::new(r)),
-            Err(e) => {
-                log::warn!("Failed to initialize Kubernetes client: {e}");
-                None
+        let k8s_resolver = if config.options.k8s_api_access {
+            match K8sResolver::new(
+                config.options.k8s_pod_labels,
+                config.options.k8s_pod_annotations,
+            )
+            .await
+            {
+                Ok(r) => Some(Arc::new(r)),
+                Err(e) => {
+                    log::warn!("Failed to initialize Kubernetes client: {e}");
+                    None
+                }
             }
+        } else {
+            None
         };
 
         tokio::spawn(async move {
@@ -156,31 +165,33 @@ fn apply_location_json(
     process: &mut serde_json::Map<String, serde_json::Value>,
     loc: &crate::k8s::ContainerLocation,
 ) {
-    process.insert(
-        "k8s_namespace".to_string(),
+    let mut pod = serde_json::Map::new();
+    pod.insert(
+        "namespace".to_string(),
         serde_json::Value::String(loc.namespace.clone()),
     );
-    process.insert(
-        "k8s_pod".to_string(),
-        serde_json::Value::String(loc.pod_name.clone()),
-    );
-    match &loc.node_name {
-        Some(node) => {
-            process.insert("k8s_node".to_string(), serde_json::Value::String(node.clone()));
-        }
-        None => {
-            process.remove("k8s_node");
-        }
+    pod.insert("name".to_string(), serde_json::Value::String(loc.pod_name.clone()));
+    if let Some(node) = &loc.node_name {
+        pod.insert("node".to_string(), serde_json::Value::String(node.clone()));
     }
-    match &loc.container_name {
-        Some(container) => {
-            process.insert(
-                "k8s_container".to_string(),
-                serde_json::Value::String(container.clone()),
-            );
-        }
-        None => {
-            process.remove("k8s_container");
-        }
+    if let Some(container) = &loc.container_name {
+        pod.insert(
+            "container".to_string(),
+            serde_json::Value::String(container.clone()),
+        );
     }
+    if let Some(labels) = &loc.labels {
+        pod.insert("labels".to_string(), serde_json::to_value(labels).unwrap_or_default());
+    }
+    if let Some(annotations) = &loc.annotations {
+        pod.insert(
+            "annotations".to_string(),
+            serde_json::to_value(annotations).unwrap_or_default(),
+        );
+    }
+    process.insert("pod".to_string(), serde_json::Value::Object(pod));
+    process.remove("k8s_namespace");
+    process.remove("k8s_pod");
+    process.remove("k8s_node");
+    process.remove("k8s_container");
 }
