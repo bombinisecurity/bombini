@@ -13,7 +13,7 @@ use bombini_common::event::{
     },
 };
 
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Serialize, Serializer};
 
 use crate::proto::config::{HookConfig, ProcMonConfig};
 
@@ -23,7 +23,7 @@ use super::{
     str_from_bytes, transmute_ktime,
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 /// Process exec event
@@ -36,7 +36,7 @@ pub struct ProcessExec {
     timestamp: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 /// Process clone event
@@ -49,7 +49,7 @@ pub struct ProcessClone {
     timestamp: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 /// Process exit event
@@ -63,7 +63,7 @@ pub struct ProcessExit {
 }
 
 /// Process information
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Process {
     /// last exec or clone time
@@ -119,7 +119,7 @@ pub struct Process {
 }
 
 /// Kubernetes Pod metadata for process events.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PodMeta {
     pub namespace: String,
@@ -135,7 +135,7 @@ pub struct PodMeta {
 }
 
 /// Setuid event
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessSetUid {
     euid: u32,
@@ -147,7 +147,7 @@ pub struct ProcessSetUid {
 }
 
 /// Setgid event
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessSetGid {
     egid: u32,
@@ -159,7 +159,7 @@ pub struct ProcessSetGid {
 }
 
 /// Capset event
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessCapset {
     #[serde(serialize_with = "serialize_capabilities")]
@@ -174,14 +174,14 @@ pub struct ProcessCapset {
 }
 
 /// Prctl event
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessPrctl {
     cmd: PrctlCmdUser,
 }
 
 /// Enumeration of prctl supported commands
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[repr(u8)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PrctlCmdUser {
@@ -315,12 +315,12 @@ fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
 }
 
 /// CreateUserNs event
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessCreateUserNs {}
 
 /// PtraceAttach event
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProcessPtraceAccessCheck {
     child: Process,
@@ -615,7 +615,7 @@ struct ProcessEvent<'a> {
     rule: Option<&'a str>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 #[repr(u8)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
