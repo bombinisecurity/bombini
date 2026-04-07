@@ -1,6 +1,7 @@
 //! Transmutes Process to serializable struct
 
 use anyhow::anyhow;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use bombini_common::event::{
@@ -112,6 +113,25 @@ pub struct Process {
     #[serde(serialize_with = "serialize_ima")]
     #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub binary_ima_hash: ImaHash,
+    /// Kubernetes Pod metadata (если процесс в контейнере)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pod: Option<PodMeta>,
+}
+
+/// Kubernetes Pod metadata for process events.
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PodMeta {
+    pub namespace: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<HashMap<String, String>>,
 }
 
 /// Setuid event
@@ -338,6 +358,7 @@ impl Process {
             args,
             container_id: container_id_from_cgroup(&proc.cgroup),
             binary_ima_hash: proc.ima_hash,
+            pod: None,
         }
     }
 }

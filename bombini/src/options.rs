@@ -50,6 +50,21 @@ pub struct Options {
     #[arg(long, value_name = "SEC", default_value = "30")]
     pub gc_period: Option<u64>,
 
+    /// Include Kubernetes Pod information in event process.pod.
+    #[arg(long, default_value_t = false)]
+    #[serde(default)]
+    pub k8s_api_access: bool,
+
+    /// Include Kubernetes Pod labels in event process.pod.
+    #[arg(long, default_value_t = false)]
+    #[serde(default)]
+    pub k8s_pod_labels: bool,
+
+    /// Include Kubernetes Pod annotations in event process.pod.
+    #[arg(long, default_value_t = false)]
+    #[serde(default)]
+    pub k8s_pod_annotations: bool,
+
     /// YAML config dir with global config and detector configs
     #[arg(long, value_name = "DIR", default_value_t = String::from("/usr/local/lib/bombini/config"))]
     #[serde(skip)]
@@ -138,6 +153,9 @@ impl Options {
         self.procmon_proc_map_size = config.procmon_proc_map_size;
         self.detectors = config.detectors;
         self.gc_period = config.gc_period;
+        self.k8s_api_access = config.k8s_api_access;
+        self.k8s_pod_labels = config.k8s_pod_labels;
+        self.k8s_pod_annotations = config.k8s_pod_annotations;
         self.transmit_opts = config.transmit_opts;
 
         // Redefine config from file if command args are set
@@ -159,6 +177,15 @@ impl Options {
         }
         if let Some(v) = args.gc_period {
             self.gc_period = Some(v);
+        }
+        if args.k8s_api_access {
+            self.k8s_api_access = true;
+        }
+        if args.k8s_pod_labels {
+            self.k8s_pod_labels = true;
+        }
+        if args.k8s_pod_annotations {
+            self.k8s_pod_annotations = true;
         }
         if let Some(detectors) = args.detectors {
             self.detectors = Some(detectors.to_vec());
