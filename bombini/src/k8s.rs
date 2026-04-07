@@ -1,15 +1,20 @@
 use anyhow::Result;
 use kube::{
-    api::{Api, ListParams},
+    config::Config as KubeConfig,
+    api::Api,
     Client,
 };
 use k8s_openapi::api::core::v1::{ContainerStatus, Pod};
 use kube::runtime::watcher::{self, Event};
 use std::collections::HashMap;
+use std::fs;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time::{Duration, Instant};
 use futures_util::StreamExt;
+
+const SA_TOKEN_PATH: &str = "/var/run/secrets/kubernetes.io/serviceaccount/token";
+const SA_NAMESPACE_PATH: &str = "/var/run/secrets/kubernetes.io/serviceaccount/namespace";
 
 /// Where a container is running in the cluster.
 #[derive(Clone, Debug)]
@@ -44,28 +49,42 @@ impl ResolverState {
 }
 
 impl K8sResolver {
-    /// Создать клиент, подхватывая kube‑config из окружения (in‑cluster или ~/.kube/config).
+    /// Создать in-cluster клиент Kubernetes из service account.
     pub async fn new() -> Result<Self> {
-        let client = Client::try_default().await?;
+        // Ensure classic Kubernetes ServiceAccount token mount exists and is readable.
+        let token = fs::read_to_string(SA_TOKEN_PATH)?;
+        if token.trim().is_empty() {
+            anyhow::bail!("ServiceAccount token is empty at {}", SA_TOKEN_PATH);
+        }
+
+        // ServiceAccount-only mode: use in-cluster config and credentials.
+        let cfg = KubeConfig::incluster_env()?;
+        let client = Client::try_from(cfg)?;
         let state = Arc::new(RwLock::new(ResolverState::new()));
         let resolver = Self {
             state: state.clone(),
         };
 
-        // Initial bootstrap list: one API call at startup.
-        {
-            let pods: Api<Pod> = Api::all(client.clone());
-            let pod_list = pods.list(&ListParams::default()).await?;
-            let mut st = state.write().await;
-            for pod in pod_list {
-                apply_pod_state(&mut st, &pod);
-            }
+        // Resolve current node name via Kubernetes API (current Pod -> spec.nodeName).
+        let node_name = resolve_current_node_name(&client).await;
+        let fields = node_name
+            .as_ref()
+            .map(|n| format!("spec.nodeName={n}"));
+
+        if let Some(n) = &node_name {
+            log::info!("Kubernetes resolver is scoped to node: {n}");
+        } else {
+            log::warn!("Could not resolve current node via API; falling back to cluster-wide Pod watch/list");
         }
 
         // Background watcher keeps the in-memory index fresh.
+        // The watcher performs an initial LIST (bootstrap) once, then WATCHes only diffs.
         tokio::spawn(async move {
             let pods: Api<Pod> = Api::all(client);
-            let cfg = watcher::Config::default();
+            let mut cfg = watcher::Config::default();
+            if let Some(ref selector) = fields {
+                cfg = cfg.fields(selector);
+            }
             let mut stream = watcher::watcher(pods, cfg).boxed();
             while let Some(ev) = stream.next().await {
                 match ev {
@@ -239,5 +258,42 @@ fn collect_statuses(
 
 fn index_key(container_id_or_prefix: &str) -> String {
     container_id_or_prefix.chars().take(31).collect()
+}
+
+async fn resolve_current_node_name(client: &Client) -> Option<String> {
+    // Pod name defaults to container hostname in Kubernetes.
+    let pod_name = fs::read_to_string("/etc/hostname")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())?;
+
+    let namespace = fs::read_to_string(SA_NAMESPACE_PATH)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())?;
+
+    let pods: Api<Pod> = Api::namespaced(client.clone(), &namespace);
+    match pods.get(&pod_name).await {
+        Ok(pod) => {
+            let node_name = pod.spec.and_then(|s| s.node_name);
+            if node_name.is_none() {
+                log::warn!(
+                    "Current Pod {}/{} has no spec.nodeName yet; falling back to cluster scope",
+                    namespace,
+                    pod_name
+                );
+            }
+            node_name
+        }
+        Err(e) => {
+            log::warn!(
+                "Failed to resolve current node via API from Pod {}/{}: {}",
+                namespace,
+                pod_name,
+                e
+            );
+            None
+        }
+    }
 }
 
