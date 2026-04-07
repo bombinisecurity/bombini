@@ -131,7 +131,7 @@ async fn enrich_process_with_k8s(
     let Some(cid) = process
         .get("container_id")
         .and_then(|v| v.as_str())
-        .and_then(non_empty)
+        .and_then(valid_container_id_prefix)
     else {
         return Ok(data);
     };
@@ -153,8 +153,10 @@ fn data_windows_contains(haystack: &[u8], needle: &[u8]) -> bool {
         .any(|w| w == needle)
 }
 
-fn non_empty(s: &str) -> Option<&str> {
-    if s.is_empty() {
+fn valid_container_id_prefix(s: &str) -> Option<&str> {
+    // We enrich only container-originated events.
+    // Truncated IDs from eBPF are expected to be 31 chars and hex.
+    if s.len() != 31 || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
         None
     } else {
         Some(s)
