@@ -19,7 +19,7 @@ jobs:
         run: |
           curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz
           cargo install bindgen-cli
-          cargo install --git https://github.com/aya-rs/aya aya-tool
+          cargo install --git https://github.com/aya-rs/aya -- aya-tool
           cargo xtask vmlinux-gen
           cargo clippy --workspace --all-features -- -D warnings
           cargo fmt --all -- --check
@@ -65,7 +65,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-8 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
           ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
-          ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya aya-tool'
+          ssh lima-ubuntu-kernel-v6-8 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya -- aya-tool'
 
           limactl stop ubuntu-kernel-v6.8
 
@@ -118,7 +118,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-14 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
           ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
-          ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya aya-tool'
+          ssh lima-ubuntu-kernel-v6-14 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya -- aya-tool'
 
           limactl stop ubuntu-kernel-v6.14
 
@@ -171,7 +171,7 @@ jobs:
           ssh lima-ubuntu-kernel-v6-2 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
           ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && rustup toolchain install nightly --component rust-src'
           ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && cargo install bpf-linker bindgen-cli'
-          ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya aya-tool'
+          ssh lima-ubuntu-kernel-v6-2 'source ~/.cargo/env && cargo install --git https://github.com/aya-rs/aya -- aya-tool'
 
           limactl stop ubuntu-kernel-v6.2
 
