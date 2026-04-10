@@ -30,6 +30,9 @@ pub use core_kernfs::*;
 mod core_io_uring;
 pub use core_io_uring::*;
 
+mod core_bpf;
+pub use core_bpf::*;
+
 #[derive(Clone, Copy)]
 pub struct CoRe<P> {
     ptr: *const P,

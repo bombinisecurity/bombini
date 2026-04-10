@@ -326,3 +326,37 @@ struct open_how
 } __attribute__((preserve_access_index));
 
 SHIM(open_how, flags);
+
+struct bpf_prog_aux {
+    u32 id;
+    char name[16];
+    const char *attach_func_name;
+} __attribute__((preserve_access_index));
+
+SHIM(bpf_prog_aux, id);
+ARRAY_SHIM(bpf_prog_aux, name);
+SHIM(bpf_prog_aux, attach_func_name);
+
+struct bpf_prog {
+    u32 type;
+    struct bpf_prog_aux *aux;
+} __attribute__((preserve_access_index));
+
+SHIM(bpf_prog, type);
+SHIM(bpf_prog, aux);
+
+struct bpf_map {
+    u32 map_type;
+    u32 key_size;
+    u32 value_size;
+    u32 max_entries;
+    u32 id;
+    char name[16];
+} __attribute__((preserve_access_index));
+
+SHIM(bpf_map, map_type);
+SHIM(bpf_map, key_size);
+SHIM(bpf_map, value_size);
+SHIM(bpf_map, max_entries);
+SHIM(bpf_map, id);
+ARRAY_SHIM(bpf_map, name);

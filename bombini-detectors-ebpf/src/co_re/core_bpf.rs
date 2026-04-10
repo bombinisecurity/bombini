@@ -1,0 +1,31 @@
+use super::r#gen::{self, *};
+use super::{CoRe, rust_shim_kernel_impl};
+
+#[allow(non_camel_case_types)]
+pub type bpf_prog_aux = CoRe<r#gen::bpf_prog_aux>;
+
+impl bpf_prog_aux {
+    rust_shim_kernel_impl!(pub, bpf_prog_aux, id, u32);
+    rust_shim_kernel_impl!(pub, bpf_prog_aux, name, *mut i8);
+    rust_shim_kernel_impl!(pub, bpf_prog_aux, attach_func_name, *const i8);
+}
+
+#[allow(non_camel_case_types)]
+pub type bpf_prog = CoRe<r#gen::bpf_prog>;
+
+impl bpf_prog {
+    rust_shim_kernel_impl!(pub, prog_type, bpf_prog, r#type, u32);
+    rust_shim_kernel_impl!(pub, bpf_prog, aux, bpf_prog_aux);
+}
+
+#[allow(non_camel_case_types)]
+pub type bpf_map = CoRe<r#gen::bpf_map>;
+
+impl bpf_map {
+    rust_shim_kernel_impl!(pub, bpf_map, map_type, u32);
+    rust_shim_kernel_impl!(pub, bpf_map, key_size, u32);
+    rust_shim_kernel_impl!(pub, bpf_map, value_size, u32);
+    rust_shim_kernel_impl!(pub, bpf_map, max_entries, u32);
+    rust_shim_kernel_impl!(pub, bpf_map, id, u32);
+    rust_shim_kernel_impl!(pub, bpf_map, name, *mut i8);
+}
