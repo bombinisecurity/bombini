@@ -10,3 +10,7 @@ pub mod util;
 #[allow(warnings)]
 #[rustfmt::skip]
 pub mod vmlinux;
+#[allow(clippy::all)]
+#[allow(warnings)]
+#[rustfmt::skip]
+pub mod co_re;

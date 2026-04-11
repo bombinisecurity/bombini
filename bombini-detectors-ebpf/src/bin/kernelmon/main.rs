@@ -19,7 +19,7 @@ use bombini_common::{
             PathMapKey, PathPrefixMapKey, Rules,
         },
     },
-    constants::{MAX_BPFNAME_SIZE, MAX_FILE_PATH, MAX_FILENAME_SIZE},
+    constants::{MAX_BPFNAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::{
         Event, GenericEvent, MSG_KERNEL,
         file::AccessMode,
@@ -27,8 +27,8 @@ use bombini_common::{
         process::ProcInfo,
     },
 };
-use bombini_detectors_ebpf::{event_capture, vmlinux::bpf_attr__bindgen_ty_4};
 use bombini_detectors_ebpf::{
+    co_re::{self, core_read_kernel},
     filter::{
         kernelmon::{bpfmap::BpfMapFilter, bpfprog::BpfProgFilter},
         scope::ScopeFilter,
@@ -37,6 +37,7 @@ use bombini_detectors_ebpf::{
     util,
     vmlinux::{bpf_map, bpf_prog},
 };
+use bombini_detectors_ebpf::{event_capture, vmlinux::bpf_attr__bindgen_ty_4};
 
 // Detector config
 #[map]
@@ -136,26 +137,32 @@ macro_rules! fill_prefix_map {
         let Some(prefix) = prefix else {
             return Err(0);
         };
-        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
-        let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
-        };
-        bpf_dynptr_from_mem(
-            prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
-            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
-            0,
-            &mut tmp as *mut _,
-        );
-        bpf_dynptr_write(
-            &tmp as *const _,
-            0,
-            zero_ptr as *mut _,
-            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
-            0,
-        );
+        {
+            let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+            let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
+                return Err(0);
+            };
+            bpf_dynptr_from_mem(
+                prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
+                core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+                0,
+                &mut tmp as *mut _,
+            );
+            bpf_dynptr_write(
+                &tmp as *const _,
+                0,
+                zero_ptr as *mut _,
+                core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+                0,
+            );
+        }
+        let clear_stack = 0u64;
+        core::hint::black_box(&clear_stack);
+
         bpf_probe_read_kernel_buf($src as *const u8, &mut prefix.data.path_prefix)
-            .map_err(|_| 0)?;
-        prefix.prefix_len = (MAX_FILE_PATH * 8) as u32;
+            .map_err(|_| 0i32)?;
+
+        prefix.prefix_len = (MAX_FILE_PREFIX * 8) as u32;
         prefix
     }};
 }
@@ -229,17 +236,17 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
     };
 
     unsafe {
-        let bpf_map: *const bpf_map = ctx.arg(0);
+        let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
         let flags: u32 = ctx.arg(1);
-        if is_null_pointer(bpf_map) {
+        if is_null_pointer(bpf_map.as_ptr()) {
             return Err(0);
         }
-        event.id = (*bpf_map).id;
-        event.map_type = core::mem::transmute::<u32, BpfMapType>((*bpf_map).map_type);
+        event.id = core_read_kernel!(bpf_map, id).ok_or(0i32)?;
+        event.map_type = core::mem::transmute::<u32, BpfMapType>((*(bpf_map.as_ptr())).map_type);
         // Flags is either 1, 2 or 3.
         event.access_mode = AccessMode::from_bits_truncate(1 << ((flags & 3).max(1) - 1));
         bpf_probe_read_kernel_str_bytes(
-            (*bpf_map).name.as_slice() as *const [i8] as *const _,
+            (*(bpf_map.as_ptr())).name.as_slice() as *const [i8] as *const _,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
@@ -435,11 +442,8 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             return Err(0);
         }
         event.map_type = core::mem::transmute::<u32, BpfMapType>((*bpf_map).map_type);
-        bpf_probe_read_kernel_str_bytes(
-            (*bpf_map).name.as_slice() as *const [i8] as *const _,
-            &mut event.name,
-        )
-        .map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes((*bpf_map).name.as_ptr() as *const u8, &mut event.name)
+            .map_err(|_| 0i32)?;
         event.key_size = (*bpf_map).key_size;
         event.value_size = (*bpf_map).value_size;
         event.max_entries = (*bpf_map).max_entries;
@@ -624,7 +628,7 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         event.id = (*(*bpf_prog).aux).id;
         event.prog_type = core::mem::transmute::<u32, BpfProgType>((*bpf_prog).type_);
         bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).name.as_slice() as *const [i8] as *const _,
+            (*(*bpf_prog).aux).name.as_ptr() as *const u8,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
@@ -819,7 +823,7 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
         }
         event.prog_type = core::mem::transmute::<u32, BpfProgType>((*bpf_prog).type_);
         bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).name.as_slice() as *const [i8] as *const _,
+            (*(*bpf_prog).aux).name.as_ptr() as *const u8,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
@@ -985,7 +989,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
             BpfProgType::__MAX_BPF_PROG_TYPE as u32,
         ));
         bpf_probe_read_kernel_str_bytes(
-            (*prog_attr).prog_name.as_slice() as *const [i8] as *const _,
+            (*prog_attr).prog_name.as_ptr() as *const u8,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
