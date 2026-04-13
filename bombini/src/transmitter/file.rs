@@ -42,8 +42,8 @@ impl FileTransmitter {
             };
             let mut log = FileRotate::new(
                 log_options.log_file.take().unwrap(),
-                AppendCount::new(log_options.log_file_rotations),
-                ContentLimit::BytesSurpassed(log_options.log_file_size * MEGABYTE),
+                AppendCount::new(log_options.log_file_rotations.unwrap()),
+                ContentLimit::BytesSurpassed(log_options.log_file_size.unwrap() * MEGABYTE),
                 compression,
                 Some(file_options),
             );
