@@ -58,6 +58,10 @@ pub struct Options {
     #[command(flatten)]
     #[serde(flatten)]
     pub transmit_opts: TransmitterOpts,
+
+    #[command(flatten)]
+    #[serde(flatten)]
+    pub metric_opts: MetricOptions,
 }
 
 #[derive(Default, Clone, Debug, Args, Deserialize)]
@@ -112,6 +116,15 @@ pub struct FileLogOptions {
     pub log_file_compression: bool,
 }
 
+#[derive(Default, Clone, Debug, Args, Deserialize)]
+#[group(id = "metric", required = false, multiple = true)]
+#[serde(default)]
+pub struct MetricOptions {
+    /// Prometheus exporter port
+    #[arg(long, value_name = "PORT")]
+    pub metric_server_port: Option<u16>,
+}
+
 impl Options {
     /// Method returns path for event map pin
     pub fn event_pin_path(&self) -> PathBuf {
@@ -139,6 +152,7 @@ impl Options {
         self.detectors = config.detectors;
         self.gc_period = config.gc_period;
         self.transmit_opts = config.transmit_opts;
+        self.metric_opts = config.metric_opts;
 
         // Redefine config from file if command args are set
         if let Some(v) = args.bpf_objs.as_deref() {
@@ -162,6 +176,9 @@ impl Options {
         }
         if let Some(detectors) = args.detectors {
             self.detectors = Some(detectors.to_vec());
+        }
+        if let Some(port) = args.metric_opts.metric_server_port {
+            self.metric_opts.metric_server_port = Some(port);
         }
 
         // Serde doesn't support group validation, so we do it manually

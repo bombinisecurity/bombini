@@ -8,17 +8,37 @@ use tokio::{
     time::{Duration, Instant},
 };
 
-use std::convert::TryFrom;
+use std::{convert::TryFrom, path::PathBuf, sync::Arc};
 
 use bombini_common::event::GenericEvent;
 
-use crate::config::Config;
+use crate::metrics::BombiniCounter;
 use crate::transmitter::Transmitter;
 use crate::transmuter::TransmuterRegistry;
+use crate::{config::Config, metrics};
 
-pub struct Monitor;
+mod bpf_errors;
+
+pub struct Monitor {
+    events_exported_total: Arc<BombiniCounter>,
+    userspace_events_lost: Arc<BombiniCounter>,
+    bpf_errors_monitor: bpf_errors::BpfErrorsMonitor,
+}
 
 impl Monitor {
+    pub fn new() -> Self {
+        Self {
+            events_exported_total: Arc::new(BombiniCounter::new(
+                "bombini_user_events_exported",
+                "Number of events exported",
+            )),
+            userspace_events_lost: Arc::new(BombiniCounter::new(
+                "bombini_user_events_lost",
+                "Number of events lost in user space",
+            )),
+            bpf_errors_monitor: bpf_errors::BpfErrorsMonitor::new(),
+        }
+    }
     /// Start monitoring the events.
     ///
     /// # Arguments
@@ -40,6 +60,13 @@ impl Monitor {
         let gc_period: Duration = Duration::from_secs(config.options.gc_period.unwrap());
         let mut transmuters = TransmuterRegistry::new(config);
 
+        // Start bpf errors monitor
+        let maps_pin_path = PathBuf::from(config.options.maps_pin_path.as_ref().unwrap());
+        self.bpf_errors_monitor
+            .monitor_errors(maps_pin_path)
+            .await
+            .unwrap();
+
         tokio::spawn(async move {
             let mut poll = AsyncFd::new(ring_buf).unwrap();
             loop {
@@ -51,6 +78,8 @@ impl Monitor {
                 guard.clear_ready();
             }
         });
+        let events_exported_metric = self.events_exported_total.clone();
+        let userspace_events_lost = self.userspace_events_lost.clone();
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
@@ -58,9 +87,13 @@ impl Monitor {
                 if let Ok(data) = transmuted {
                     if let Err(e) = transmitter.transmit(data).await {
                         log::warn!("Failed to transmit event: {}", e);
+                        userspace_events_lost.inc();
+                    } else {
+                        events_exported_metric.inc();
                     }
                 } else {
                     log::debug!("{}", transmuted.err().unwrap());
+                    userspace_events_lost.inc();
                 }
 
                 if last_gc.elapsed() >= gc_period {
@@ -69,5 +102,13 @@ impl Monitor {
                 }
             }
         });
+    }
+}
+
+impl metrics::MetricRegister for Monitor {
+    fn register_metrics(&self, registry: &mut metrics::BombiniMetricServer) {
+        registry.register(&*self.events_exported_total);
+        registry.register(&*self.userspace_events_lost);
+        registry.register_metrics(&self.bpf_errors_monitor);
     }
 }
