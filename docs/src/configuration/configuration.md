@@ -46,6 +46,9 @@ log_file_rotations: 5
 # Enable log file compression
 log_file_compression: false
 
+# Prometheus metric server port. This option enables metric server
+metric_server_port: 9100
+
 # List of the detectors to load
 detectors:
    - procmon
@@ -71,17 +74,18 @@ Usage: bombini [OPTIONS]
 Options:
       --bpf-objs <FILE>                Directory with bpf detector object files
       --maps-pin-path <FILE>           Path to pin bpf maps
-      --event-map-size <VALUE>         Event map size (ring buffer size in bytes) [default: 65536]
-      --event-channel-size <VALUE>     Raw event channel size (number of event messages) [default: 64]
-      --procmon-proc-map-size <VALUE>  Procmon process map size [default: 8192]
+      --event-map-size <VALUE>         Event map size (ring buffer size in bytes)
+      --event-channel-size <VALUE>     Raw event channel size (number of event messages)
+      --procmon-proc-map-size <VALUE>  Procmon process map size
   -D, --detector <NAME>                Detector to load. Can be specified multiple times. Overrides the config
       --gc-period <SEC>                GC period for user mode caches in seconds
       --config-dir <DIR>               YAML config dir with global config and detector configs [default: /usr/local/lib/bombini/config]
       --log-file <FILE>                File path to save events
-      --log-file-rotations <VALUE>     Number of rotated files to keep [default: 5]
-      --log-file-size <VALUE>          Max size of rotated file in mb [default: 10]
+      --log-file-rotations <VALUE>     Number of rotated files to keep
+      --log-file-size <VALUE>          Max size of rotated file in mb
       --log-file-compression           Enable compression for rotated files
       --event-socket <FILE>            Unix socket path to send events
+      --metric-server-port <PORT>      Prometheus exporter port
   -h, --help                           Print help
   -V, --version                        Print version
 ```

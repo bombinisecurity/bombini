@@ -21,5 +21,6 @@
     - [IOUringMon](./events/io_uringmon.md)
     - [GTFOBins](./events/gtfobins.md)
     - [Reference](./events/reference.md)
+- [Metrics](./metrics.md)
 - [Design](./design.md)
 - [Compatibility](./compatibility.md)
