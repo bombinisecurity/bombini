@@ -16,6 +16,22 @@ pub const ZERO_EVENT_MAP: &str = "ZERO_EVENT_MAP";
 /// Procmon map name is used to hold alive processes
 pub const PROCMON_PROC_MAP_NAME: &str = "PROCMON_PROC_MAP";
 
+fn default_event_map_size() -> Option<u32> {
+    Some(65536)
+}
+
+fn default_event_channel_size() -> Option<usize> {
+    Some(64)
+}
+
+fn default_procmon_proc_map_size() -> Option<u32> {
+    Some(8192)
+}
+
+fn default_gc_period() -> Option<u64> {
+    Some(30)
+}
+
 // Options for cli interface and global agent parameters
 #[derive(Default, Clone, Debug, Parser, Deserialize)]
 #[command(name = "bombini", version)]
@@ -30,15 +46,18 @@ pub struct Options {
     pub maps_pin_path: Option<String>,
 
     /// Event map size (ring buffer size in bytes)
-    #[arg(long, value_name = "VALUE", default_value = "65536")]
+    #[arg(long, value_name = "VALUE")]
+    #[serde(default = "default_event_map_size")]
     pub event_map_size: Option<u32>,
 
     /// Raw event channel size (number of event messages)
-    #[arg(long, value_name = "VALUE", default_value = "64")]
+    #[arg(long, value_name = "VALUE")]
+    #[serde(default = "default_event_channel_size")]
     pub event_channel_size: Option<usize>,
 
     /// Procmon process map size
-    #[arg(long, value_name = "VALUE", default_value = "8192")]
+    #[arg(long, value_name = "VALUE")]
+    #[serde(default = "default_procmon_proc_map_size")]
     pub procmon_proc_map_size: Option<u32>,
 
     /// Detector to load. Can be specified multiple times.
@@ -47,7 +66,8 @@ pub struct Options {
     pub detectors: Option<Vec<String>>,
 
     /// GC period for user mode caches in seconds.
-    #[arg(long, value_name = "SEC", default_value = "30")]
+    #[arg(long, value_name = "SEC")]
+    #[serde(default = "default_gc_period")]
     pub gc_period: Option<u64>,
 
     /// YAML config dir with global config and detector configs
@@ -78,18 +98,14 @@ pub struct TransmitterOpts {
     pub event_socket: Option<String>,
 }
 
-const DEFAULT_LOG_FILE_ROTATIONS: &str = "5";
-const DEFAULT_LOG_FILE_SIZE_MB: &str = "10";
-const DEFAULT_LOG_FILE_COMPRESSION: &str = "false";
-
-fn default_log_file_rotations() -> usize {
-    DEFAULT_LOG_FILE_ROTATIONS.parse().unwrap()
+fn default_log_file_rotations() -> Option<usize> {
+    Some(5)
 }
-fn default_log_file_size() -> usize {
-    DEFAULT_LOG_FILE_SIZE_MB.parse().unwrap()
+fn default_log_file_size() -> Option<usize> {
+    Some(10)
 }
 fn default_log_file_compression() -> bool {
-    DEFAULT_LOG_FILE_COMPRESSION.parse().unwrap()
+    false
 }
 
 #[derive(Default, Clone, Debug, Args, Deserialize)]
@@ -101,17 +117,17 @@ pub struct FileLogOptions {
     pub log_file: Option<String>,
 
     /// Number of rotated files to keep
-    #[arg(long, value_name = "VALUE", default_value = DEFAULT_LOG_FILE_ROTATIONS)]
+    #[arg(long, value_name = "VALUE")]
     #[serde(default = "default_log_file_rotations")]
-    pub log_file_rotations: usize,
+    pub log_file_rotations: Option<usize>,
 
     /// Max size of rotated file in mb
-    #[arg(long, value_name = "VALUE", default_value = DEFAULT_LOG_FILE_SIZE_MB)]
+    #[arg(long, value_name = "VALUE")]
     #[serde(default = "default_log_file_size")]
-    pub log_file_size: usize,
+    pub log_file_size: Option<usize>,
 
     /// Enable compression for rotated files
-    #[arg(long, value_name = "VALUE", default_value = DEFAULT_LOG_FILE_COMPRESSION)]
+    #[arg(long, value_name = "VALUE")]
     #[serde(default = "default_log_file_compression")]
     pub log_file_compression: bool,
 }
@@ -188,14 +204,17 @@ impl Options {
             bail!("Only one of log-file or event-socket can be specified");
         }
 
-        if args.transmit_opts.event_file.log_file.is_some() {
-            self.transmit_opts.event_file.log_file = args.transmit_opts.event_file.log_file;
-            self.transmit_opts.event_file.log_file_rotations =
-                args.transmit_opts.event_file.log_file_rotations;
-            self.transmit_opts.event_file.log_file_size =
-                args.transmit_opts.event_file.log_file_size;
-            self.transmit_opts.event_file.log_file_compression =
-                args.transmit_opts.event_file.log_file_compression;
+        if let Some(log_file) = args.transmit_opts.event_file.log_file {
+            self.transmit_opts.event_file.log_file = Some(log_file);
+        }
+        if let Some(log_file_rotations) = args.transmit_opts.event_file.log_file_rotations {
+            self.transmit_opts.event_file.log_file_rotations = Some(log_file_rotations);
+        }
+        if let Some(log_file_size) = args.transmit_opts.event_file.log_file_size {
+            self.transmit_opts.event_file.log_file_size = Some(log_file_size);
+        }
+        if args.transmit_opts.event_file.log_file_compression {
+            self.transmit_opts.event_file.log_file_compression = true;
         }
 
         if args.transmit_opts.event_socket.is_some() {
