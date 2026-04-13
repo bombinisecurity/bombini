@@ -1,6 +1,6 @@
 //! Ring buffer to send events from all detectors.
 
-use aya_ebpf::{helpers::bpf_ktime_get_boot_ns, macros::map};
+use aya_ebpf::{helpers::bpf_ktime_get_boot_ns, macros::map, maps::PerCpuArray};
 
 use bombini_common::event::{Event, GenericEvent};
 
@@ -8,6 +8,12 @@ use crate::dyn_ringbuf::{DynRingBuf, DynRingBufEntry};
 
 #[map]
 pub static EVENT_MAP: DynRingBuf = DynRingBuf::pinned(1, 0);
+
+#[map]
+pub static BOMBINI_BPF_ERRORS_TOTAL: PerCpuArray<u64> = PerCpuArray::pinned(1, 0);
+
+#[map]
+pub static BOMBINI_BPF_EVENTS_LOST_TOTAL: PerCpuArray<u64> = PerCpuArray::pinned(1, 0);
 
 #[inline(always)]
 /// Reserve place in the ring buffer event map for given message type
@@ -24,7 +30,15 @@ pub fn rb_event_init(
     zero: bool,
     ring_entry: &mut DynRingBufEntry<GenericEvent>,
 ) -> Result<(), i32> {
-    EVENT_MAP.reserve::<GenericEvent>(0, ring_entry)?;
+    if let Err(e) = EVENT_MAP.reserve::<GenericEvent>(0, ring_entry) {
+        let Some(evetnts_lost) = BOMBINI_BPF_EVENTS_LOST_TOTAL.get_ptr_mut(0) else {
+            return Err(0);
+        };
+        unsafe {
+            *evetnts_lost += 1;
+        }
+        return Err(e);
+    }
     unsafe {
         if zero {
             ring_entry.zero_entry()?;
@@ -38,6 +52,17 @@ pub fn rb_event_init(
         (*event_ref).ktime = bpf_ktime_get_boot_ns();
     }
     Ok(())
+}
+
+#[inline(always)]
+pub fn trace_error() {
+    let Some(errors) = BOMBINI_BPF_ERRORS_TOTAL.get_ptr_mut(0) else {
+        return;
+    };
+
+    unsafe {
+        *errors += 1;
+    }
 }
 
 /// This macro reserves place for event in ring buffer event map, calls
@@ -60,10 +85,12 @@ macro_rules! event_capture {
 
         if $crate::event_map::rb_event_init($msg_code, $zero, &mut ring_entry).is_err() {
             ring_entry.discard(0);
+            $crate::event_map::trace_error();
             return 0;
         };
         let Some(ring_data) = ring_entry.get_ptr_mut() else {
             ring_entry.discard(0);
+            $crate::event_map::trace_error();
             return 0;
         };
         let event_ref = unsafe { &mut *ring_data };
@@ -74,6 +101,7 @@ macro_rules! event_capture {
             }
             Err(ret) => {
                 ring_entry.discard(0);
+                $crate::event_map::trace_error();
                 ret
             }
         }

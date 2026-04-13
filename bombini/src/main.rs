@@ -4,6 +4,7 @@ use tokio::signal;
 
 mod config;
 mod detector;
+mod metrics;
 mod monitor;
 mod options;
 mod proto;
@@ -50,7 +51,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut registry = Registry::new();
     registry.load_detectors(&config)?;
-    let monitor = Monitor;
+    let monitor = Monitor::new();
+
+    if let Some(port) = config.options.metric_opts.metric_server_port {
+        let mut metric_server = metrics::BombiniMetricServer::new();
+        metric_server.register_metrics(&monitor);
+
+        metric_server.start_local_server(port).await?;
+    }
+
     start_monitor(&config, &monitor).await?;
 
     tokio::select! {
