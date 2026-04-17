@@ -326,3 +326,44 @@ struct open_how
 } __attribute__((preserve_access_index));
 
 SHIM(open_how, flags);
+
+#define BPF_OBJ_NAME_LEN 16U
+
+struct bpf_prog_aux {
+    __u32 id;
+    unsigned char name[BPF_OBJ_NAME_LEN];
+    const unsigned char *attach_func_name;
+} __attribute__((preserve_access_index));
+
+SHIM(bpf_prog_aux, id);
+ARRAY_SHIM(bpf_prog_aux, name);
+SHIM(bpf_prog_aux, attach_func_name);
+
+// Dummy enum decls — the kernel BTF has these as enum types. Declaring
+// matching enum types in the shim makes CO-RE field-type matching succeed
+// reliably across kernels.
+enum bpf_prog_type { PROG_TYPE };
+
+struct bpf_prog {
+    enum bpf_prog_type type;
+    struct bpf_prog_aux *aux;
+} __attribute__((preserve_access_index));
+
+SHIM(bpf_prog, type);
+SHIM(bpf_prog, aux);
+
+struct bpf_map {
+    __u32 map_type;
+    __u32 key_size;
+    __u32 value_size;
+    __u32 max_entries;
+    __u32 id;
+    unsigned char name[BPF_OBJ_NAME_LEN];
+} __attribute__((preserve_access_index));
+
+SHIM(bpf_map, map_type);
+SHIM(bpf_map, key_size);
+SHIM(bpf_map, value_size);
+SHIM(bpf_map, max_entries);
+SHIM(bpf_map, id);
+ARRAY_SHIM(bpf_map, name);
