@@ -1,6 +1,7 @@
 //! Transmutes Process to serializable struct
 
 use anyhow::anyhow;
+use base64::Engine;
 use std::sync::Arc;
 
 use bombini_common::event::{
@@ -112,6 +113,10 @@ pub struct Process {
     #[serde(serialize_with = "serialize_ima")]
     #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub binary_ima_hash: ImaHash,
+    /// Execution ID (hash of the process's PID and start time)
+    pub exec_id: String,
+    /// Parent execution ID (hash of the parent's PID and start time)
+    pub parent_exec_id: String,
 }
 
 /// Setuid event
@@ -294,6 +299,12 @@ fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
     }
 }
 
+/// Generate base64 hash from process's PID and start time
+fn get_exec_id(process_key: &ProcessKey) -> String {
+    base64::engine::general_purpose::STANDARD_NO_PAD
+        .encode(format!("{}:{}", process_key.pid, process_key.start))
+}
+
 /// CreateUserNs event
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -310,13 +321,17 @@ pub struct ProcessPtraceAccessCheck {
 
 impl Process {
     /// Constructs High level event representation from low eBPF
-    pub fn new(proc: &ProcInfo) -> Self {
+    pub fn new(proc: &ProcInfo, parent_key: &ProcessKey) -> Self {
         let mut args = proc.args;
         args.iter_mut().for_each(|e| {
             if *e == 0x00 {
                 *e = 0x20
             }
         });
+        let process_key = ProcessKey {
+            pid: proc.pid,
+            start: proc.start,
+        };
         let args = String::from_utf8_lossy(&args).trim_end().to_string();
         Self {
             start_time: transmute_ktime(proc.start),
@@ -338,6 +353,8 @@ impl Process {
             args,
             container_id: container_id_from_cgroup(&proc.cgroup),
             binary_ima_hash: proc.ima_hash,
+            exec_id: get_exec_id(&process_key),
+            parent_exec_id: get_exec_id(parent_key),
         }
     }
 }
@@ -379,7 +396,7 @@ impl Transmuter for ProcessExecTransmuter {
             }
 
             // Add new one after exec
-            let process = Arc::new(Process::new(event_proc));
+            let process = Arc::new(Process::new(event_proc, parent_key));
             let key = ProcessKey {
                 pid: event_proc.pid,
                 start: event_proc.start,
@@ -428,7 +445,7 @@ impl Transmuter for ProcessCloneTransmuter {
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::ProcessClone((event_proc, parent_key)) = event {
-            let process = Arc::new(Process::new(event_proc));
+            let process = Arc::new(Process::new(event_proc, parent_key));
             let key = ProcessKey {
                 pid: event_proc.pid,
                 start: event_proc.start,
@@ -557,9 +574,9 @@ impl ProcessPrctl {
 
 impl ProcessPtraceAccessCheck {
     /// Constructs High level event representation from low eBPF message
-    pub fn new(event: &ProcPtraceAccessCheck) -> Self {
+    pub fn new(event: &ProcPtraceAccessCheck, parent_key: &ProcessKey) -> Self {
         Self {
-            child: Process::new(&event.child),
+            child: Process::new(&event.child, parent_key),
             mode: event.mode.clone(),
         }
     }
@@ -616,6 +633,7 @@ impl<'a> ProcessEvent<'a> {
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
+        parent_key: &ProcessKey,
         blocked: bool,
         event: &ProcessEventVariant,
         rule: Option<&'a str>,
@@ -664,7 +682,7 @@ impl<'a> ProcessEvent<'a> {
             },
             ProcessEventVariant::PtraceAccessCheck(proc) => Self {
                 process_event: ProcessEventType::PtraceAccessCheck(ProcessPtraceAccessCheck::new(
-                    proc,
+                    proc, parent_key,
                 )),
                 process,
                 parent,
@@ -772,6 +790,7 @@ impl Transmuter for ProcessEventTransmuter {
                 let high_level_event = ProcessEvent::new(
                     cached_process.process.clone(),
                     parent,
+                    &msg.parent,
                     msg.blocked,
                     &msg.event,
                     rule_name,
