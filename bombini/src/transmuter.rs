@@ -56,13 +56,14 @@ impl TransmuterRegistry {
             .filter(|p| p.is_alive())
             .filter_map(|p| ProcInfo::from_procfs(&p))
             .for_each(|p| {
+                let parent_key = p.parent_key_from_procfs();
+                let process = CachedProcess {
+                    process: Arc::new(Process::new(&p, &parent_key)),
+                    exited: false,
+                };
                 let key = ProcessKey {
                     pid: p.pid,
                     start: p.start,
-                };
-                let process = CachedProcess {
-                    process: Arc::new(Process::new(&p)),
-                    exited: false,
                 };
                 let _ = registry.process_cache.insert(key, process);
             });

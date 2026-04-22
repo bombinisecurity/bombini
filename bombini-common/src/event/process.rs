@@ -157,6 +157,20 @@ impl ProcInfo {
             ima_hash: ima_stub,
         })
     }
+
+    pub fn parent_key_from_procfs(&self) -> ProcessKey {
+        if self.ppid != 0
+            && let Ok(parent) = procfs::process::Process::new(self.ppid as i32)
+            && let Ok(parent_stat) = parent.stat()
+        {
+            ProcessKey {
+                pid: parent.pid as u32,
+                start: parent_stat.starttime * 1_000_000_000 / 100,
+            }
+        } else {
+            ProcessKey { pid: 0, start: 1 }
+        }
+    }
 }
 
 #[cfg(feature = "user")]
