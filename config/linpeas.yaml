@@ -1,0 +1,12 @@
+threshold: 5
+window_sec: 120
+gc_ttl_sec: 300
+signatures:
+  - "linpeas"
+  - "peass"
+  - "LinPEAS"
+  - "PEASS-ng"
+url_signatures:
+  - "linpeas.sh"
+  - "peass"
+  - "carlospolop/PEASS-ng"

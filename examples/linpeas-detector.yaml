@@ -1,0 +1,101 @@
+threshold: 5
+window_sec: 120
+gc_ttl_sec: 300
+
+signatures:
+  - id: linpeas-sig-exec
+    category: signature
+    description: "Direct execution of LinPEAS / PEASS-ng binary or script"
+    match:
+      type: process_name
+      values:
+        - "linpeas.sh"
+        - "linpeas"
+        - "linpeas_linux_amd64"
+        - "linpeas_linux_arm64"
+        - "peass.sh"
+        - "peass"
+
+  - id: linpeas-beh-suid
+    category: suid_enum
+    description: "find with SUID/SGID permission flags"
+    match:
+      type: process_exec
+      binary_suffix: "/find"
+      argv_contains:
+        - "-perm -4000"
+        - "-perm -2000"
+        - "-perm /4000"
+        - "-perm /2000"
+
+  - id: linpeas-beh-caps
+    category: cap_enum
+    description: "getcap recursive capability scan"
+    match:
+      type: process_exec
+      binary_suffix: "/getcap"
+
+  - id: linpeas-beh-files
+    category: sensitive_files
+    description: "Read of privileged configuration files"
+    match:
+      type: file_open
+      paths:
+        - "/etc/shadow"
+        - "/etc/gshadow"
+        - "/etc/sudoers"
+        - "/etc/crontab"
+        - "/etc/anacrontab"
+        - "/etc/ssh/sshd_config"
+        - "/etc/pam.d/passwd"
+        - "/etc/login.defs"
+        - "/etc/security/pwquality.conf"
+
+  - id: linpeas-beh-sudo
+    category: sudo_probe
+    description: "sudo -l privilege listing"
+    match:
+      type: process_exec
+      binary_suffix: "/sudo"
+      argv_contains:
+        - "-l"
+
+  - id: linpeas-beh-procs
+    category: proc_enum
+    description: "ps used to enumerate running processes"
+    match:
+      type: process_exec
+      binary_suffix: "/ps"
+
+  - id: linpeas-beh-kernel
+    category: kernel_info
+    description: "uname used to gather kernel / OS information"
+    match:
+      type: process_exec
+      binary_suffix: "/uname"
+
+  - id: linpeas-beh-net
+    category: net_enum
+    description: "ss used to enumerate network sockets and connections"
+    match:
+      type: process_exec
+      binary_suffix: "/ss"
+
+url_signatures:
+  - id: linpeas-url-github
+    category: download
+    description: "Download of LinPEAS from GitHub releases"
+    match:
+      type: url_prefix
+      values:
+        - "https://github.com/peass-ng/PEASS-ng/releases"
+        - "https://github.com/carlospolop/PEASS-ng/releases"
+        - "https://raw.githubusercontent.com/peass-ng/PEASS-ng"
+        - "https://raw.githubusercontent.com/carlospolop/PEASS-ng"
+
+  - id: linpeas-url-shorteners
+    category: download
+    description: "Download of LinPEAS via common short-URL aliases"
+    match:
+      type: url_prefix
+      values:

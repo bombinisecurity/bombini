@@ -121,6 +121,7 @@ impl Registry {
             DetectorConfig::ProcMon(_) => {
                 bail!("ProcMon should be loaded first");
             }
+            DetectorConfig::LinPEAS(_) => {}
         }
         debug!("Detector {name} is loaded");
         Ok(())

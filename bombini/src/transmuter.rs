@@ -18,6 +18,7 @@ mod file;
 mod gtfobins;
 mod io_uring;
 mod kernel;
+pub mod linpeas;
 mod network;
 mod process;
 
@@ -30,6 +31,7 @@ use file::FileEventTransmuter;
 use gtfobins::GTFOBinsEventTransmuter;
 use io_uring::IOUringEventTransmuter;
 use kernel::KernelEventTransmuter;
+use linpeas::LinPEASTransmuter;
 use network::NetworkEventTransmuter;
 use process::{
     Process, ProcessCloneTransmuter, ProcessEventTransmuter, ProcessExecTransmuter,
@@ -39,14 +41,17 @@ use process::{
 pub struct TransmuterRegistry {
     handlers: [Option<Arc<dyn Transmuter>>; 256],
     process_cache: ProcessCache,
+    process_cache_baseline: usize,
+    linpeas: Option<Arc<LinPEASTransmuter>>,
 }
 impl TransmuterRegistry {
     pub fn new(config: &Config) -> Self {
+        let baseline = config.options.procmon_proc_map_size.unwrap() as usize;
         let mut registry = Self {
             handlers: std::array::from_fn(|_| None),
-            process_cache: ProcessCache::with_capacity(
-                config.options.procmon_proc_map_size.unwrap() as usize,
-            ),
+            process_cache: ProcessCache::with_capacity(baseline),
+            process_cache_baseline: baseline,
+            linpeas: None,
         };
 
         // Init Process cache
@@ -101,12 +106,25 @@ impl TransmuterRegistry {
                     registry.handlers[MSG_GTFOBINS as usize] =
                         Some(Arc::new(GTFOBinsEventTransmuter));
                 }
+                DetectorConfig::LinPEAS(cfg) => {
+                    registry.linpeas =
+                        Some(Arc::new(LinPEASTransmuter::new((**cfg).clone())));
+                }
             }
         }
         registry
     }
 
     pub fn transmute(&mut self, generic_event: &GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
+        if let Some(ref linpeas) = self.linpeas {
+            if let Ok(alert) = linpeas.transmute(
+                &generic_event.event,
+                generic_event.ktime,
+                &mut self.process_cache,
+            ) {
+                return Ok(alert);
+            }
+        }
         let event_type = generic_event.msg_code as usize;
         if let Some(handler) = self.handlers[event_type].as_ref() {
             handler.transmute(
@@ -124,6 +142,12 @@ impl TransmuterRegistry {
 
     pub fn retain_caches(&mut self) {
         self.process_cache.retain(|_, p| !p.exited);
+        if self.process_cache.capacity() > self.process_cache_baseline.saturating_mul(4) {
+            self.process_cache.shrink_to(self.process_cache_baseline);
+        }
+        if let Some(ref linpeas) = self.linpeas {
+            linpeas.gc();
+        }
     }
 }
 
