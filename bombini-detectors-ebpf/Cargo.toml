@@ -8,6 +8,9 @@ aya-ebpf = "0.1.1"
 bombini-common = { path = "../bombini-common" }
 bitflags = "2.11.0"
 
+[build-dependencies]
+bindgen = { version = "0.71", default-features = false, features = ["runtime"] }
+
 [profile.dev]
 opt-level = 3
 debug = false
