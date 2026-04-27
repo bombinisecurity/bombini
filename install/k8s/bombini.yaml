@@ -91,7 +91,6 @@ spec:
             - |
               set -e
               cd /bombini
-              cargo xtask vmlinux-gen
               cargo xtask build --release
               mkdir -p ./target/bpf-objs
               find ./target/bpfel-unknown-none/release -maxdepth 1 -exec file {} + | grep -i elf | awk -F: '{print $1}' | xargs -I {} cp {} ./target/bpf-objs/

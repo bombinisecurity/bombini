@@ -1,8 +1,5 @@
 ### https://raw.github.com/github/gitignore/master/Rust.gitignore
 
-# Ignore vmlinux.rs file
-**/vmlinux.rs
-
 # Ignore gen.rs file
 **/gen.rs
 
