@@ -1,4 +1,5 @@
 mod common;
+use base64::Engine;
 use common::bombini_launcher::*;
 
 use libc::{memfd_create, write};
@@ -79,6 +80,39 @@ fn test_6_2_procmon() {
 
     assert_eq!(events.matches("\"filename\":\"ls\"").count(), 2);
     assert_eq!(events.matches("\"args\":\"-lah\"").count(), 2);
+
+    fn get_field_from_event(events: &str, field: &str) -> String {
+        let json_field = "\"".to_owned() + field + "\":";
+        let field_start_idx = events
+            .find(&json_field)
+            .expect(&format!("{} not found", field))
+            + json_field.len();
+        let field_end_idx = events[field_start_idx..]
+            .find(|c| c == ',' || c == '}')
+            .unwrap()
+            + field_start_idx;
+        events[field_start_idx..field_end_idx]
+            .trim_matches('"')
+            .to_owned()
+    }
+
+    let exec_id_base64 = get_field_from_event(&events, "exec_id");
+    let binding = base64::engine::general_purpose::STANDARD_NO_PAD
+        .decode(&exec_id_base64)
+        .expect(&format!("can't decode exec_id: {}", exec_id_base64));
+    let exec_id = String::from_utf8_lossy(binding.as_slice());
+    let (exec_pid, _) = exec_id.split_once(':').unwrap();
+    let pid = get_field_from_event(&events, "pid");
+    assert_eq!(exec_pid, pid);
+
+    let exec_id_base64 = get_field_from_event(&events, "parent_exec_id");
+    let binding = base64::engine::general_purpose::STANDARD_NO_PAD
+        .decode(&exec_id_base64)
+        .expect(&format!("can't decode parent_exec_id: {}", exec_id_base64));
+    let exec_id = String::from_utf8_lossy(binding.as_slice());
+    let (exec_ppid, _) = exec_id.split_once(':').unwrap();
+    let ppid = get_field_from_event(&events, "ppid");
+    assert_eq!(exec_ppid, ppid);
 }
 
 #[test]
