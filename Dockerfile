@@ -6,9 +6,7 @@ RUN rustup install stable; \
     cargo install bpf-linker bindgen-cli; \
     cargo install --git https://github.com/aya-rs/aya -- aya-tool;
 COPY . ./
-# Update vmlinux.rs acroding current kernel verison
-RUN  uname -a; \
-    cargo xtask vmlinux-gen
+RUN  uname -a;
 RUN cargo xtask build --release
 RUN mkdir -p ./target/bpf-objs && \
     find ./target/bpfel-unknown-none/release -maxdepth 1 -exec file {} + | \

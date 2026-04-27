@@ -5,11 +5,6 @@ First, install build dependencies:
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 2. Prepare environment for [Aya](https://aya-rs.dev/book/start/development/) and install [aya-tool](https://aya-rs.dev/book/aya/aya-tool.html).
 
-You can generate `vmlinux.rs` manually, or you can skip this step (`vmlinux.rs` file will be generated during the first build).
-
-```bash
-cargo xtask vmlinux-gen
-```
 Release build:
 
 ```bash
