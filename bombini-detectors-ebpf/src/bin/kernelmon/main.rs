@@ -27,15 +27,16 @@ use bombini_common::{
         process::ProcInfo,
     },
 };
-use bombini_detectors_ebpf::{event_capture, vmlinux::bpf_attr__bindgen_ty_4};
+use bombini_detectors_ebpf::event_capture;
 use bombini_detectors_ebpf::{
+    co_re::{self, core_read_kernel},
     filter::{
         kernelmon::{bpfmap::BpfMapFilter, bpfprog::BpfProgFilter},
         scope::ScopeFilter,
     },
     interpreter::{self, rule::IsEmpty},
+    uapi::BpfProgLoadAttr,
     util,
-    vmlinux::{bpf_map, bpf_prog},
 };
 
 // Detector config
@@ -221,14 +222,16 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
     };
 
     unsafe {
-        let bpf_map: *const bpf_map = ctx.arg(0);
+        let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
         let flags: u32 = ctx.arg(1);
-        event.id = (*bpf_map).id;
-        event.map_type = core::mem::transmute::<u32, BpfMapType>((*bpf_map).map_type);
+        event.id = core_read_kernel!(bpf_map, id).ok_or(0i32)?;
+        event.map_type = core::mem::transmute::<u32, BpfMapType>(
+            core_read_kernel!(bpf_map, map_type).ok_or(0i32)?,
+        );
         // Flags is either 1, 2 or 3.
         event.access_mode = AccessMode::from_bits_truncate(1 << ((flags & 3).max(1) - 1));
         bpf_probe_read_kernel_str_bytes(
-            (*bpf_map).name.as_slice() as *const [i8] as *const _,
+            core_read_kernel!(bpf_map, name).ok_or(0i32)? as *const _,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
@@ -414,16 +417,18 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     };
 
     unsafe {
-        let bpf_map: *const bpf_map = ctx.arg(0);
-        event.map_type = core::mem::transmute::<u32, BpfMapType>((*bpf_map).map_type);
+        let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
+        event.map_type = core::mem::transmute::<u32, BpfMapType>(
+            core_read_kernel!(bpf_map, map_type).ok_or(0i32)?,
+        );
         bpf_probe_read_kernel_str_bytes(
-            (*bpf_map).name.as_slice() as *const [i8] as *const _,
+            core_read_kernel!(bpf_map, name).ok_or(0i32)? as *const _,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
-        event.key_size = (*bpf_map).key_size;
-        event.value_size = (*bpf_map).value_size;
-        event.max_entries = (*bpf_map).max_entries;
+        event.key_size = core_read_kernel!(bpf_map, key_size).ok_or(0i32)?;
+        event.value_size = core_read_kernel!(bpf_map, value_size).ok_or(0i32)?;
+        event.max_entries = core_read_kernel!(bpf_map, max_entries).ok_or(0i32)?;
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
@@ -588,17 +593,19 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     };
 
     unsafe {
-        let bpf_prog: *const bpf_prog = ctx.arg(0);
-        event.id = (*(*bpf_prog).aux).id;
-        event.prog_type = core::mem::transmute::<u32, BpfProgType>((*bpf_prog).type_);
+        let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
+        event.id = core_read_kernel!(bpf_prog, aux, id).ok_or(0i32)?;
+        event.prog_type = core::mem::transmute::<u32, BpfProgType>(
+            core_read_kernel!(bpf_prog, prog_type).ok_or(0i32)?,
+        );
         bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).name.as_slice() as *const [i8] as *const _,
+            core_read_kernel!(bpf_prog, aux, name).ok_or(0i32)? as *const _,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
         // Hook is only available for LSM & Tracepoint, for other types, attach_func_name is NULL
         let _ = bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).attach_func_name as *const _,
+            core_read_kernel!(bpf_prog, aux, attach_func_name).ok_or(0i32)? as *const _,
             &mut event.hook,
         );
 
@@ -771,10 +778,12 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
     };
 
     unsafe {
-        let bpf_prog: *const bpf_prog = ctx.arg(0);
-        event.prog_type = core::mem::transmute::<u32, BpfProgType>((*bpf_prog).type_);
+        let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
+        event.prog_type = core::mem::transmute::<u32, BpfProgType>(
+            core_read_kernel!(bpf_prog, prog_type).ok_or(0i32)?,
+        );
         bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).name.as_slice() as *const [i8] as *const _,
+            core_read_kernel!(bpf_prog, aux, name).ok_or(0i32)? as *const _,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;
@@ -923,14 +932,17 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
     };
 
     unsafe {
-        let prog_attr: *const bpf_attr__bindgen_ty_4 = ctx.arg(1);
+        let prog_attr: *const BpfProgLoadAttr = ctx.arg(1);
+        if prog_attr.is_null() {
+            return Err(0);
+        }
         let prog_type = (*prog_attr).prog_type;
         event.prog_type = core::mem::transmute::<u32, BpfProgType>(core::cmp::min(
             prog_type,
             BpfProgType::__MAX_BPF_PROG_TYPE as u32,
         ));
         bpf_probe_read_kernel_str_bytes(
-            (*prog_attr).prog_name.as_slice() as *const [i8] as *const _,
+            (*prog_attr).prog_name.as_ptr() as *const _,
             &mut event.name,
         )
         .map_err(|_| 0i32)?;

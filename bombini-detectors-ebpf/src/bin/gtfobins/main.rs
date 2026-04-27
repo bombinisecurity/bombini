@@ -2,7 +2,7 @@
 #![no_main]
 
 use aya_ebpf::{
-    helpers::{bpf_get_current_task_btf, bpf_probe_read_kernel, bpf_probe_read_kernel_str_bytes},
+    helpers::bpf_probe_read_kernel_str_bytes,
     macros::{lsm, map},
     maps::{
         hash_map::{HashMap, LruHashMap},
@@ -11,11 +11,10 @@ use aya_ebpf::{
     programs::LsmContext,
 };
 
-use bombini_detectors_ebpf::vmlinux::{file, kuid_t, linux_binprm, path, pid_t, qstr, task_struct};
-
 use bombini_common::constants::MAX_FILENAME_SIZE;
 use bombini_common::event::process::ProcInfo;
 use bombini_common::event::{Event, GenericEvent, MSG_GTFOBINS};
+use bombini_detectors_ebpf::co_re::{self, core_read_kernel};
 
 use bombini_detectors_ebpf::{event_capture, util};
 
@@ -50,21 +49,16 @@ fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
         return Err(0);
     };
     unsafe {
-        let binprm: *const linux_binprm = ctx.arg(0);
-        let cred = (*binprm).cred;
-        let euid = bpf_probe_read_kernel::<kuid_t>(&(*cred).euid as *const _)
-            .map_err(|_| 0i32)?
-            .val;
+        let binprm = co_re::linux_binprm::from_ptr(ctx.arg(0));
+        let cred = core_read_kernel!(binprm, cred).ok_or(0i32)?;
+        let euid = cred.euid();
 
         // Check if process is privileged
         if euid == 0 {
             // Check if sh is executing
-            let file: *mut file = (*binprm).file;
-            let path =
-                bpf_probe_read_kernel::<path>(&(*file).f_path as *const _).map_err(|_| 0_i32)?;
-            let d_name = bpf_probe_read_kernel::<qstr>(&(*(path.dentry)).d_name as *const _)
-                .map_err(|_| 0_i32)?;
-            bpf_probe_read_kernel_str_bytes(d_name.name, filename).map_err(|_| 0_i32)?;
+            let d_name =
+                core_read_kernel!(binprm, file, f_path, dentry, d_name, name).ok_or(0i32)?;
+            bpf_probe_read_kernel_str_bytes(d_name, filename).map_err(|_| 0_i32)?;
             if (filename[0] == b's' && filename[1] == b'h')
                 || (filename[0] == b'b'
                     && filename[1] == b'a'
@@ -76,12 +70,9 @@ fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                     && filename[3] == b'h')
                 || (filename[0] == b'z' && filename[1] == b's' && filename[2] == b'h')
             {
-                let task = bpf_get_current_task_btf() as *const task_struct;
-                let parent_task =
-                    bpf_probe_read_kernel::<*mut task_struct>(&(*task).parent as *const _)
-                        .map_err(|_| 0i32)?;
-                let mut ppid = bpf_probe_read_kernel(&(*parent_task).tgid as *const pid_t)
-                    .map_err(|_| 0i32)? as u32;
+                let task = co_re::task_struct::current();
+                let parent_task = core_read_kernel!(task, parent).ok_or(0i32)?;
+                let mut ppid = core_read_kernel!(parent_task, tgid).ok_or(0i32)? as u32;
                 for _ in 0..MAX_PROC_DEPTH {
                     let parent_proc = PROCMON_PROC_MAP.get(&ppid);
                     let Some(parent_proc) = parent_proc else {
