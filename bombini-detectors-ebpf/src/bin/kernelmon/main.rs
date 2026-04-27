@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+use aya_ebpf::helpers::bpf_probe_read_kernel;
 use aya_ebpf::{
     bindings::{bpf_cmd::BPF_PROG_LOAD, bpf_dynptr},
     helpers::{
@@ -27,15 +28,16 @@ use bombini_common::{
         process::ProcInfo,
     },
 };
-use bombini_detectors_ebpf::{event_capture, vmlinux::bpf_attr__bindgen_ty_4};
+use bombini_detectors_ebpf::event_capture;
+use bombini_detectors_ebpf::uapi::BpfProgLoadAttr;
 use bombini_detectors_ebpf::{
+    co_re::{self, core_read_kernel},
     filter::{
         kernelmon::{bpfmap::BpfMapFilter, bpfprog::BpfProgFilter},
         scope::ScopeFilter,
     },
     interpreter::{self, rule::IsEmpty},
     util,
-    vmlinux::{bpf_map, bpf_prog},
 };
 
 // Detector config
@@ -54,6 +56,14 @@ static FILENAME_HEAP: PerCpuArray<[u8; MAX_FILENAME_SIZE]> = PerCpuArray::with_m
 
 #[map]
 static PATH_HEAP: PerCpuArray<[u8; MAX_FILE_PATH]> = PerCpuArray::with_max_entries(1, 0);
+
+#[inline(always)]
+fn is_null_pointer<T>(addr: *const T) -> bool {
+    // Check if the address is null. I don't know why, but checking
+    // the null pointer with `is_null()` or explicitly comparing address to `0`
+    // leads to a wrong behavior of ebpf program despite of correct ebpf bytecode.
+    addr.addr() < 2
+}
 
 /// Fill file name map
 macro_rules! fill_name_map {
@@ -221,17 +231,19 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
     };
 
     unsafe {
-        let bpf_map: *const bpf_map = ctx.arg(0);
+        let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
         let flags: u32 = ctx.arg(1);
-        event.id = (*bpf_map).id;
-        event.map_type = core::mem::transmute::<u32, BpfMapType>((*bpf_map).map_type);
+        if is_null_pointer(bpf_map.as_ptr()) {
+            return Err(0);
+        }
+        event.id = core_read_kernel!(bpf_map, id).ok_or(0i32)?;
+        let map_type_raw = core_read_kernel!(bpf_map, map_type).ok_or(0i32)?;
+        event.map_type = core::mem::transmute::<u32, BpfMapType>(map_type_raw);
         // Flags is either 1, 2 or 3.
         event.access_mode = AccessMode::from_bits_truncate(1 << ((flags & 3).max(1) - 1));
-        bpf_probe_read_kernel_str_bytes(
-            (*bpf_map).name.as_slice() as *const [i8] as *const _,
-            &mut event.name,
-        )
-        .map_err(|_| 0i32)?;
+        let name_ptr = core_read_kernel!(bpf_map, name).ok_or(0i32)?;
+        bpf_probe_read_kernel_str_bytes(name_ptr.cast_const(), &mut event.name)
+            .map_err(|_| 0i32)?;
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
@@ -332,6 +344,13 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                     msg.blocked = true;
                     return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -376,7 +395,6 @@ static KERNELMON_BPF_MAP_CREATE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 #[lsm(hook = "bpf_map_alloc_security")]
 pub fn bpf_map_alloc_capture(ctx: LsmContext) -> i32 {
     let exit_code = event_capture!(ctx, MSG_KERNEL, true, try_bpf_map_create);
-    // <VERIFIER_ISSUE>
     // Verifier cannot determine that return value is in [-4096, 0]
     if exit_code != 0 { -1 } else { 0 }
 }
@@ -385,7 +403,6 @@ pub fn bpf_map_alloc_capture(ctx: LsmContext) -> i32 {
 #[lsm(hook = "bpf_map_create")]
 pub fn bpf_map_create_capture(ctx: LsmContext) -> i32 {
     let exit_code = event_capture!(ctx, MSG_KERNEL, true, try_bpf_map_create);
-    // <VERIFIER_ISSUE>
     // Verifier cannot determine that return value is in [-4096, 0]
     if exit_code != 0 { -1 } else { 0 }
 }
@@ -414,16 +431,18 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     };
 
     unsafe {
-        let bpf_map: *const bpf_map = ctx.arg(0);
-        event.map_type = core::mem::transmute::<u32, BpfMapType>((*bpf_map).map_type);
-        bpf_probe_read_kernel_str_bytes(
-            (*bpf_map).name.as_slice() as *const [i8] as *const _,
-            &mut event.name,
-        )
-        .map_err(|_| 0i32)?;
-        event.key_size = (*bpf_map).key_size;
-        event.value_size = (*bpf_map).value_size;
-        event.max_entries = (*bpf_map).max_entries;
+        let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
+        if is_null_pointer(bpf_map.as_ptr()) {
+            return Err(0);
+        }
+        let map_type_raw = core_read_kernel!(bpf_map, map_type).ok_or(0i32)?;
+        event.map_type = core::mem::transmute::<u32, BpfMapType>(map_type_raw);
+        let name_ptr = core_read_kernel!(bpf_map, name).ok_or(0i32)?;
+        bpf_probe_read_kernel_str_bytes(name_ptr.cast_const(), &mut event.name)
+            .map_err(|_| 0i32)?;
+        event.key_size = core_read_kernel!(bpf_map, key_size).ok_or(0i32)?;
+        event.value_size = core_read_kernel!(bpf_map, value_size).ok_or(0i32)?;
+        event.max_entries = core_read_kernel!(bpf_map, max_entries).ok_or(0i32)?;
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
@@ -524,6 +543,13 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     msg.blocked = true;
                     return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -588,19 +614,27 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     };
 
     unsafe {
-        let bpf_prog: *const bpf_prog = ctx.arg(0);
-        event.id = (*(*bpf_prog).aux).id;
-        event.prog_type = core::mem::transmute::<u32, BpfProgType>((*bpf_prog).type_);
-        bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).name.as_slice() as *const [i8] as *const _,
-            &mut event.name,
-        )
-        .map_err(|_| 0i32)?;
+        let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
+        if is_null_pointer(bpf_prog.as_ptr()) {
+            return Err(0);
+        }
+        let aux = core_read_kernel!(bpf_prog, aux).ok_or(0i32)?;
+        if is_null_pointer(aux.as_ptr()) {
+            return Err(0);
+        }
+        event.id = core_read_kernel!(aux, id).ok_or(0i32)?;
+        let prog_type_raw = core_read_kernel!(bpf_prog, prog).ok_or(0i32)?;
+        event.prog_type = core::mem::transmute::<u32, BpfProgType>(core::cmp::min(
+            prog_type_raw,
+            BpfProgType::__MAX_BPF_PROG_TYPE as u32,
+        ));
+        let name_ptr = core_read_kernel!(aux, name).ok_or(0i32)?;
+        bpf_probe_read_kernel_str_bytes(name_ptr.cast_const(), &mut event.name)
+            .map_err(|_| 0i32)?;
         // Hook is only available for LSM & Tracepoint, for other types, attach_func_name is NULL
-        let _ = bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).attach_func_name as *const _,
-            &mut event.hook,
-        );
+        if let Some(attach_name) = core_read_kernel!(aux, attach_func_name) {
+            let _ = bpf_probe_read_kernel_str_bytes(attach_name, &mut event.hook);
+        }
 
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
@@ -702,6 +736,13 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                     msg.blocked = true;
                     return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -771,13 +812,22 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
     };
 
     unsafe {
-        let bpf_prog: *const bpf_prog = ctx.arg(0);
-        event.prog_type = core::mem::transmute::<u32, BpfProgType>((*bpf_prog).type_);
-        bpf_probe_read_kernel_str_bytes(
-            (*(*bpf_prog).aux).name.as_slice() as *const [i8] as *const _,
-            &mut event.name,
-        )
-        .map_err(|_| 0i32)?;
+        let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
+        if is_null_pointer(bpf_prog.as_ptr()) {
+            return Err(0);
+        }
+        let aux = core_read_kernel!(bpf_prog, aux).ok_or(0i32)?;
+        if is_null_pointer(aux.as_ptr()) {
+            return Err(0);
+        }
+        let prog_type_raw = core_read_kernel!(bpf_prog, prog_type).ok_or(0i32)?;
+        event.prog_type = core::mem::transmute::<u32, BpfProgType>(core::cmp::min(
+            prog_type_raw,
+            BpfProgType::__MAX_BPF_PROG_TYPE as u32,
+        ));
+        let name_ptr = core_read_kernel!(aux, name).ok_or(0i32)?;
+        bpf_probe_read_kernel_str_bytes(name_ptr.cast_const(), &mut event.name)
+            .map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
@@ -793,7 +843,7 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
             return Err(0);
         };
 
-        let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfMapAccess as usize];
+        let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfProgLoad as usize];
 
         // Get filtering attributes
         // Stub bpf prog id
@@ -879,6 +929,13 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                     msg.blocked = true;
                     return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
@@ -923,17 +980,18 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
     };
 
     unsafe {
-        let prog_attr: *const bpf_attr__bindgen_ty_4 = ctx.arg(1);
-        let prog_type = (*prog_attr).prog_type;
+        let prog_attr: *const BpfProgLoadAttr = ctx.arg(1);
+        if is_null_pointer(prog_attr) {
+            return Err(0);
+        }
+        let prog_type = bpf_probe_read_kernel::<u32>(&(*prog_attr).prog_type as *const u32)
+            .map_err(|_| 0i32)?;
         event.prog_type = core::mem::transmute::<u32, BpfProgType>(core::cmp::min(
             prog_type,
             BpfProgType::__MAX_BPF_PROG_TYPE as u32,
         ));
-        bpf_probe_read_kernel_str_bytes(
-            (*prog_attr).prog_name.as_slice() as *const [i8] as *const _,
-            &mut event.name,
-        )
-        .map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes((*prog_attr).prog_name.as_ptr(), &mut event.name)
+            .map_err(|_| 0i32)?;
 
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
@@ -949,7 +1007,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
             return Err(0);
         };
 
-        let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfMapAccess as usize];
+        let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfProgLoad as usize];
 
         // Get filtering attributes
         // Stub bpf prog id
@@ -1035,6 +1093,13 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
                     msg.blocked = true;
                     return Ok(-1);
                 }
+            } else if let Some(deny_list) = sandbox
+                && !deny_list
+            {
+                // allow list is not satisfied: send event
+                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                msg.blocked = true;
+                return Ok(-1);
             }
         }
     }
