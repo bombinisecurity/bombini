@@ -66,7 +66,7 @@ bprm_check:
 }
 
 #[test]
-fn test_6_2_sandbox_filemon_open() {
+fn test_6_2_sandbox_filemon_open_deny_list() {
     let config_contents = r#"
 file_open:
   enabled: true
@@ -119,5 +119,89 @@ file_open:
     ma::assert_ge!(events.matches("\"access_mode\":\"O_WRONLY\"").count(), 1);
     let mut file_path = String::from("\"path\":\"");
     file_path.push_str(filemon_config.to_str().unwrap());
+    assert_eq!(events.matches(&file_path).count(), 1);
+}
+
+#[test]
+fn test_6_2_sandbox_filemon_open_allow_list() {
+    let config_contents = r#"
+file_open:
+  enabled: true
+  sandbox:
+    enabled: true
+  rules:
+  - rule: OpenTestSandBoxRule
+    scope: binary_name == "head"
+    event: path_prefix == "/usr/lib" OR name in ["filemon.yaml"]
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("filemon", Some(config_contents))
+        .events_timeout(1)
+        .launch()
+        .unwrap();
+
+    let bombini_temp_dir = bombini.get_working_dir();
+    let filemon_config = bombini_temp_dir.join("config/filemon.yaml");
+    let procmon_config = bombini_temp_dir.join("config/procmon.yaml");
+
+    // Tail should not be blocked at all
+    let tail = Command::new("sh")
+        .args(["-c", &format!("tail {}", filemon_config.to_str().unwrap())])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start sh");
+
+    assert!(tail.success());
+
+    let tail = Command::new("sh")
+        .args(["-c", &format!("tail {}", procmon_config.to_str().unwrap())])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start sh");
+
+    assert!(tail.success());
+
+    // This action by head is allowed
+    let head = Command::new("sh")
+        .args(["-c", &format!("head {}", filemon_config.to_str().unwrap())])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start sh");
+
+    assert!(head.success());
+
+    // But this one is not
+    let head = Command::new("sh")
+        .args(["-c", &format!("head {}", procmon_config.to_str().unwrap())])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start sh");
+
+    assert!(!head.success());
+
+    // Wait Events being processed
+    let events = bombini.wait_for_events("\"blocked\":true", 1).unwrap();
+    bombini.stop();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
+    ma::assert_ge!(
+        events.matches("\"rule\":\"OpenTestSandBoxRule\"").count(),
+        1
+    );
+    ma::assert_ge!(events.matches("\"blocked\":true").count(), 1);
+    let mut file_path = String::from("\"path\":\"");
+    file_path.push_str(procmon_config.to_str().unwrap());
     assert_eq!(events.matches(&file_path).count(), 1);
 }
