@@ -328,7 +328,8 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(FileOpenFilter::new(
                     &FILEMON_FILE_OPEN_NAME_MAP,
                     &FILEMON_FILE_OPEN_PATH_MAP,
@@ -363,13 +364,6 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -523,7 +517,8 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_TRUNCATE_NAME_MAP,
                     &FILEMON_PATH_TRUNCATE_PATH_MAP,
@@ -554,13 +549,6 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -704,7 +692,8 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_UNLINK_NAME_MAP,
                     &FILEMON_PATH_UNLINK_PATH_MAP,
@@ -735,13 +724,6 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -888,7 +870,8 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_SYMLINK_NAME_MAP,
                     &FILEMON_PATH_SYMLINK_PATH_MAP,
@@ -919,13 +902,6 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -1062,7 +1038,8 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(ChmodFilter::new(
                     &FILEMON_PATH_CHMOD_NAME_MAP,
                     &FILEMON_PATH_CHMOD_PATH_MAP,
@@ -1095,13 +1072,6 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -1251,7 +1221,8 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(ChownFilter::new(
                     &FILEMON_PATH_CHOWN_NAME_MAP,
                     &FILEMON_PATH_CHOWN_PATH_MAP,
@@ -1286,13 +1257,6 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -1504,7 +1468,8 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(MmapFileFilter::new(
                     &FILEMON_MMAP_FILE_NAME_MAP,
                     &FILEMON_MMAP_FILE_PATH_MAP,
@@ -1539,13 +1504,6 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -1684,7 +1642,8 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(FileIoctlFilter::new(
                     &FILEMON_FILE_IOCTL_NAME_MAP,
                     &FILEMON_FILE_IOCTL_PATH_MAP,
@@ -1717,13 +1676,6 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
