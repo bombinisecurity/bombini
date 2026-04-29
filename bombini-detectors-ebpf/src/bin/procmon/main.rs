@@ -728,7 +728,8 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
                     &PROCMON_SETUID_UID_MAP,
                     &PROCMON_SETUID_EUID_MAP,
@@ -757,13 +758,6 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -875,7 +869,8 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
                     &PROCMON_SETGID_GID_MAP,
                     &PROCMON_SETGID_EGID_MAP,
@@ -904,13 +899,6 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -1025,7 +1013,8 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(CapFilter::new(
                     &PROCMON_CAPSET_ECAP_MAP,
                     &PROCMON_CAPSET_PCAP_MAP,
@@ -1054,13 +1043,6 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -1268,7 +1250,8 @@ fn try_create_user_ns_capture(
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(CredFilter::new(
                     &PROCMON_USERNS_ECAP_MAP,
                     &PROCMON_USERNS_EUID_MAP,
@@ -1297,13 +1280,6 @@ fn try_create_user_ns_capture(
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
@@ -1515,7 +1491,8 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                 binary_path,
                 binary_prefix,
             ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &PROCMON_BPRM_CHECK_NAME_MAP,
                     &PROCMON_BPRM_CHECK_PATH_MAP,
@@ -1546,13 +1523,6 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                     msg.blocked = true;
                     return Ok(-1);
                 }
-            } else if let Some(deny_list) = sandbox
-                && !deny_list
-            {
-                // allow list is not satisfied: send event
-                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                msg.blocked = true;
-                return Ok(-1);
             }
         }
     }
