@@ -186,7 +186,7 @@ file_open:
 
 ## Sandbox Mode
 
-Bombini supports sandboxing for ProcMon and FileMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy.
+Bombini supports sandboxing for ProcMon and FileMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy. In allow-list mode, `event` restrictions are tied to the `scope` of the event. If there is no `scope` restriction, the `event` restriction is applied to the entire host.
 
 Sandbox configuration is added at the hook level and follows this pattern:
 
@@ -211,6 +211,8 @@ Sandbox configuration is added at the hook level and follows this pattern:
 
 ### Examples
 
+Prevent `dash`, `sh` and `bash` from writing to `filemon.yaml`:
+
 ```yaml
 file_open:
   enabled: true
@@ -222,6 +224,21 @@ file_open:
     scope: binary_name in ["dash", "sh", "bash"]
     event: name == "filemon.yaml" AND access_mode == "O_WRONLY"
 ```
+
+Allow `head` command to read only files from `/usr/lib` or read `filemon.yaml`:
+
+```yaml
+file_open:
+  enabled: true
+  sandbox:
+    enabled: true
+  rules:
+  - rule: OpenTestSandBoxRule
+    scope: binary_name == "head"
+    event: path_prefix == "/usr/lib" OR name in ["filemon.yaml"]
+```
+
+Only binaries from the specified paths can be executed:
 
 ```yaml
 bprm_check:
