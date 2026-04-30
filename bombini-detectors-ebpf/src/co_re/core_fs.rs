@@ -30,7 +30,7 @@ impl path {
 pub type inode = CoRe<r#gen::inode>;
 
 impl inode {
-    rust_shim_kernel_impl!(pub, inode, i_mode, u16);
+    rust_shim_kernel_trusted_impl!(pub, i_mode, inode, i_mode, u16);
     rust_shim_kernel_impl!(pub, inode, i_ino, u64);
     rust_shim_kernel_impl!(pub, inode, __i_nlink, u32);
 
