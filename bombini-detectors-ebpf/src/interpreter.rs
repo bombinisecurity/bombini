@@ -34,7 +34,8 @@ impl<T: CheckIn> Interpreter<T> {
             return Ok(true);
         }
 
-        // No iterator here because of verifier issues
+        // <VERIFIER_ISSUE>
+        // No iterator here because verifier cannot prove that the loop is not infinite
         let mut idx = 0;
         while idx < MAX_RULE_OPERATIONS {
             let op = &predicate[idx];
