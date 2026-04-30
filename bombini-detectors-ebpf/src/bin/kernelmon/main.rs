@@ -623,7 +623,7 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             return Err(0);
         }
         event.id = core_read_kernel!(aux, id).ok_or(0i32)?;
-        let prog_type_raw = core_read_kernel!(bpf_prog, prog).ok_or(0i32)?;
+        let prog_type_raw = core_read_kernel!(bpf_prog, prog_type).ok_or(0i32)?;
         event.prog_type = core::mem::transmute::<u32, BpfProgType>(core::cmp::min(
             prog_type_raw,
             BpfProgType::__MAX_BPF_PROG_TYPE as u32,

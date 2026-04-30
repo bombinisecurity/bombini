@@ -220,7 +220,7 @@ struct inode
     unsigned int __i_nlink;
 } __attribute__((preserve_access_index));
 
-SHIM(inode, i_mode);
+SHIM_TRUSTED(inode, i_mode);
 SHIM(inode, i_ino);
 SHIM(inode, __i_nlink);
 _SHIM_GETTER_BPF_CORE_READ(uid_t, shim_inode_i_uid(struct inode *inode), inode, i_uid.val);
@@ -278,9 +278,9 @@ struct linux_binprm
     unsigned int per_clear;
 } __attribute__((preserve_access_index));
 
-SHIM(linux_binprm, cred);
-SHIM(linux_binprm, per_clear);
+SHIM_TRUSTED(linux_binprm, cred);
 SHIM_TRUSTED(linux_binprm, file);
+SHIM_TRUSTED(linux_binprm, per_clear);
 
 struct in6_addr
 {
@@ -310,9 +310,9 @@ struct sock_common
     struct in6_addr skc_v6_rcv_saddr;
 } __attribute__((preserve_access_index));
 
-SHIM(sock_common, skc_family);
-SHIM(sock_common, skc_addrpair);
-SHIM(sock_common, skc_portpair);
+SHIM_TRUSTED(sock_common, skc_family);
+SHIM_TRUSTED(sock_common, skc_addrpair);
+SHIM_TRUSTED(sock_common, skc_portpair);
 SHIM_REF(sock_common, skc_v6_daddr);
 SHIM_REF(sock_common, skc_v6_rcv_saddr);
 
@@ -334,7 +334,7 @@ struct io_kiocb
 	struct io_cmd_data cmd;
 } __attribute__((preserve_access_index));
 
-SHIM(io_kiocb, opcode);
+SHIM_TRUSTED(io_kiocb, opcode);
 SHIM_REF(io_kiocb, cmd);
 
 struct open_how
@@ -352,7 +352,7 @@ struct bpf_prog_aux {
     const unsigned char *attach_func_name;
 } __attribute__((preserve_access_index));
 
-SHIM(bpf_prog_aux, id);
+SHIM_TRUSTED(bpf_prog_aux, id);
 ARRAY_SHIM(bpf_prog_aux, name);
 SHIM(bpf_prog_aux, attach_func_name);
 
@@ -363,8 +363,8 @@ struct bpf_prog {
     struct bpf_prog_aux *aux;
 } __attribute__((preserve_access_index));
 
-SHIM(bpf_prog, type);
-SHIM(bpf_prog, aux);
+SHIM_TRUSTED(bpf_prog, type);
+SHIM_TRUSTED(bpf_prog, aux);
 
 enum bpf_map_type { MAP_TYPE };
 
@@ -377,9 +377,9 @@ struct bpf_map {
     unsigned char name[BPF_OBJ_NAME_LEN];
 } __attribute__((preserve_access_index));
 
-SHIM(bpf_map, map_type);
-SHIM(bpf_map, key_size);
-SHIM(bpf_map, value_size);
-SHIM(bpf_map, max_entries);
-SHIM(bpf_map, id);
+SHIM_TRUSTED(bpf_map, map_type);
+SHIM_TRUSTED(bpf_map, key_size);
+SHIM_TRUSTED(bpf_map, value_size);
+SHIM_TRUSTED(bpf_map, max_entries);
+SHIM_TRUSTED(bpf_map, id);
 ARRAY_SHIM(bpf_map, name);
