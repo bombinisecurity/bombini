@@ -2,10 +2,6 @@
 
 JSON schema for all events.
 
-# Reference
-
-JSON schema for all events.
-
 ## FileMon
 
 ```json
@@ -418,6 +414,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -427,6 +427,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -478,7 +482,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     }
   }
@@ -565,6 +571,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -574,6 +584,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -625,7 +639,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     }
   }
@@ -799,6 +815,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -808,6 +828,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -859,7 +883,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     }
   }
@@ -987,7 +1013,7 @@ JSON schema for all events.
       ]
     },
     "BpfProgAccessInfo": {
-      "description": "BPF map access information",
+      "description": "BPF program access information",
       "type": "object",
       "properties": {
         "hook": {
@@ -1019,7 +1045,7 @@ JSON schema for all events.
       ]
     },
     "BpfProgLoadInfo": {
-      "description": "BPF map loading information",
+      "description": "BPF program loading information",
       "type": "object",
       "properties": {
         "name": {
@@ -1149,6 +1175,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -1158,6 +1188,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -1209,7 +1243,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     }
   }
@@ -1362,6 +1398,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -1371,6 +1411,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -1422,7 +1466,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     },
     "TcpConnection": {
@@ -1561,6 +1607,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -1570,6 +1620,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -1621,7 +1675,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     }
   }
@@ -1714,6 +1770,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -1723,6 +1783,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -1774,7 +1838,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     }
   }
@@ -1867,6 +1933,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -1876,6 +1946,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -1927,7 +2001,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     }
   }
@@ -2121,6 +2197,10 @@ JSON schema for all events.
           "format": "uint32",
           "minimum": 0
         },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
         "filename": {
           "description": "executable name",
           "type": "string"
@@ -2130,6 +2210,10 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
         },
         "pid": {
           "description": "PID",
@@ -2181,7 +2265,9 @@ JSON schema for all events.
         "secureexec",
         "filename",
         "binary_path",
-        "args"
+        "args",
+        "exec_id",
+        "parent_exec_id"
       ]
     },
     "ProcessBprmCheck": {

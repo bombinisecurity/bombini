@@ -33,8 +33,6 @@ cargo fmt --all -- --check
 These checks can be performed automatically during commit using [pre-commit](https://pre-commit.com/).
 Once the package is installed, simply run `pre-commit install` to enable the hooks, the checks will run automatically before the commit becomes effective.
 
-**Note**: Please, do not stage `vmlinux.rs` file in commit.
-
 ## Running Tests
 
 After making changes check if tests are passing:

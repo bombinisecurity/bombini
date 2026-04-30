@@ -4,26 +4,28 @@ GTFOBins event represents a process information about GTFO binary that tries to 
 
 ```json
 {
+  "type": "GTFOBinsEvent",
   "process": {
-    "args": "-a /dev/null sh",
-    "auid": 1000,
-    "binary_path": "/usr/bin/xargs",
-    "cap_effective": "ALL_CAPS",
-    "cap_inheritable": "",
-    "cap_permitted": "ALL_CAPS",
+    "start_time": "2026-04-30T12:11:54.923Z",
     "cloned": false,
-    "egid": 0,
+    "pid": 99620,
+    "tid": 99620,
+    "ppid": 99492,
+    "uid": 1000,
     "euid": 0,
+    "gid": 1000,
+    "egid": 0,
+    "auid": 1000,
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cap_effective": "ANY_CAPS",
+    "secureexec": "SETUID | SETGID",
     "filename": "xargs",
-    "gid": 0,
-    "pid": 2159624,
-    "ppid": 2159623,
-    "secureexec": "",
-    "start_time": "2025-12-03T21:56:26.328Z",
-    "tid": 2159624,
-    "uid": 0
+    "binary_path": "/home/fedotoff/xargs",
+    "args": "-a /dev/null sh -p",
+    "exec_id": "OTk2MjA6ODcxMjA5OTA0NjA5NDg4",
+    "parent_exec_id": "OTk0OTI6ODcxMTk1NzMwNTkzOTI0"
   },
-  "timestamp": "2025-12-03T21:56:26.329Z",
-  "type": "GTFOBinsEvent"
+  "timestamp": "2026-04-30T12:11:54.925Z"
 }
 ```

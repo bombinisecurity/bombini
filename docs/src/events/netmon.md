@@ -5,175 +5,67 @@ describe ingress/egress TCP connections over ipv4/v6.
 
 ## TcpConnectionEstablish
 
-Example: `wget -qO- -6 google.com`
-
-```json
-{
-  "type": "NetworkEvent",
-  "process": {
-    "start_time": "2025-12-11T12:31:24.089Z",
-    "cloned": false,
-    "pid": 47663,
-    "tid": 47663,
-    "ppid": 2230022,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
-    "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "wget",
-    "binary_path": "/usr/bin/wget",
-    "args": "-qO- -6 google.com"
-  },
-  "parent": {
-    "start_time": "2025-12-04T07:30:11.663Z",
-    "cloned": false,
-    "pid": 2230022,
-    "tid": 2230022,
-    "ppid": 72741,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
-    "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "zsh",
-    "binary_path": "/usr/bin/zsh",
-    "args": ""
-  },
-  "network_event": {
-    "type": "TcpConnectionEstablish",
-    "saddr": "2a00:1370:81a6:3f56:35f:ba59:506b:7d59",
-    "daddr": "2a00:1450:4001:80f::200e",
-    "sport": 44538,
-    "dport": 80,
-    "cookie": 63
-  },
-  "timestamp": "2025-12-11T12:31:24.105Z"
-}
-```
-
 Example:
 ```bash
 nc -l 7878
-telnet localhost 7878
+telnet -6 localhost 7878
 ```
 
 ```json
 {
   "network_event": {
-    "cookie": 49184,
-    "daddr": "127.0.0.1",
-    "dport": 7878,
-    "saddr": "127.0.0.1",
-    "sport": 49856,
+    "cookie": 32771,
+    "daddr": "::1",
+    "dport": 7879,
+    "saddr": "::1",
+    "sport": 59986,
     "type": "TcpConnectionEstablish"
   },
   "parent": {
     "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
     "auid": 1000,
-    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-539c5f7a878130ef",
-    "cap_effective": "ALL_CAPS",
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/netmon-8844df73ce6a95b2",
+    "cap_effective": "ANY_CAPS",
     "cap_inheritable": "",
-    "cap_permitted": "ALL_CAPS",
+    "cap_permitted": "ANY_CAPS",
     "cloned": false,
     "egid": 0,
     "euid": 0,
-    "filename": "tests-539c5f7a878130ef",
+    "exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "filename": "netmon-8844df73ce6a95b2",
     "gid": 0,
-    "pid": 6576,
-    "ppid": 5914,
+    "parent_exec_id": "ODQxMDU6ODY5NDYyNDQwMDAwMDAw",
+    "pid": 84537,
+    "ppid": 84105,
     "secureexec": "",
-    "start_time": "2025-12-11T11:45:41.992Z",
-    "tid": 6576,
+    "start_time": "2026-04-30T11:43:19.288Z",
+    "tid": 84537,
     "uid": 0
   },
   "process": {
-    "args": "localhost 7878",
+    "args": "-6 localhost 7879",
     "auid": 1000,
     "binary_path": "/usr/bin/inetutils-telnet",
-    "cap_effective": "ALL_CAPS",
+    "cap_effective": "ANY_CAPS",
     "cap_inheritable": "",
-    "cap_permitted": "ALL_CAPS",
+    "cap_permitted": "ANY_CAPS",
     "cloned": false,
     "egid": 0,
     "euid": 0,
+    "exec_id": "ODQ2NjA6ODY5NTA2ODg5NjExMjM4",
     "filename": "inetutils-telnet",
     "gid": 0,
-    "pid": 6961,
-    "ppid": 6576,
+    "parent_exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "pid": 84660,
+    "ppid": 84537,
     "secureexec": "",
-    "start_time": "2025-12-11T11:45:59.923Z",
-    "tid": 6961,
+    "start_time": "2026-04-30T11:43:31.908Z",
+    "tid": 84660,
     "uid": 0
   },
-  "timestamp": "2025-12-11T11:45:59.931Z",
-  "type": "NetworkEvent",
-  "rule": "NetMonIpv4Test"
-}
-```
-
-## TcpConnectionClose
-
-Example: `wget -qO- -6 google.com`
-
-```json
-{
-  "type": "NetworkEvent",
-  "process": {
-    "start_time": "2025-12-11T12:31:24.089Z",
-    "cloned": false,
-    "pid": 47663,
-    "tid": 47663,
-    "ppid": 2230022,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
-    "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "wget",
-    "binary_path": "/usr/bin/wget",
-    "args": "-qO- -6 google.com"
-  },
-  "parent": {
-    "start_time": "2025-12-04T07:30:11.663Z",
-    "cloned": false,
-    "pid": 2230022,
-    "tid": 2230022,
-    "ppid": 72741,
-    "uid": 1000,
-    "euid": 1000,
-    "gid": 1000,
-    "egid": 1000,
-    "auid": 1000,
-    "cap_inheritable": "",
-    "cap_permitted": "",
-    "cap_effective": "",
-    "secureexec": "",
-    "filename": "zsh",
-    "binary_path": "/usr/bin/zsh",
-    "args": ""
-  },
-  "network_event": {
-    "type": "TcpConnectionClose",
-    "saddr": "2a00:1370:81a6:3f56:35f:ba59:506b:7d59",
-    "daddr": "2a00:1450:4001:80f::200e",
-    "sport": 44538,
-    "dport": 80,
-    "cookie": 63
-  },
-  "timestamp": "2025-12-11T12:31:24.942Z",
+  "rule": "NetMonIpv6Test",
+  "timestamp": "2026-04-30T11:43:31.910Z",
+  "type": "NetworkEvent"
 }
 ```
 
@@ -186,53 +78,186 @@ telnet localhost 7878
 ```json
 {
   "network_event": {
-    "cookie": 49184,
+    "cookie": 4099,
     "daddr": "127.0.0.1",
     "dport": 7878,
     "saddr": "127.0.0.1",
-    "sport": 49856,
-    "type": "TcpConnectionClose"
+    "sport": 53484,
+    "type": "TcpConnectionEstablish"
   },
   "parent": {
     "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
     "auid": 1000,
-    "binary_path": "/home/fedotoff/bombini/target/release/deps/tests-539c5f7a878130ef",
-    "cap_effective": "ALL_CAPS",
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/netmon-8844df73ce6a95b2",
+    "cap_effective": "ANY_CAPS",
     "cap_inheritable": "",
-    "cap_permitted": "ALL_CAPS",
+    "cap_permitted": "ANY_CAPS",
     "cloned": false,
     "egid": 0,
     "euid": 0,
-    "filename": "tests-539c5f7a878130ef",
+    "exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "filename": "netmon-8844df73ce6a95b2",
     "gid": 0,
-    "pid": 6576,
-    "ppid": 5914,
+    "parent_exec_id": "ODQxMDU6ODY5NDYyNDQwMDAwMDAw",
+    "pid": 84537,
+    "ppid": 84105,
     "secureexec": "",
-    "start_time": "2025-12-11T11:45:41.992Z",
-    "tid": 6576,
+    "start_time": "2026-04-30T11:43:19.288Z",
+    "tid": 84537,
     "uid": 0
   },
   "process": {
     "args": "localhost 7878",
     "auid": 1000,
     "binary_path": "/usr/bin/inetutils-telnet",
-    "cap_effective": "ALL_CAPS",
+    "cap_effective": "ANY_CAPS",
     "cap_inheritable": "",
-    "cap_permitted": "ALL_CAPS",
+    "cap_permitted": "ANY_CAPS",
     "cloned": false,
     "egid": 0,
     "euid": 0,
+    "exec_id": "ODQ2MDY6ODY5NTAwMjc2MTA1NTEz",
     "filename": "inetutils-telnet",
     "gid": 0,
-    "pid": 6961,
-    "ppid": 6576,
+    "parent_exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "pid": 84606,
+    "ppid": 84537,
     "secureexec": "",
-    "start_time": "2025-12-11T11:45:59.923Z",
-    "tid": 6961,
+    "start_time": "2026-04-30T11:43:25.294Z",
+    "tid": 84606,
     "uid": 0
   },
-  "timestamp": "2025-12-11T11:45:59.932Z",
-  "type": "NetworkEvent",
+  "rule": "NetMonIpv4Test",
+  "timestamp": "2026-04-30T11:43:25.295Z",
+  "type": "NetworkEvent"
+}
+```
+
+## TcpConnectionClose
+
+Example:
+```bash
+nc -l 7878
+telnet -6 localhost 7878
+```
+
+```json
+{
+  "network_event": {
+    "cookie": 32771,
+    "daddr": "::1",
+    "dport": 7879,
+    "saddr": "::1",
+    "sport": 59986,
+    "type": "TcpConnectionClose"
+  },
+  "parent": {
+    "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
+    "auid": 1000,
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/netmon-8844df73ce6a95b2",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "filename": "netmon-8844df73ce6a95b2",
+    "gid": 0,
+    "parent_exec_id": "ODQxMDU6ODY5NDYyNDQwMDAwMDAw",
+    "pid": 84537,
+    "ppid": 84105,
+    "secureexec": "",
+    "start_time": "2026-04-30T11:43:19.288Z",
+    "tid": 84537,
+    "uid": 0
+  },
+  "process": {
+    "args": "-6 localhost 7879",
+    "auid": 1000,
+    "binary_path": "/usr/bin/inetutils-telnet",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "exec_id": "ODQ2NjA6ODY5NTA2ODg5NjExMjM4",
+    "filename": "inetutils-telnet",
+    "gid": 0,
+    "parent_exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "pid": 84660,
+    "ppid": 84537,
+    "secureexec": "",
+    "start_time": "2026-04-30T11:43:31.908Z",
+    "tid": 84660,
+    "uid": 0
+  },
+  "timestamp": "2026-04-30T11:43:31.910Z",
+  "type": "NetworkEvent"
+}
+```
+
+Example:
+```bash
+nc -l 7878
+telnet localhost 7878
+```
+
+```json
+{
+  "network_event": {
+    "cookie": 4099,
+    "daddr": "127.0.0.1",
+    "dport": 7878,
+    "saddr": "127.0.0.1",
+    "sport": 53484,
+    "type": "TcpConnectionClose"
+  },
+  "parent": {
+    "args": "-q --show-output --test-threads 1 test_6_2_ test_6_8_",
+    "auid": 1000,
+    "binary_path": "/home/fedotoff/bombini/target/release/deps/netmon-8844df73ce6a95b2",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "filename": "netmon-8844df73ce6a95b2",
+    "gid": 0,
+    "parent_exec_id": "ODQxMDU6ODY5NDYyNDQwMDAwMDAw",
+    "pid": 84537,
+    "ppid": 84105,
+    "secureexec": "",
+    "start_time": "2026-04-30T11:43:19.288Z",
+    "tid": 84537,
+    "uid": 0
+  },
+  "process": {
+    "args": "localhost 7878",
+    "auid": 1000,
+    "binary_path": "/usr/bin/inetutils-telnet",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "exec_id": "ODQ2MDY6ODY5NTAwMjc2MTA1NTEz",
+    "filename": "inetutils-telnet",
+    "gid": 0,
+    "parent_exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "pid": 84606,
+    "ppid": 84537,
+    "secureexec": "",
+    "start_time": "2026-04-30T11:43:25.294Z",
+    "tid": 84606,
+    "uid": 0
+  },
+  "timestamp": "2026-04-30T11:43:25.296Z",
+  "type": "NetworkEvent"
 }
 ```
 
@@ -265,6 +290,8 @@ telnet localhost 7878
     "secureexec": "",
     "filename": "nc.openbsd",
     "binary_path": "/usr/bin/nc.openbsd",
+    "exec_id": "ODQ1ODY6ODY5NDk4Nzc1Njg0MTEx",
+    "parent_exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
     "args": "-l 7878"
   },
   "parent": {
@@ -284,6 +311,8 @@ telnet localhost 7878
     "secureexec": "",
     "filename": "zsh",
     "binary_path": "/usr/bin/zsh",
+    "exec_id": "ODQ1Mzc6ODY5NDk0MjcwMDAwMDAw",
+    "parent_exec_id": "ODQxMDU6ODY5NDYyNDQwMDAwMDAw",
     "args": ""
   },
   "network_event": {
