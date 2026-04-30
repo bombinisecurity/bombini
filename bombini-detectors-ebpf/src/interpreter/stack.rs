@@ -22,6 +22,7 @@ impl Stack<bool> {
             return Err(0);
         };
         unsafe {
+            // <VERIFIER_ISSUE>
             // Starting stack from 1 to avoid 0 as a valid value
             // This is because zero check in pop operation is not sufficient for verifier
             // to prove that len is always greater than 0

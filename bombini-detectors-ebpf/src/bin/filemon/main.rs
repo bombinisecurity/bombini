@@ -517,6 +517,8 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
@@ -692,6 +694,8 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
@@ -870,6 +874,8 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
@@ -1038,6 +1044,8 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(ChmodFilter::new(
@@ -1221,6 +1229,8 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(ChownFilter::new(
@@ -1341,6 +1351,7 @@ static FILEMON_MMAP_FILE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[inline(always)]
 fn is_null_pointer<T>(addr: *const T) -> bool {
+    // <VERIFIER_ISSUE>
     // Check if the address is null. I don't know why, but checking
     // the null pointer with `is_null()` or explicitly comparing address to `0`
     // leads to a wrong behavior of ebpf program despite of correct ebpf bytecode.
@@ -1390,6 +1401,8 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             flags_bits = flags_bits & !0x3 | 0x4;
         }
         event.flags = SharingType::from_bits_truncate(flags_bits);
+        // <VERIFIER_ISSUE>
+        // is_null_pointer instead of is_null().
         if !is_null_pointer(fp) {
             let _ = bpf_d_path(
                 &(*fp).f_path as *const _ as *mut aya_ebpf::bindings::path,
@@ -1417,6 +1430,8 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
 
         // Get filtering attributes
         // Get file name
+        // <VERIFIER_ISSUE>
+        // is_null_pointer instead of is_null().
         let file_name = if !is_null_pointer(fp) {
             let path =
                 bpf_probe_read_kernel::<path>(&(*fp).f_path as *const _).map_err(|_| 0i32)?;
@@ -1468,6 +1483,8 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(MmapFileFilter::new(
@@ -1642,6 +1659,8 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(FileIoctlFilter::new(

@@ -209,6 +209,7 @@ macro_rules! memzero {
         );
         bpf_dynptr_write(&tmp as *const _, 0, zero_ptr as *mut _, $size as u32, 0);
     }
+    // <VERIFIER_ISSUE>
     // Very dirty hack to make BPF verifier happy with stack area used for dynptr.
     // After dynptr is passed away from the scope, BPF verifier still thinks that stack area is untouchable.
     // We can create new variable that will may separate this stack area from the dynptr.
@@ -728,6 +729,8 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
@@ -869,6 +872,8 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
@@ -1013,6 +1018,8 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(CapFilter::new(
@@ -1250,6 +1257,8 @@ fn try_create_user_ns_capture(
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(CredFilter::new(
@@ -1491,6 +1500,8 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                 binary_path,
                 binary_prefix,
             ))?;
+            // <VERIFIER_ISSUE>
+            // Without blackbox, the verifier will complain that the program is too huge.
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
