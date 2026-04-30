@@ -11,7 +11,7 @@ clap = { version = "4.6.0", features = ["derive"] }
 anyhow = "1"
 bitflags = { version = "2.11.0", features = ["serde"]}
 env_logger = "0.11.10"
-libc = "0.2.185"
+libc = "0.2.186"
 log = "0.4.29"
 procfs = "0.18.0"
 tokio = { version = "1.51.1", features = ["fs", "io-std", "io-util", "macros", "rt", "rt-multi-thread", "net", "signal", "sync", "time"] }
@@ -34,7 +34,7 @@ base64 = "0.22.1"
 nix = { version = "0.31.2", features = ["signal"] }
 tempfile = "3"
 more-asserts = "0.3"
-libc = "0.2.185"
+libc = "0.2.186"
 sha256 = "1.6.0"
 which = "8.0.2"
 
