@@ -113,7 +113,9 @@ impl BombiniBuilder {
             events_timeout: self.events_timeout,
         };
 
-        cmd.wait_for_bombini_start()?;
+        // Panic here if bombini failed to start
+        // This forces Drop to not cleanup the temp dir
+        cmd.wait_for_bombini_start().unwrap();
         Ok(cmd)
     }
 
