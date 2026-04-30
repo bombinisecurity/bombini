@@ -1,12 +1,14 @@
 use super::r#gen::{self, *};
-use super::{CoRe, rust_shim_kernel_impl, rust_shim_kernel_impl_ptr};
+use super::{
+    CoRe, rust_shim_kernel_impl, rust_shim_kernel_impl_ptr, rust_shim_kernel_trusted_impl,
+};
 
 #[allow(non_camel_case_types)]
 pub type io_kiocb = CoRe<r#gen::io_kiocb>;
 
 impl io_kiocb {
     rust_shim_kernel_impl_ptr!(pub, cmd, io_kiocb, cmd, *const u8);
-    rust_shim_kernel_impl!(pub, io_kiocb, opcode, u8);
+    rust_shim_kernel_trusted_impl!(pub, opcode, io_kiocb, opcode, u8);
 }
 
 #[allow(non_camel_case_types)]
@@ -20,5 +22,5 @@ impl filename {
 pub type open_how = CoRe<r#gen::open_how>;
 
 impl open_how {
-    rust_shim_kernel_impl!(pub, open_how, flags, u64);
+    rust_shim_kernel_trusted_impl!(pub, flags, open_how, flags, u64);
 }
