@@ -20,7 +20,7 @@ jobs:
           curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz
           cargo install bindgen-cli
           cargo install --git https://github.com/aya-rs/aya -- aya-tool
-          cargo xtask vmlinux-gen
+          sudo apt install libbpf-dev clang
           cargo clippy --workspace --all-features -- -D warnings
           cargo fmt --all -- --check
           cd bombini-detectors-ebpf
@@ -74,7 +74,7 @@ jobs:
           limactl start ubuntu-kernel-v6.8
 
           rsync -a -e ssh . lima-ubuntu-kernel-v6-8:/tmp/repo
-          ssh lima-ubuntu-kernel-v6-8 "uname -a && cd /tmp/repo && source ~/.cargo/env && cargo xtask vmlinux-gen && cargo xtask test --release"
+          ssh lima-ubuntu-kernel-v6-8 "uname -a && cd /tmp/repo && source ~/.cargo/env && cargo xtask test --release"
 
           limactl stop ubuntu-kernel-v6.8
 
@@ -127,7 +127,7 @@ jobs:
           limactl start ubuntu-kernel-v6.14
 
           rsync -a -e ssh . lima-ubuntu-kernel-v6-14:/tmp/repo
-          ssh lima-ubuntu-kernel-v6-14 "uname -a && cd /tmp/repo && source ~/.cargo/env && cargo xtask vmlinux-gen && cargo xtask test --release"
+          ssh lima-ubuntu-kernel-v6-14 "uname -a && cd /tmp/repo && source ~/.cargo/env && cargo xtask test --release"
 
           limactl stop ubuntu-kernel-v6.14
 
@@ -180,7 +180,7 @@ jobs:
           limactl start ubuntu-kernel-v6.2
 
           rsync -a -e ssh . lima-ubuntu-kernel-v6-2:/tmp/repo
-          ssh lima-ubuntu-kernel-v6-2 "uname -a && cd /tmp/repo && source ~/.cargo/env && cargo xtask vmlinux-gen && cargo xtask test --release"
+          ssh lima-ubuntu-kernel-v6-2 "uname -a && cd /tmp/repo && source ~/.cargo/env && cargo xtask test --release"
 
           limactl stop ubuntu-kernel-v6.2
 

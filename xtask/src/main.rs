@@ -6,7 +6,6 @@ mod rule_parser_gen;
 mod run;
 mod tarball;
 mod test;
-mod vmlinux_gen;
 
 use std::process::exit;
 
@@ -26,7 +25,6 @@ enum Command {
     Run(run::Options),
     Test(test::Options),
     Tarball(tarball::Options),
-    VmlinuxGen(vmlinux_gen::Options),
     DocsGen(docs_gen::Options),
     RuleParserGen(rule_parser_gen::Options),
 }
@@ -42,7 +40,6 @@ fn main() {
         Build(opts) => build::build(opts),
         Test(opts) => test::test(opts),
         Tarball(opts) => tarball::tarball(opts),
-        VmlinuxGen(opts) => vmlinux_gen::vmlinux_gen(opts),
         DocsGen(opts) => docs_gen::docs_gen(opts),
         RuleParserGen(opts) => rule_parser_gen::rule_parser_gen(opts),
     };
