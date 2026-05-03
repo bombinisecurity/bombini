@@ -220,7 +220,7 @@ struct inode
     unsigned int __i_nlink;
 } __attribute__((preserve_access_index));
 
-SHIM_TRUSTED(inode, i_mode);
+SHIM(inode, i_mode);
 SHIM(inode, i_ino);
 SHIM(inode, __i_nlink);
 _SHIM_GETTER_BPF_CORE_READ(uid_t, shim_inode_i_uid(struct inode *inode), inode, i_uid.val);
@@ -234,8 +234,8 @@ struct file
 } __attribute__((preserve_access_index));
 
 SHIM_REF(file, f_path);
-SHIM_TRUSTED(file, f_flags);
 SHIM_TRUSTED(file, f_inode);
+SHIM_TRUSTED(file, f_flags);
 
 struct filename
 {
@@ -352,7 +352,7 @@ struct bpf_prog_aux {
     const unsigned char *attach_func_name;
 } __attribute__((preserve_access_index));
 
-SHIM_TRUSTED(bpf_prog_aux, id);
+SHIM(bpf_prog_aux, id);
 ARRAY_SHIM(bpf_prog_aux, name);
 SHIM(bpf_prog_aux, attach_func_name);
 
@@ -363,8 +363,8 @@ struct bpf_prog {
     struct bpf_prog_aux *aux;
 } __attribute__((preserve_access_index));
 
-SHIM_TRUSTED(bpf_prog, type);
-SHIM_TRUSTED(bpf_prog, aux);
+SHIM(bpf_prog, type);
+SHIM(bpf_prog, aux);
 
 enum bpf_map_type { MAP_TYPE };
 
