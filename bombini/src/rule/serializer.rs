@@ -155,7 +155,7 @@ where
     pub fn serialize_rule(&mut self, rule: &Rule) -> Result<(), anyhow::Error> {
         if !rule.scope.is_empty() {
             let Ok(ast) = predicate_parser::ExprParser::new().parse(&rule.scope) else {
-                return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.scope));
+                return Err(anyhow::anyhow!("failed to parse ast for: {}", rule.scope));
             };
             let ast = ast.optimize_ast()?;
             let mut converter = RpnConverter::new();
@@ -164,7 +164,7 @@ where
 
         if !rule.event.is_empty() {
             let Ok(ast) = predicate_parser::ExprParser::new().parse(&rule.event) else {
-                return Err(anyhow::anyhow!("failed to parse ast for: {}", &rule.event));
+                return Err(anyhow::anyhow!("failed to parse ast for: {}", rule.event));
             };
             let ast = ast.optimize_ast()?;
             let mut converter = RpnConverter::new();
