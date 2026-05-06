@@ -32,6 +32,7 @@ bpf_prog:
         .detector("procmon", None)
         .detector("kernelmon", Some(config_contents))
         .events_timeout(8)
+        .bombini_start_timeout(30)
         .launch()
         .unwrap();
 
