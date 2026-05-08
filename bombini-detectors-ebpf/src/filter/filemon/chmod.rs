@@ -83,7 +83,7 @@ impl CheckIn for ChmodFilter<'_> {
                 };
                 Ok(*imode & self.imode.imode != Imode::empty())
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }

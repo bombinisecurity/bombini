@@ -32,7 +32,7 @@ pub fn rb_event_init(
 ) -> Result<(), i32> {
     if let Err(e) = EVENT_MAP.reserve::<GenericEvent>(0, ring_entry) {
         let Some(evetnts_lost) = BOMBINI_BPF_EVENTS_LOST_TOTAL.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         unsafe {
             *evetnts_lost += 1;
@@ -44,7 +44,7 @@ pub fn rb_event_init(
             ring_entry.zero_entry()?;
         }
         let Some(event_ref) = ring_entry.get_ptr_mut() else {
-            return Err(0);
+            return Err(-1);
         };
         let p = &mut (*event_ref).event as *mut Event as *mut u8;
         *p = msg_code;
@@ -101,8 +101,10 @@ macro_rules! event_capture {
             }
             Err(ret) => {
                 ring_entry.discard(0);
-                $crate::event_map::trace_error();
-                ret
+                if ret != 0 {
+                    $crate::event_map::trace_error();
+                }
+                0
             }
         }
     }};

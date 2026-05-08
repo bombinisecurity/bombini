@@ -74,7 +74,7 @@ impl CheckIn for FileIoctlFilter<'_> {
                 };
                 Ok(*mask_cmd & (1 << in_op_idx) != 0)
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }

@@ -97,7 +97,7 @@ impl CheckIn for FileOpenFilter<'_> {
                 };
                 Ok(*flags & self.creation_flags.creation_flags != CreationFlags::empty())
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }

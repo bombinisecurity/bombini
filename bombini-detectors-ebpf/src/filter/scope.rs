@@ -56,7 +56,7 @@ impl CheckIn for ScopeFilter<'_> {
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             }
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }

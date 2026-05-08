@@ -16,10 +16,10 @@ pub(super) struct Stack<T> {
 impl Stack<bool> {
     pub fn new() -> Result<Self, i32> {
         let Some(data) = STACK_DATA.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let Some(len) = STACK_LEN.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         unsafe {
             // <VERIFIER_ISSUE>
@@ -40,7 +40,7 @@ impl<T: Copy> Stack<T> {
         unsafe {
             let len = *self.len_ptr;
             if len >= STACK_SIZE {
-                return Err(0);
+                return Err(-1);
             }
             (*self.data_ptr)[len] = value;
             *self.len_ptr += 1;
@@ -52,11 +52,11 @@ impl<T: Copy> Stack<T> {
         unsafe {
             let mut len = *self.len_ptr;
             if len >= STACK_SIZE {
-                return Err(0);
+                return Err(-1);
             }
             // Stack starts with 1, so we need to check if len will be greater than 1 before subtracting
             if len < 2 {
-                return Err(0);
+                return Err(-1);
             }
             len -= 1;
 

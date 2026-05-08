@@ -107,7 +107,7 @@ impl CheckIn for MmapFileFilter<'_> {
                 // TODO: MAP_SHARED_VALIDATE will match MAP_SHARED and MAP_PRIVATE
                 Ok(*flags & self.flags.flags != SharingType::empty())
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }

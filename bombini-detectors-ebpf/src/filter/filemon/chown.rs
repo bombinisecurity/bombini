@@ -86,7 +86,7 @@ impl CheckIn for ChownFilter<'_> {
                 };
                 Ok(*mask_gid & (1 << in_op_idx) != 0)
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }
