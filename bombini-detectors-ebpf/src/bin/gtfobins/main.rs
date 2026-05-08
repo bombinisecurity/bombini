@@ -37,27 +37,27 @@ static MAX_PROC_DEPTH: u32 = 4;
 
 fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::GTFOBins(ref mut event) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
     let Some(filename_ptr) = GTFOBINS_FILENAME_HEAP.get_ptr_mut(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     let filename = unsafe { filename_ptr.as_mut() };
 
     let Some(filename) = filename else {
-        return Err(0);
+        return Err(-1);
     };
     unsafe {
         let binprm = co_re::linux_binprm::from_ptr(ctx.arg(0));
-        let cred = core_read_kernel!(binprm, cred).ok_or(0i32)?;
+        let cred = core_read_kernel!(binprm, cred).ok_or(-1i32)?;
         let euid = cred.euid();
 
         // Check if process is privileged
         if euid == 0 {
             // Check if sh is executing
             let d_name =
-                core_read_kernel!(binprm, file, f_path, dentry, d_name, name).ok_or(0i32)?;
+                core_read_kernel!(binprm, file, f_path, dentry, d_name, name).ok_or(-1i32)?;
             bpf_probe_read_kernel_str_bytes(d_name, filename).map_err(|_| 0_i32)?;
             if (filename[0] == b's' && filename[1] == b'h')
                 || (filename[0] == b'b'
@@ -71,12 +71,12 @@ fn try_detect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                 || (filename[0] == b'z' && filename[1] == b's' && filename[2] == b'h')
             {
                 let task = co_re::task_struct::current();
-                let parent_task = core_read_kernel!(task, parent).ok_or(0i32)?;
-                let mut ppid = core_read_kernel!(parent_task, tgid).ok_or(0i32)? as u32;
+                let parent_task = core_read_kernel!(task, parent).ok_or(-1i32)?;
+                let mut ppid = core_read_kernel!(parent_task, tgid).ok_or(-1i32)? as u32;
                 for _ in 0..MAX_PROC_DEPTH {
                     let parent_proc = PROCMON_PROC_MAP.get(&ppid);
                     let Some(parent_proc) = parent_proc else {
-                        return Err(0);
+                        return Err(-1);
                     };
                     if parent_proc.ppid == 1 {
                         // System process uses gtfobin and spawing shell. It's valid

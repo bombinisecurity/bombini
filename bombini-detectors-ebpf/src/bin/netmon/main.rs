@@ -69,15 +69,15 @@ static PATH_HEAP: PerCpuArray<[u8; MAX_FILE_PATH]> = PerCpuArray::with_max_entri
 macro_rules! fill_name_map {
     ($map:ident, $src:expr) => {{
         let Some(name_ptr) = $map.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let name = name_ptr.as_mut();
         let Some(name) = name else {
-            return Err(0);
+            return Err(-1);
         };
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
         let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         bpf_dynptr_from_mem(
             &mut name.name as *mut u8 as *mut _,
@@ -92,7 +92,7 @@ macro_rules! fill_name_map {
             MAX_FILENAME_SIZE as u32,
             0,
         );
-        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| -1i32)?;
         name
     }};
 }
@@ -101,15 +101,15 @@ macro_rules! fill_name_map {
 macro_rules! fill_path_map {
     ($map:ident, $src:expr) => {{
         let Some(path_ptr) = $map.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let path = path_ptr.as_mut();
         let Some(path) = path else {
-            return Err(0);
+            return Err(-1);
         };
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
         let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         bpf_dynptr_from_mem(
             &mut path.path as *mut u8 as *mut _,
@@ -124,7 +124,7 @@ macro_rules! fill_path_map {
             MAX_FILE_PATH as u32,
             0,
         );
-        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| -1i32)?;
         path
     }};
 }
@@ -132,16 +132,16 @@ macro_rules! fill_path_map {
 macro_rules! fill_prefix_map {
     ($map:ident, $src:expr) => {{
         let Some(prefix) = $map.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let prefix = prefix.as_mut();
         let Some(prefix) = prefix else {
-            return Err(0);
+            return Err(-1);
         };
         {
             let mut tmp = bpf_dynptr { __opaque: [0, 0] };
             let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-                return Err(0);
+                return Err(-1);
             };
             bpf_dynptr_from_mem(
                 prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
@@ -161,7 +161,7 @@ macro_rules! fill_prefix_map {
         core::hint::black_box(&clear_stack);
 
         bpf_probe_read_kernel_buf($src as *const u8, &mut prefix.data.path_prefix)
-            .map_err(|_| 0i32)?;
+            .map_err(|_| -1i32)?;
 
         prefix.prefix_len = (MAX_FILE_PREFIX * 8) as u32;
         prefix
@@ -171,14 +171,14 @@ macro_rules! fill_prefix_map {
 macro_rules! fill_ip_map {
     ($map:ident, $src:expr, $addr_size:literal) => {{
         let Some(ip) = $map.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let ip = ip.as_mut();
         let Some(ip) = ip else {
-            return Err(0);
+            return Err(-1);
         };
         let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
         bpf_dynptr_from_mem(
@@ -194,7 +194,7 @@ macro_rules! fill_ip_map {
             core::mem::size_of_val(&ip.data.ip_addr) as u32,
             0,
         );
-        bpf_probe_read_kernel_buf($src as *const u8, &mut ip.data.ip_addr).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_buf($src as *const u8, &mut ip.data.ip_addr).map_err(|_| -1i32)?;
         ip.prefix_len = (($addr_size + 1) * 8) as u32;
         ip
     }};
@@ -295,7 +295,7 @@ const AF_INET: u16 = 2;
 
 fn parse_v4_sock(event: &mut TcpConnectionV4, s: co_re::sock) -> Result<(), i32> {
     unsafe {
-        let sk_common = core_read_kernel!(s, __sk_common).ok_or(0i32)?;
+        let sk_common = core_read_kernel!(s, __sk_common).ok_or(-1i32)?;
         let skaddr_pair = sk_common.skc_addrpair().unwrap_or(0);
         let skport_pair = sk_common.skc_portpair().unwrap_or(0);
         event.saddr = (skaddr_pair >> 32) as u32;
@@ -310,14 +310,14 @@ fn parse_v4_sock(event: &mut TcpConnectionV4, s: co_re::sock) -> Result<(), i32>
 
 fn parse_v6_sock(event: &mut TcpConnectionV6, s: co_re::sock) -> Result<(), i32> {
     unsafe {
-        let sk_common = core_read_kernel!(s, __sk_common).ok_or(0i32)?;
+        let sk_common = core_read_kernel!(s, __sk_common).ok_or(-1i32)?;
         let skport_pair = sk_common.skc_portpair().unwrap_or(0);
-        let v6_daddr = sk_common.skc_v6_daddr().ok_or(0i32)?;
-        let v6_saddr = sk_common.skc_v6_rcv_saddr().ok_or(0i32)?;
-        bpf_probe_read_kernel_buf(v6_daddr.u6_addr8().ok_or(0i32)?, &mut event.daddr)
-            .map_err(|_| 0i32)?;
-        bpf_probe_read_kernel_buf(v6_saddr.u6_addr8().ok_or(0i32)?, &mut event.saddr)
-            .map_err(|_| 0i32)?;
+        let v6_daddr = sk_common.skc_v6_daddr().ok_or(-1i32)?;
+        let v6_saddr = sk_common.skc_v6_rcv_saddr().ok_or(-1i32)?;
+        bpf_probe_read_kernel_buf(v6_daddr.u6_addr8().ok_or(-1i32)?, &mut event.daddr)
+            .map_err(|_| -1i32)?;
+        bpf_probe_read_kernel_buf(v6_saddr.u6_addr8().ok_or(-1i32)?, &mut event.saddr)
+            .map_err(|_| -1i32)?;
         event.sport = (skport_pair >> 16) as u16;
         event.dport = skport_pair as u16;
         event.dport = event.dport.rotate_left(8);
@@ -333,16 +333,16 @@ pub fn tcp_v4_connect(ctx: FExitContext) -> i32 {
 
 fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Network(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
     let pid = ctx.pid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = NETMON_EGRESS_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -351,7 +351,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     }
 
     let NetworkEventVariant::TcpConV4Establish(ref mut event) = msg.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -443,16 +443,16 @@ pub fn tcp_v6_connect(ctx: FExitContext) -> i32 {
 
 fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Network(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
     let pid = ctx.pid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = NETMON_EGRESS_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -461,7 +461,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     }
 
     let NetworkEventVariant::TcpConV6Establish(ref mut event) = msg.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -551,20 +551,20 @@ pub fn tcp_close_v4(ctx: FExitContext) -> i32 {
 
 fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Network(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
     let pid = ctx.pid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules_ingress) = NETMON_INGRESS_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules_egress) = NETMON_EGRESS_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -584,11 +584,11 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
             *p = NetworkEventNumber::TcpConV4Close as u8;
             let NetworkEventVariant::TcpConV4Close(ref mut event) = msg.event else {
-                return Err(0);
+                return Err(-1);
             };
             let _ = parse_v4_sock(event, s);
             let Some(direction) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
-                return Err(0);
+                return Err(-1);
             };
             let direction = *direction;
             let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
@@ -703,20 +703,20 @@ pub fn tcp_close_v6(ctx: FExitContext) -> i32 {
 
 fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Network(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
     let pid = ctx.pid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules_ingress) = NETMON_INGRESS_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules_egress) = NETMON_EGRESS_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -736,11 +736,11 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
             *p = NetworkEventNumber::TcpConV6Close as u8;
             let NetworkEventVariant::TcpConV6Close(ref mut event) = msg.event else {
-                return Err(0);
+                return Err(-1);
             };
             parse_v6_sock(event, s)?;
             let Some(direction) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
-                return Err(0);
+                return Err(-1);
             };
             let direction = *direction;
             let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
@@ -841,7 +841,7 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                     }
                 }
             }
-            return Err(0);
+            //return Err(0);
         }
     }
     Err(0)
@@ -854,16 +854,16 @@ pub fn inet_csk_accept(ctx: FExitContext) -> i32 {
 
 fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Network(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
     let pid = ctx.pid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = NETMON_INGRESS_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -884,7 +884,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
                 *p = NetworkEventNumber::TcpConV4Accept as u8;
                 let NetworkEventVariant::TcpConV4Accept(ref mut event) = msg.event else {
-                    return Err(0);
+                    return Err(-1);
                 };
                 let _ = parse_v4_sock(event, s);
                 if event.sport == 0 && event.dport == 0 {
@@ -965,7 +965,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
                 *p = NetworkEventNumber::TcpConV6Accept as u8;
                 let NetworkEventVariant::TcpConV6Accept(ref mut event) = msg.event else {
-                    return Err(0);
+                    return Err(-1);
                 };
                 parse_v6_sock(event, s)?;
                 if event.sport == 0 && event.dport == 0 {

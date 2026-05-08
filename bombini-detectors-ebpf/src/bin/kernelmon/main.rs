@@ -60,15 +60,15 @@ static PATH_HEAP: PerCpuArray<[u8; MAX_FILE_PATH]> = PerCpuArray::with_max_entri
 macro_rules! fill_name_map {
     ($map:ident, $src:expr) => {{
         let Some(name_ptr) = $map.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let name = name_ptr.as_mut();
         let Some(name) = name else {
-            return Err(0);
+            return Err(-1);
         };
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
         let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         bpf_dynptr_from_mem(
             &mut name.name as *mut u8 as *mut _,
@@ -83,7 +83,7 @@ macro_rules! fill_name_map {
             MAX_FILENAME_SIZE as u32,
             0,
         );
-        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| -1i32)?;
         name
     }};
 }
@@ -92,15 +92,15 @@ macro_rules! fill_name_map {
 macro_rules! fill_path_map {
     ($map:ident, $src:expr) => {{
         let Some(path_ptr) = $map.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let path = path_ptr.as_mut();
         let Some(path) = path else {
-            return Err(0);
+            return Err(-1);
         };
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
         let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         bpf_dynptr_from_mem(
             &mut path.path as *mut u8 as *mut _,
@@ -115,7 +115,7 @@ macro_rules! fill_path_map {
             MAX_FILE_PATH as u32,
             0,
         );
-        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| 0i32)?;
+        bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| -1i32)?;
         path
     }};
 }
@@ -123,15 +123,15 @@ macro_rules! fill_path_map {
 macro_rules! fill_prefix_map {
     ($map:ident, $src:expr) => {{
         let Some(prefix) = $map.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         let prefix = prefix.as_mut();
         let Some(prefix) = prefix else {
-            return Err(0);
+            return Err(-1);
         };
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
         let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         bpf_dynptr_from_mem(
             prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
@@ -200,17 +200,17 @@ pub fn bpf_map_capture(ctx: LsmContext) -> i32 {
 
 fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Kernel(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = KERNELMON_BPF_MAP_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -218,35 +218,35 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
         *p = KernelEventNumber::BpfMapAccess as u8;
     }
     let KernelEventVariant::BpfMapAccess(ref mut event) = msg.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
         let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
         let flags: u32 = ctx.arg(1);
-        event.id = core_read_kernel!(bpf_map, id).ok_or(0i32)?;
+        event.id = core_read_kernel!(bpf_map, id).ok_or(-1i32)?;
         event.map_type = core::mem::transmute::<u32, BpfMapType>(
-            core_read_kernel!(bpf_map, map_type).ok_or(0i32)?,
+            core_read_kernel!(bpf_map, map_type).ok_or(-1i32)?,
         );
         // Flags is either 1, 2 or 3.
         event.access_mode = AccessMode::from_bits_truncate(1 << ((flags & 3).max(1) - 1));
         bpf_probe_read_kernel_str_bytes(
-            core_read_kernel!(bpf_map, name).ok_or(0i32)? as *const _,
+            core_read_kernel!(bpf_map, name).ok_or(-1i32)? as *const _,
             &mut event.name,
         )
-        .map_err(|_| 0i32)?;
+        .map_err(|_| -1i32)?;
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
         let Some(config_ptr) = KERNELMON_CONFIG.get_ptr(0) else {
-            return Err(0);
+            return Err(-1);
         };
 
         let config = config_ptr.as_ref();
         let Some(config) = config else {
-            return Err(0);
+            return Err(-1);
         };
 
         let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfMapAccess as usize];
@@ -395,17 +395,17 @@ pub fn bpf_map_create_capture(ctx: LsmContext) -> i32 {
 
 fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Kernel(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = KERNELMON_BPF_MAP_CREATE_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -413,34 +413,34 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         *p = KernelEventNumber::BpfMapCreate as u8;
     }
     let KernelEventVariant::BpfMapCreate(ref mut event) = msg.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
         let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
         event.map_type = core::mem::transmute::<u32, BpfMapType>(
-            core_read_kernel!(bpf_map, map_type).ok_or(0i32)?,
+            core_read_kernel!(bpf_map, map_type).ok_or(-1i32)?,
         );
         bpf_probe_read_kernel_str_bytes(
-            core_read_kernel!(bpf_map, name).ok_or(0i32)? as *const _,
+            core_read_kernel!(bpf_map, name).ok_or(-1i32)? as *const _,
             &mut event.name,
         )
-        .map_err(|_| 0i32)?;
-        event.key_size = core_read_kernel!(bpf_map, key_size).ok_or(0i32)?;
-        event.value_size = core_read_kernel!(bpf_map, value_size).ok_or(0i32)?;
-        event.max_entries = core_read_kernel!(bpf_map, max_entries).ok_or(0i32)?;
+        .map_err(|_| -1i32)?;
+        event.key_size = core_read_kernel!(bpf_map, key_size).ok_or(-1i32)?;
+        event.value_size = core_read_kernel!(bpf_map, value_size).ok_or(-1i32)?;
+        event.max_entries = core_read_kernel!(bpf_map, max_entries).ok_or(-1i32)?;
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
 
         let Some(config_ptr) = KERNELMON_CONFIG.get_ptr(0) else {
-            return Err(0);
+            return Err(-1);
         };
 
         let config = config_ptr.as_ref();
         let Some(config) = config else {
-            return Err(0);
+            return Err(-1);
         };
 
         let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfMapCreate as usize];
@@ -571,17 +571,17 @@ pub fn bpf_prog_capture(ctx: LsmContext) -> i32 {
 
 fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Kernel(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = KERNELMON_BPF_PROG_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -589,23 +589,23 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         *p = KernelEventNumber::BpfProgAccess as u8;
     }
     let KernelEventVariant::BpfProgAccess(ref mut event) = msg.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
         let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
-        event.id = core_read_kernel!(bpf_prog, aux, id).ok_or(0i32)?;
+        event.id = core_read_kernel!(bpf_prog, aux, id).ok_or(-1i32)?;
         event.prog_type = core::mem::transmute::<u32, BpfProgType>(
-            core_read_kernel!(bpf_prog, prog_type).ok_or(0i32)?,
+            core_read_kernel!(bpf_prog, prog_type).ok_or(-1i32)?,
         );
         bpf_probe_read_kernel_str_bytes(
-            core_read_kernel!(bpf_prog, aux, name).ok_or(0i32)? as *const _,
+            core_read_kernel!(bpf_prog, aux, name).ok_or(-1i32)? as *const _,
             &mut event.name,
         )
-        .map_err(|_| 0i32)?;
+        .map_err(|_| -1i32)?;
         // Hook is only available for LSM & Tracepoint, for other types, attach_func_name is NULL
         let _ = bpf_probe_read_kernel_str_bytes(
-            core_read_kernel!(bpf_prog, aux, attach_func_name).ok_or(0i32)? as *const _,
+            core_read_kernel!(bpf_prog, aux, attach_func_name).ok_or(-1i32)? as *const _,
             &mut event.hook,
         );
 
@@ -615,12 +615,12 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         };
 
         let Some(config_ptr) = KERNELMON_CONFIG.get_ptr(0) else {
-            return Err(0);
+            return Err(-1);
         };
 
         let config = config_ptr.as_ref();
         let Some(config) = config else {
-            return Err(0);
+            return Err(-1);
         };
 
         let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfMapAccess as usize];
@@ -756,17 +756,17 @@ pub fn bpf_prog_load_capture(ctx: LsmContext) -> i32 {
 
 fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Kernel(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = KERNELMON_BPF_PROG_LOAD_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -774,19 +774,19 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
         *p = KernelEventNumber::BpfProgLoad as u8;
     }
     let KernelEventVariant::BpfProgLoad(ref mut event) = msg.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
         let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
         event.prog_type = core::mem::transmute::<u32, BpfProgType>(
-            core_read_kernel!(bpf_prog, prog_type).ok_or(0i32)?,
+            core_read_kernel!(bpf_prog, prog_type).ok_or(-1i32)?,
         );
         bpf_probe_read_kernel_str_bytes(
-            core_read_kernel!(bpf_prog, aux, name).ok_or(0i32)? as *const _,
+            core_read_kernel!(bpf_prog, aux, name).ok_or(-1i32)? as *const _,
             &mut event.name,
         )
-        .map_err(|_| 0i32)?;
+        .map_err(|_| -1i32)?;
 
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
@@ -794,12 +794,12 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
         };
 
         let Some(config_ptr) = KERNELMON_CONFIG.get_ptr(0) else {
-            return Err(0);
+            return Err(-1);
         };
 
         let config = config_ptr.as_ref();
         let Some(config) = config else {
-            return Err(0);
+            return Err(-1);
         };
 
         let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfMapAccess as usize];
@@ -910,17 +910,17 @@ pub fn bpf_prog_old_load_capture(ctx: LsmContext) -> i32 {
 
 fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Kernel(ref mut msg) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     let Some(rules) = KERNELMON_BPF_PROG_LOAD_RULE_MAP.get(0) else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
@@ -928,13 +928,13 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
         *p = KernelEventNumber::BpfProgLoad as u8;
     }
     let KernelEventVariant::BpfProgLoad(ref mut event) = msg.event else {
-        return Err(0);
+        return Err(-1);
     };
 
     unsafe {
         let prog_attr: *const BpfProgLoadAttr = ctx.arg(1);
         if prog_attr.is_null() {
-            return Err(0);
+            return Err(-1);
         }
         let prog_type = (*prog_attr).prog_type;
         event.prog_type = core::mem::transmute::<u32, BpfProgType>(core::cmp::min(
@@ -945,7 +945,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
             (*prog_attr).prog_name.as_ptr() as *const _,
             &mut event.name,
         )
-        .map_err(|_| 0i32)?;
+        .map_err(|_| -1i32)?;
 
         let Some(ref rule_array) = rules.0 else {
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
@@ -953,12 +953,12 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
         };
 
         let Some(config_ptr) = KERNELMON_CONFIG.get_ptr(0) else {
-            return Err(0);
+            return Err(-1);
         };
 
         let config = config_ptr.as_ref();
         let Some(config) = config else {
-            return Err(0);
+            return Err(-1);
         };
 
         let sandbox: Option<bool> = config.sandbox_mode[KernelEventNumber::BpfMapAccess as usize];

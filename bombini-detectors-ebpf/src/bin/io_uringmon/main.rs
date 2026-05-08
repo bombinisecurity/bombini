@@ -55,58 +55,58 @@ pub fn io_uring_submit_req_capture(ctx: BtfTracePointContext) -> u32 {
 
 fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::IOUring(ref mut event) = generic_event.event else {
-        return Err(0);
+        return Err(-1);
     };
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
-        return Err(0);
+        return Err(-1);
     };
 
     // Filter event by process
     unsafe {
         let req = co_re::io_kiocb::from_ptr(ctx.arg(0));
-        let opcode = core_read_kernel!(req, opcode).ok_or(0i32)?;
-        let cmd_ptr = core_read_kernel!(req, cmd).ok_or(0i32)?;
+        let opcode = core_read_kernel!(req, opcode).ok_or(-1i32)?;
+        let cmd_ptr = core_read_kernel!(req, cmd).ok_or(-1i32)?;
         event.opcode = core::mem::transmute::<u8, IOUringOp>(opcode);
         match event.opcode {
             IOUringOp::IORING_OP_OPENAT | IOUringOp::IORING_OP_OPENAT2 => {
                 let open_data =
-                    bpf_probe_read_kernel::<io_open>(cmd_ptr as *const _).map_err(|_| 0i32)?;
+                    bpf_probe_read_kernel::<io_open>(cmd_ptr as *const _).map_err(|_| -1i32)?;
                 let filename = co_re::filename::from_ptr(open_data.filename as *const _);
-                let name = core_read_kernel!(filename, name).ok_or(0i32)?;
+                let name = core_read_kernel!(filename, name).ok_or(-1i32)?;
                 bpf_probe_read_kernel_str_bytes(name as *const u8, &mut event.path)
-                    .map_err(|_| 0i32)?;
+                    .map_err(|_| -1i32)?;
                 let how = co_re::open_how::from_ptr(&open_data.how as *const _ as *const _);
                 event.flags = core_read_kernel!(how, flags).unwrap_or(0);
             }
             IOUringOp::IORING_OP_STATX => {
                 let statx_data =
-                    bpf_probe_read_kernel::<io_statx>(cmd_ptr as *const _).map_err(|_| 0i32)?;
+                    bpf_probe_read_kernel::<io_statx>(cmd_ptr as *const _).map_err(|_| -1i32)?;
                 let filename = co_re::filename::from_ptr(statx_data.filename as *const _);
-                let name = core_read_kernel!(filename, name).ok_or(0i32)?;
+                let name = core_read_kernel!(filename, name).ok_or(-1i32)?;
                 bpf_probe_read_kernel_str_bytes(name as *const u8, &mut event.path)
-                    .map_err(|_| 0i32)?;
+                    .map_err(|_| -1i32)?;
             }
             IOUringOp::IORING_OP_UNLINKAT => {
                 let unlink_data =
-                    bpf_probe_read_kernel::<io_unlink>(cmd_ptr as *const _).map_err(|_| 0i32)?;
+                    bpf_probe_read_kernel::<io_unlink>(cmd_ptr as *const _).map_err(|_| -1i32)?;
                 let filename = co_re::filename::from_ptr(unlink_data.filename as *const _);
-                let name = core_read_kernel!(filename, name).ok_or(0i32)?;
+                let name = core_read_kernel!(filename, name).ok_or(-1i32)?;
                 bpf_probe_read_kernel_str_bytes(name as *const u8, &mut event.path)
-                    .map_err(|_| 0i32)?;
+                    .map_err(|_| -1i32)?;
             }
             IOUringOp::IORING_OP_CONNECT => {
                 let connect_data =
-                    bpf_probe_read_kernel::<io_connect>(cmd_ptr as *const _).map_err(|_| 0i32)?;
+                    bpf_probe_read_kernel::<io_connect>(cmd_ptr as *const _).map_err(|_| -1i32)?;
                 bpf_probe_read_user_buf(connect_data.addr as *const u8, &mut event.sockaddr)
-                    .map_err(|_| 0i32)?;
+                    .map_err(|_| -1i32)?;
             }
             IOUringOp::IORING_OP_ACCEPT => {
                 let accept_data =
-                    bpf_probe_read_kernel::<io_accept>(cmd_ptr as *const _).map_err(|_| 0i32)?;
+                    bpf_probe_read_kernel::<io_accept>(cmd_ptr as *const _).map_err(|_| -1i32)?;
                 bpf_probe_read_user_buf(accept_data.addr as *const u8, &mut event.sockaddr)
-                    .map_err(|_| 0i32)?;
+                    .map_err(|_| -1i32)?;
             }
             _ => {}
         }

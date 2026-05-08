@@ -63,7 +63,7 @@ impl<T: 'static> DynRingBufEntry<T> {
     #[inline(always)]
     pub fn zero_entry(&self) -> Result<(), i32> {
         let Some(zero_ptr) = ZERO_EVENT_MAP.get_ptr_mut(0) else {
-            return Err(0);
+            return Err(-1);
         };
         unsafe {
             bpf_dynptr_write(

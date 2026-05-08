@@ -74,7 +74,7 @@ impl CheckIn for BpfProgFilter<'_> {
                 };
                 Ok(*mask_in & (1 << in_op_idx) != 0)
             }
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }

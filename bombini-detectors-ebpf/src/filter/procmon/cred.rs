@@ -54,7 +54,7 @@ impl CheckIn for UidFilter<'_> {
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }
@@ -108,7 +108,7 @@ impl CheckIn for CapFilter<'_> {
                 };
                 Ok(*caps & self.pcap.caps != Capabilities::empty())
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }
@@ -158,7 +158,7 @@ impl CheckIn for CredFilter<'_> {
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
-            _ => Err(0),
+            _ => Err(-1),
         }
     }
 }
