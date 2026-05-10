@@ -1,11 +1,10 @@
 # Kubernetes
 
-First build `bombini-builder` container and push it to you container registry:
+First build `bombini` container and push it to you container registry:
 
 ```bash
-cd ./install/k8s/ && docker build -t bombini-builder .
+docker build -t bombini .
 ```
-This container has all deps for building bombini on the node with no need of internet.
 
 `bombini.yaml` manifest has bombini ConfigMap with all configuration setup. By default, only ProcMon
 detector is loaded. To customize your Bombini setup, please, follow the [Configuration](../configuration/configuration.md) chapter.
@@ -20,6 +19,12 @@ Events can be found in bombini k8s log.
 
 ## Kind Example
 
+Build bombini:
+
+```bash
+docker build -t bombini .
+```
+
 Install [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).
 
 If your cwd is repo root change it to `./install/k8s`
@@ -33,16 +38,10 @@ Create kind cluster:
 kind create cluster --config ./kind-config.yaml --name bombini-test-cluster 
 ```
 
-Build bombini-builder:
+Load bombini image in kind cluster:
 
 ```bash
-docker build -t bombini-builder .
-```
-
-Load bombini-builder image in kind cluster:
-
-```bash
-kind load docker-image bombini-builder:latest --name bombini-test-cluster
+kind load docker-image bombini:latest --name bombini-test-cluster
 ```
 
 Start bombini:
@@ -51,3 +50,8 @@ Start bombini:
 kubectl apply -f ./bombini.yaml
 ```
 
+Check events:
+
+```bash
+kubectl get pods | grep "^bombini" | awk '{print $1}' | xargs kubectl logs -f
+```
