@@ -1,8 +1,5 @@
 # Compatibility
 
-CO-RE support in Aya is not yet implemented ([issue](https://github.com/aya-rs/aya/issues/349)).
-So, for now the only way is to build Bombini on a target host (e.g. container, tarball, binary).
-
 Bombini supports the following Linux kernel versions: **6.2, 6,8 and 6.14**.
 However, it might work on all 6+ kernels.
 
@@ -22,3 +19,9 @@ GRUB_CMDLINE_LINUX="lsm=[previous lsm modules],bpf"
 ```
 
 Update grub and reboot the system.
+
+BTF information must be provided by your Linux kernel. Check if btf file exists:
+
+```
+ls -la /sys/kernel/btf/vmlinux
+```
