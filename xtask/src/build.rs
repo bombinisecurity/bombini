@@ -19,7 +19,7 @@ pub struct Options {
 fn build_project(opts: &Options) -> Result<(), anyhow::Error> {
     let mut args = vec!["build"];
     if opts.release {
-        args.push("--release")
+        args.extend(["--release", "--target", "x86_64-unknown-linux-musl"]);
     }
     let status = Command::new("cargo")
         .args(&args)
