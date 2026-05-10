@@ -13,7 +13,7 @@ StartLimitIntervalSec=2min
 Environment="PATH=/usr/local/lib/bombini/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 User=root
 Group=root
-ExecStart=/usr/local/bin/bombini --config-dir /usr/local/lib/bombini/config --event-log /var/log/bombini/bombini.log
+ExecStart=/usr/local/bin/bombini
 Restart=on-failure
 RestartSec=5
 
