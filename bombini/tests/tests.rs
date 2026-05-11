@@ -28,7 +28,8 @@ fn test_6_2_detectors_load() {
     if kernel_ver >= ver_6_8 {
         builder
             .detector("io_uringmon", None)
-            .detector("gtfobins", None);
+            .detector("gtfobins", None)
+            .detector("linpeasmon", None);
     }
 
     let mut bombini = builder.bombini_start_timeout(7).launch().unwrap();
@@ -48,6 +49,7 @@ fn test_6_2_detectors_load() {
     if kernel_ver >= ver_6_8 {
         assert!(log.contains("gtfobins is loaded"));
         assert!(log.contains("io_uringmon is loaded"));
+        assert!(log.contains("linpeasmon is loaded"));
     }
 }
 
@@ -112,4 +114,56 @@ fn test_6_8_io_uringmon() {
         events.matches("\"opcode\":\"IORING_OP_EPOLL_CTL\"").count(),
         1
     );
+}
+
+#[test]
+fn test_6_8_linpeasmon_behavioral() {
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("linpeasmon", None)
+        .events_timeout(1)
+        .launch()
+        .unwrap();
+
+    let _ = Command::new("id").stdout(Stdio::null()).status();
+    let _ = Command::new("ps").stdout(Stdio::null()).status();
+    let _ = Command::new("uname").stdout(Stdio::null()).status();
+    let _ = Command::new("netstat").stdout(Stdio::null()).status();
+
+    let events = bombini
+        .wait_for_events("\"type\":\"LinPEASEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"LinPEASEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"kind\":\"Behavioral\"").count(), 1);
+}
+
+#[test]
+fn test_6_8_linpeasmon_signature() {
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("linpeasmon", None)
+        .events_timeout(1)
+        .launch()
+        .unwrap();
+
+    std::fs::create_dir_all("/tmp/linpeas-test").unwrap();
+    std::fs::write("/tmp/linpeas-test/probe.txt", "test").unwrap();
+    let _ = Command::new("cat")
+        .arg("/tmp/linpeas-test/probe.txt")
+        .stdout(Stdio::null())
+        .status();
+
+    let events = bombini
+        .wait_for_events("\"type\":\"LinPEASEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = std::fs::remove_dir_all("/tmp/linpeas-test");
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"LinPEASEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"kind\":\"Signature\"").count(), 1);
 }

@@ -97,6 +97,28 @@ pub struct GtfoBinsConfig {
     #[prost(string, repeated, tag = "2")]
     pub gtfobins: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// Configuration file for LinPEASMonDetector.
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct LinPeasMonConfig {
+    /// Enable behavioral correlation layer.
+    #[prost(bool, tag = "1")]
+    pub behavioral_enabled: bool,
+    /// Enable signature based layer.
+    #[prost(bool, tag = "2")]
+    pub signature_enabled: bool,
+    /// Number of unique categories required to trigger behavioral alert.
+    #[prost(uint32, tag = "3")]
+    pub threshold: u32,
+    /// Behavioral correlation window in seconds.
+    #[prost(uint64, tag = "4")]
+    pub window_seconds: u64,
+    /// Exact filename signatures.
+    #[prost(string, repeated, tag = "5")]
+    pub signature_names: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Path prefix signatures.
+    #[prost(string, repeated, tag = "6")]
+    pub signature_prefixes: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
 /// Rule definition. Scope and event predicates are used as logical conjunction.
 #[derive(serde::Deserialize)]
 #[serde(default)]

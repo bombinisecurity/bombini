@@ -10,6 +10,7 @@ use crate::config::{Config, DetectorConfig};
 use crate::detector::filemon::FileMon;
 use crate::detector::gtfobins::GTFOBinsDetector;
 use crate::detector::io_uringmon::IOUringMon;
+use crate::detector::linpeasmon::LinPEASMon;
 
 use crate::detector::Detector;
 use crate::detector::kernelmon::KernelMon;
@@ -115,6 +116,11 @@ impl Registry {
             }
             DetectorConfig::GTFOBins(cfg) => {
                 let mut detector = GTFOBinsDetector::new(obj_path, maps_pin_path, cfg.clone())?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::LinPEASMon(cfg) => {
+                let mut detector = LinPEASMon::new(obj_path, maps_pin_path, cfg.clone())?;
                 detector.load()?;
                 self.detectors.insert(name.to_string(), Box::new(detector));
             }

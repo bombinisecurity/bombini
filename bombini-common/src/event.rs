@@ -4,6 +4,7 @@ pub mod file;
 pub mod gtfobins;
 pub mod io_uring;
 pub mod kernel;
+pub mod linpeas;
 pub mod network;
 pub mod process;
 
@@ -37,6 +38,8 @@ pub enum Event {
     Kernel(kernel::KernelMsg) = 7,
     /// GTFOBins execution event type
     GTFOBins(gtfobins::GTFOBinsMsg) = 32,
+    /// LinPEAS enumeration event type
+    LinPEAS(linpeas::LinPEASMsg) = 33,
 }
 
 // Event message codes
@@ -59,3 +62,5 @@ pub const MSG_IOURING: u8 = 6;
 pub const MSG_KERNEL: u8 = 7;
 /// GTFOBins execution message code
 pub const MSG_GTFOBINS: u8 = 32;
+/// LinPEAS enumeration message code
+pub const MSG_LINPEAS: u8 = 33;

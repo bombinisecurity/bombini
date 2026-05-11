@@ -74,6 +74,22 @@ message GTFOBinsConfig {
     repeated string gtfobins = 2;
 }
 
+// Configuration file for LinPEASMonDetector.
+message LinPEASMonConfig {
+    // Enable behavioral correlation layer.
+    bool behavioral_enabled = 1;
+    // Enable signature based layer.
+    bool signature_enabled = 2;
+    // Number of unique categories required to trigger behavioral alert.
+    uint32 threshold = 3;
+    // Behavioral correlation window in seconds.
+    uint64 window_seconds = 4;
+    // Exact filename signatures.
+    repeated string signature_names = 5;
+    // Path prefix signatures.
+    repeated string signature_prefixes = 6;
+}
+
 // Rule definition. Scope and event predicates are used as logical conjunction.
 message Rule {
     // Name of the rule.

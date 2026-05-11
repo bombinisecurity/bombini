@@ -43,3 +43,4 @@ detectors:
    #- kernelmon
    #- io_uringmon
    #- gtfobins
+   #- linpeasmon

@@ -8,8 +8,8 @@ use anyhow::anyhow;
 use std::{sync::Arc, time::Duration};
 
 use bombini_common::event::{
-    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_KERNEL, MSG_NETWORK, MSG_PROCESS,
-    MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
+    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_KERNEL, MSG_LINPEAS, MSG_NETWORK,
+    MSG_PROCESS, MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
     process::{ProcInfo, ProcessKey},
 };
 
@@ -18,6 +18,7 @@ mod file;
 mod gtfobins;
 mod io_uring;
 mod kernel;
+mod linpeas;
 mod network;
 mod process;
 
@@ -30,6 +31,7 @@ use file::FileEventTransmuter;
 use gtfobins::GTFOBinsEventTransmuter;
 use io_uring::IOUringEventTransmuter;
 use kernel::KernelEventTransmuter;
+use linpeas::LinPEASEventTransmuter;
 use network::NetworkEventTransmuter;
 use process::{
     Process, ProcessCloneTransmuter, ProcessEventTransmuter, ProcessExecTransmuter,
@@ -101,6 +103,10 @@ impl TransmuterRegistry {
                 DetectorConfig::GTFOBins(_) => {
                     registry.handlers[MSG_GTFOBINS as usize] =
                         Some(Arc::new(GTFOBinsEventTransmuter));
+                }
+                DetectorConfig::LinPEASMon(_) => {
+                    registry.handlers[MSG_LINPEAS as usize] =
+                        Some(Arc::new(LinPEASEventTransmuter));
                 }
             }
         }

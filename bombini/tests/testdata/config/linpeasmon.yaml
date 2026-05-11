@@ -1,0 +1,11 @@
+# Parameters for linpeasmon detector
+---
+behavioral_enabled: true
+signature_enabled: true
+threshold: 3
+window_seconds: 10
+signature_names:
+  - linpeas.sh
+  - peass-ng
+signature_prefixes:
+  - /tmp/linpeas-test
