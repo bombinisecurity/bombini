@@ -370,9 +370,12 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
     let Event::ProcessExit((ref mut event_proc, ref mut event_parent)) = generic_event.event else {
         return Err(-1);
     };
-    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&pid) else {
-        return Err(-1);
+    let pid_tgid = bpf_get_current_pid_tgid();
+    let tgid = (pid_tgid >> 32) as u32;
+    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&tgid) else {
+        // It is error if we didn't find real process not thread.
+        let pid = (pid_tgid & 0xFFFF_FFFF) as u32;
+        return Err(if pid == tgid { -1 } else { 0 });
     };
     let proc = unsafe { proc_ptr.as_mut() };
 
