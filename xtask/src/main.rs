@@ -6,6 +6,7 @@ mod rule_parser_gen;
 mod run;
 mod tarball;
 mod test;
+mod util;
 
 use std::process::exit;
 
