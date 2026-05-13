@@ -1,9 +1,9 @@
-use std::process::Command;
-
 use anyhow::Context as _;
 use clap::Parser;
 
 use crate::build_ebpf::{Architecture, Options as BuildOptions, build_ebpf};
+use crate::util::get_musl_target;
+use std::process::Command;
 
 #[derive(Debug, Parser)]
 pub struct Options {
@@ -19,7 +19,8 @@ pub struct Options {
 fn build_project(opts: &Options) -> Result<(), anyhow::Error> {
     let mut args = vec!["build"];
     if opts.release {
-        args.extend(["--release", "--target", "x86_64-unknown-linux-musl"]);
+        let target = get_musl_target()?;
+        args.extend(["--release", "--target", target]);
     }
     let status = Command::new("cargo")
         .args(&args)

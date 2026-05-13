@@ -13,6 +13,7 @@ use clap::Parser;
 use crate::{
     build::{Options as BuildOptions, build},
     build_ebpf::Architecture,
+    util::get_musl_target,
 };
 
 #[derive(Debug, Parser)]
@@ -82,6 +83,8 @@ pub fn tarball(opts: Options) -> Result<(), anyhow::Error> {
     target_dir = PathBuf::from(&project_root);
     target_dir.push("target");
     if opts.release {
+        let musl_target = get_musl_target()?;
+        target_dir.push(musl_target);
         target_dir.push("release");
     } else {
         target_dir.push("debug");
