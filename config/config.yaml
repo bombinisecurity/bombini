@@ -12,13 +12,13 @@ maps_pin_path: /sys/fs/bpf/bombini
 event_map_size: 65536
 
 # Raw event channel size (number of event messages)
-event_channel_size: 64
+event_channel_size: 256
 
 # Procmon process map size
 procmon_proc_map_size: 8192
 
 # Retain Transmuters caches every <gc_period> sec
-gc_period: 30
+gc_period: 5
 
 # Transmit events to log file
 log_file: /var/log/bombini/bombini.log

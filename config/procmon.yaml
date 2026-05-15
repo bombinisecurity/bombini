@@ -1,3 +1,4 @@
+gc_period: 5
 setuid:
   enabled: false
 capset:
