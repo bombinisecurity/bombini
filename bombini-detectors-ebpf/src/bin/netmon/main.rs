@@ -335,7 +335,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     let Event::Network(ref mut msg) = generic_event.event else {
         return Err(-1);
     };
-    let pid = ctx.pid();
+    let pid = ctx.tgid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
@@ -445,7 +445,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     let Event::Network(ref mut msg) = generic_event.event else {
         return Err(-1);
     };
-    let pid = ctx.pid();
+    let pid = ctx.tgid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
@@ -553,7 +553,7 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
     let Event::Network(ref mut msg) = generic_event.event else {
         return Err(-1);
     };
-    let pid = ctx.pid();
+    let pid = ctx.tgid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
@@ -588,7 +588,8 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             };
             let _ = parse_v4_sock(event, s);
             let Some(direction) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
-                return Err(-1);
+                // There is no previous connection, so it is not an error
+                return Err(0);
             };
             let direction = *direction;
             let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
@@ -705,7 +706,7 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
     let Event::Network(ref mut msg) = generic_event.event else {
         return Err(-1);
     };
-    let pid = ctx.pid();
+    let pid = ctx.tgid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
@@ -740,7 +741,8 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
             };
             parse_v6_sock(event, s)?;
             let Some(direction) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
-                return Err(-1);
+                // There is no previous connection, so it is not an error
+                return Err(0);
             };
             let direction = *direction;
             let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
