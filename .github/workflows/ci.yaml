@@ -26,6 +26,7 @@ jobs:
           cd bombini-detectors-ebpf
           cargo clippy --workspace --all-features -- -D warnings
           cargo fmt --all -- --check
+
   unit-tests:
     runs-on: ubuntu-24.04
     steps:
@@ -38,114 +39,66 @@ jobs:
         run: |
           cargo test -- rule
 
-  test-ubuntu-kernel-6_8:
+  build-bombini:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: lima-vm/lima-actions/setup@v1
-        id: lima-actions-setup
-
-      - uses: actions/cache@v4
-        id: lima-ubuntu-kernel-v6_8
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          path: ~/.lima/ubuntu-kernel-v6.8
-          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_8-${{ hashFiles('.github/workflows/ci.yaml') }}
+          toolchain: nightly
 
-      - name: Configure lima VM
-        if: steps.lima-ubuntu-kernel-v6_8.outputs.cache-hit != 'true'
+      - name: Install musl toolchain and dependencies
         run: |
-          limactl start --plain --name=ubuntu-kernel-v6.8 --cpus=1 --memory=1 template:ubuntu-lts
-          echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
+          sudo apt update && sudo apt install -y clang libbpf-dev
+          # Change directory for compatibility with lima vm setup
+          mkdir -p /tmp/bombini-build && cp -r . /tmp/bombini-build/ && cd /tmp/bombini-build
+          # Install toolchain
+          cd bombini-detectors-ebpf && rustup show
+          cd .. && rustup show
 
-          ssh lima-ubuntu-kernel-v6-8 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
-          ssh lima-ubuntu-kernel-v6-8 sudo update-grub
-          ssh lima-ubuntu-kernel-v6-8 'sudo apt update && sudo apt install -y clang libbpf-dev'
-          ssh lima-ubuntu-kernel-v6-8 'curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz'
-          ssh lima-ubuntu-kernel-v6-8 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
-          ssh lima-ubuntu-kernel-v6-8 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: /tmp/bombini-build
 
-          limactl stop ubuntu-kernel-v6.8
-
-      - name: Build and Run tests
+      - name: Build bombini and tests with musl
         run: |
-          limactl start ubuntu-kernel-v6.8
+          cd /tmp/bombini-build
+          cargo install bpf-linker bindgen-cli
+          # Build main binary and tests with musl
+          cargo xtask build --release
+          cargo test --release --no-run --target x86_64-unknown-linux-musl
+          # Copy files for testing
+          mkdir /tmp/bombini-test
+          # Copy test data
+          mkdir -p /tmp/bombini-test/bombini/tests && rsync -a bombini/tests/testdata /tmp/bombini-test/bombini/tests/
+          # Copy bpf programs
+          mkdir -p /tmp/bombini-test/target/bpfel-unknown-none/release && rsync target/bpfel-unknown-none/release/* /tmp/bombini-test/target/bpfel-unknown-none/release/
+          # Copy test binaries
+          mkdir -p /tmp/bombini-test/target/x86_64-unknown-linux-musl/release/deps && find target/x86_64-unknown-linux-musl/release/deps/ -maxdepth 1 -type f -executable -exec cp {} /tmp/bombini-test/target/x86_64-unknown-linux-musl/release/deps/ \;
+          # Copy bombini binary
+          cp target/x86_64-unknown-linux-musl/release/bombini /tmp/bombini-test/target/x86_64-unknown-linux-musl/release/
 
-          rsync -a -e ssh . lima-ubuntu-kernel-v6-8:/tmp/repo
-          ssh lima-ubuntu-kernel-v6-8 'uname -a && cd /tmp/repo && source ~/.cargo/env && rustup show && cargo install bpf-linker bindgen-cli'
-          ssh lima-ubuntu-kernel-v6-8 "cd /tmp/repo && source ~/.cargo/env && cargo xtask test --release"
-
-          limactl stop ubuntu-kernel-v6.8
-
-      - name: Get Bombini logs from lima VM
-        if: failure()
-        run: |
-          rsync -a -e ssh 'lima-ubuntu-kernel-v6-8:/tmp/bombini-test-*' /tmp
-
-      - name: Upload Bombini logs
-        if: failure()
+      - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bombini-logs-ubuntu-kernel-v6_8
-          path: /tmp/bombini-test-*
-          retention-days: 5
-
-  test-ubuntu-kernel-6_14:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: lima-vm/lima-actions/setup@v1
-        id: lima-actions-setup
-
-      - uses: actions/cache@v4
-        id: lima-ubuntu-kernel-v6_14
-        with:
-          path: ~/.lima/ubuntu-kernel-v6.14
-          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_14-${{ hashFiles('.github/workflows/ci.yaml') }}
-
-      - name: Configure lima VM
-        if: steps.lima-ubuntu-kernel-v6_14.outputs.cache-hit != 'true'
-        run: |
-          limactl start --plain --name=ubuntu-kernel-v6.14 --cpus=1 --memory=1 template:ubuntu-lts
-          echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
-
-          ssh lima-ubuntu-kernel-v6-14 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
-          ssh lima-ubuntu-kernel-v6-14 sudo update-grub
-          ssh lima-ubuntu-kernel-v6-14 'sudo apt update && sudo apt install -y clang libbpf-dev linux-generic-hwe-24.04'
-          ssh lima-ubuntu-kernel-v6-14 'curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz'
-          ssh lima-ubuntu-kernel-v6-14 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
-          ssh lima-ubuntu-kernel-v6-14 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
-
-          limactl stop ubuntu-kernel-v6.14
-
-      - name: Build and Run tests
-        run: |
-          limactl start ubuntu-kernel-v6.14
-
-          rsync -a -e ssh . lima-ubuntu-kernel-v6-14:/tmp/repo
-          ssh lima-ubuntu-kernel-v6-14 'uname -a && cd /tmp/repo && source ~/.cargo/env && rustup show && cargo install bpf-linker bindgen-cli'
-          ssh lima-ubuntu-kernel-v6-14 "cd /tmp/repo && source ~/.cargo/env && cargo xtask test --release"
-
-          limactl stop ubuntu-kernel-v6.14
-
-      - name: Get Bombini logs from lima VM
-        if: failure()
-        run: |
-          rsync -a -e ssh 'lima-ubuntu-kernel-v6-14:/tmp/bombini-test-*' /tmp
-
-      - name: Upload Bombini logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bombini-logs-ubuntu-kernel-v6_14
-          path: /tmp/bombini-test-*
-          retention-days: 5
+          name: bombini-musl-build
+          path: /tmp/bombini-test
+          retention-days: 1
 
   test-ubuntu-kernel-6_2:
     runs-on: ubuntu-24.04
+    needs: build-bombini
     steps:
       - uses: actions/checkout@v4
       - uses: lima-vm/lima-actions/setup@v1
         id: lima-actions-setup
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bombini-musl-build
+          path: /tmp/bombini-build
 
       - uses: actions/cache@v4
         id: lima-ubuntu-kernel-v6_2
@@ -161,20 +114,34 @@ jobs:
 
           ssh lima-ubuntu-kernel-v6-2 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb ima_hash=sha256"/'\'' /etc/default/grub'
           ssh lima-ubuntu-kernel-v6-2 sudo update-grub
-          ssh lima-ubuntu-kernel-v6-2 'sudo apt update && sudo apt install -y clang libbpf-dev linux-image-6.2.0-39-generic linux-headers-6.2.0-39-generic'
-          ssh lima-ubuntu-kernel-v6-2 'curl -L https://github.com/libbpf/bpftool/releases/download/v7.6.0/bpftool-v7.6.0-amd64.tar.gz -o /tmp/bpftool.tar.gz && sudo tar -xvf /tmp/bpftool.tar.gz -C /usr/local/bin && sudo chmod +x /usr/local/bin/bpftool && rm /tmp/bpftool.tar.gz'
+          ssh lima-ubuntu-kernel-v6-2 'sudo apt update && sudo apt install -y linux-image-6.2.0-39-generic linux-headers-6.2.0-39-generic'
           ssh lima-ubuntu-kernel-v6-2 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
-          ssh lima-ubuntu-kernel-v6-2 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
 
           limactl stop ubuntu-kernel-v6.2
 
-      - name: Build and Run tests
+      - name: Run tests on kernel 6.2
         run: |
           limactl start ubuntu-kernel-v6.2
 
-          rsync -a -e ssh . lima-ubuntu-kernel-v6-2:/tmp/repo
-          ssh lima-ubuntu-kernel-v6-2 'uname -a && cd /tmp/repo && source ~/.cargo/env && rustup show && cargo install bpf-linker bindgen-cli'
-          ssh lima-ubuntu-kernel-v6-2 "cd /tmp/repo && source ~/.cargo/env && cargo xtask test --release"
+          # Transfer pre-built artifacts
+          rsync -a -e ssh /tmp/bombini-build lima-ubuntu-kernel-v6-2:/tmp/
+
+          ssh lima-ubuntu-kernel-v6-2 'uname -a'
+          ssh lima-ubuntu-kernel-v6-2 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/bombini"
+          ssh lima-ubuntu-kernel-v6-2 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-*"
+          ssh lima-ubuntu-kernel-v6-2 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-*"
+          ssh lima-ubuntu-kernel-v6-2 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-*"
+          ssh lima-ubuntu-kernel-v6-2 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-*"
+          ssh lima-ubuntu-kernel-v6-2 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-*"
+          ssh lima-ubuntu-kernel-v6-2 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-*"
+
+          # Run tests
+          ssh lima-ubuntu-kernel-v6-2 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-* --test-threads 1 test_6_2_"
+          ssh lima-ubuntu-kernel-v6-2 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-* --test-threads 1 test_6_2_"
+          ssh lima-ubuntu-kernel-v6-2 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-* --test-threads 1 test_6_2_"
+          ssh lima-ubuntu-kernel-v6-2 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-* --test-threads 1 test_6_2_"
+          ssh lima-ubuntu-kernel-v6-2 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-* --test-threads 1 test_6_2_"
+          ssh lima-ubuntu-kernel-v6-2 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-* --test-threads 1 test_6_2_"
 
           limactl stop ubuntu-kernel-v6.2
 
@@ -189,4 +156,147 @@ jobs:
         with:
           name: bombini-logs-ubuntu-kernel-v6_2
           path: /tmp/bombini-test-*
-          retention-days: 5
+          retention-days: 3
+
+  test-ubuntu-kernel-6_8:
+    runs-on: ubuntu-24.04
+    needs: build-bombini
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lima-vm/lima-actions/setup@v1
+        id: lima-actions-setup
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bombini-musl-build
+          path: /tmp/bombini-build
+
+      - uses: actions/cache@v4
+        id: lima-ubuntu-kernel-v6_8
+        with:
+          path: ~/.lima/ubuntu-kernel-v6.8
+          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_8-${{ hashFiles('.github/workflows/ci.yaml') }}
+
+      - name: Configure lima VM
+        if: steps.lima-ubuntu-kernel-v6_8.outputs.cache-hit != 'true'
+        run: |
+          limactl start --plain --name=ubuntu-kernel-v6.8 --cpus=1 --memory=1 template:ubuntu-lts
+          echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
+
+          ssh lima-ubuntu-kernel-v6-8 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
+          ssh lima-ubuntu-kernel-v6-8 sudo update-grub
+          ssh lima-ubuntu-kernel-v6-8 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
+
+          limactl stop ubuntu-kernel-v6.8
+
+      - name: Run tests on kernel 6.8
+        run: |
+          limactl start ubuntu-kernel-v6.8
+
+          # Transfer pre-built artifacts
+          rsync -a -e ssh /tmp/bombini-build lima-ubuntu-kernel-v6-8:/tmp/
+
+          ssh lima-ubuntu-kernel-v6-8 'uname -a'
+          ssh lima-ubuntu-kernel-v6-8 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/bombini"
+          ssh lima-ubuntu-kernel-v6-8 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-*"
+          ssh lima-ubuntu-kernel-v6-8 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-*"
+          ssh lima-ubuntu-kernel-v6-8 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-*"
+          ssh lima-ubuntu-kernel-v6-8 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-*"
+          ssh lima-ubuntu-kernel-v6-8 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-*"
+          ssh lima-ubuntu-kernel-v6-8 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-*"
+
+          # Run tests
+          ssh lima-ubuntu-kernel-v6-8 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-* --test-threads 1 test_6_2_ test_6_8_"
+          ssh lima-ubuntu-kernel-v6-8 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-* --test-threads 1 test_6_2_ test_6_8_"
+          ssh lima-ubuntu-kernel-v6-8 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-* --test-threads 1 test_6_2_ test_6_8_"
+          ssh lima-ubuntu-kernel-v6-8 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-* --test-threads 1 test_6_2_ test_6_8_"
+          ssh lima-ubuntu-kernel-v6-8 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-* --test-threads 1 test_6_2_ test_6_8_"
+          ssh lima-ubuntu-kernel-v6-8 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-* --test-threads 1 test_6_2_ test_6_8_"
+
+          limactl stop ubuntu-kernel-v6.8
+
+      - name: Get Bombini logs from lima VM
+        if: failure()
+        run: |
+          rsync -a -e ssh 'lima-ubuntu-kernel-v6-8:/tmp/bombini-test-*' /tmp
+
+      - name: Upload Bombini logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bombini-logs-ubuntu-kernel-v6_8
+          path: /tmp/bombini-test-*
+          retention-days: 3
+
+  test-ubuntu-kernel-6_14:
+    runs-on: ubuntu-24.04
+    needs: build-bombini
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lima-vm/lima-actions/setup@v1
+        id: lima-actions-setup
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bombini-musl-build
+          path: /tmp/bombini-build
+
+      - uses: actions/cache@v4
+        id: lima-ubuntu-kernel-v6_14
+        with:
+          path: ~/.lima/ubuntu-kernel-v6.14
+          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v6_14-${{ hashFiles('.github/workflows/ci.yaml') }}
+
+      - name: Configure lima VM
+        if: steps.lima-ubuntu-kernel-v6_14.outputs.cache-hit != 'true'
+        run: |
+          limactl start --plain --name=ubuntu-kernel-v6.14 --cpus=1 --memory=1 template:ubuntu-lts
+          echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
+
+          ssh lima-ubuntu-kernel-v6-14 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
+          ssh lima-ubuntu-kernel-v6-14 sudo update-grub
+          ssh lima-ubuntu-kernel-v6-14 'sudo apt update && sudo apt install -y linux-generic-hwe-24.04'
+          ssh lima-ubuntu-kernel-v6-14 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
+
+          limactl stop ubuntu-kernel-v6.14
+
+      - name: Run tests on kernel 6.14
+        run: |
+          limactl start ubuntu-kernel-v6.14
+
+          # Transfer pre-built artifacts
+          rsync -a -e ssh /tmp/bombini-build lima-ubuntu-kernel-v6-14:/tmp/
+
+          ssh lima-ubuntu-kernel-v6-14 'uname -a'
+          ssh lima-ubuntu-kernel-v6-14 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/bombini"
+          ssh lima-ubuntu-kernel-v6-14 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-*"
+          ssh lima-ubuntu-kernel-v6-14 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-*"
+          ssh lima-ubuntu-kernel-v6-14 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-*"
+          ssh lima-ubuntu-kernel-v6-14 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-*"
+          ssh lima-ubuntu-kernel-v6-14 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-*"
+          ssh lima-ubuntu-kernel-v6-14 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-*"
+
+          # Run tests
+          ssh lima-ubuntu-kernel-v6-14 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_"
+          ssh lima-ubuntu-kernel-v6-14 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_"
+          ssh lima-ubuntu-kernel-v6-14 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_"
+          ssh lima-ubuntu-kernel-v6-14 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_"
+          ssh lima-ubuntu-kernel-v6-14 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_"
+          ssh lima-ubuntu-kernel-v6-14 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_"
+
+          limactl stop ubuntu-kernel-v6.14
+
+      - name: Get Bombini logs from lima VM
+        if: failure()
+        run: |
+          rsync -a -e ssh 'lima-ubuntu-kernel-v6-14:/tmp/bombini-test-*' /tmp
+
+      - name: Upload Bombini logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bombini-logs-ubuntu-kernel-v6_14
+          path: /tmp/bombini-test-*
+          retention-days: 3
