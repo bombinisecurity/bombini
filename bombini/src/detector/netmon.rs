@@ -67,7 +67,9 @@ impl NetMon {
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
 
-        let ingress = if let Some(ingress_cfg) = &config.ingress {
+        let ingress = if let Some(ingress_cfg) = &config.ingress
+            && ingress_cfg.enabled
+        {
             Some(Box::new(ConnectionControlData::new(
                 TrafficDirection::Ingress,
                 &ingress_cfg.rules,
@@ -75,7 +77,9 @@ impl NetMon {
         } else {
             None
         };
-        let egress = if let Some(egress_cfg) = &config.egress {
+        let egress = if let Some(egress_cfg) = &config.egress
+            && egress_cfg.enabled
+        {
             Some(Box::new(ConnectionControlData::new(
                 TrafficDirection::Egress,
                 &egress_cfg.rules,
@@ -123,11 +127,25 @@ impl Detector for NetMon {
                 .map_err(|e| MapError::InvalidName {
                     name: e.to_string(),
                 })?;
+        } else {
+            // We need to create an empty map for the ingress rules
+            SerializedRules::<TcpConnectionPredicate>::new()
+                .store_rules(&mut self.ebpf, TrafficDirection::Ingress.map_prefix())
+                .map_err(|e| MapError::InvalidName {
+                    name: e.to_string(),
+                })?;
         }
         if let Some(ref egress) = self.egress {
             egress
                 .serialized_rules
                 .store_rules(&mut self.ebpf, egress.direction.map_prefix())
+                .map_err(|e| MapError::InvalidName {
+                    name: e.to_string(),
+                })?;
+        } else {
+            // We need to create an empty map for the egress rules
+            SerializedRules::<TcpConnectionPredicate>::new()
+                .store_rules(&mut self.ebpf, TrafficDirection::Egress.map_prefix())
                 .map_err(|e| MapError::InvalidName {
                     name: e.to_string(),
                 })?;
@@ -162,12 +180,16 @@ impl Detector for NetMon {
             tcp_accept.load("inet_csk_accept", &btf)?;
             tcp_accept.attach()?;
         }
-        let tcp_close: &mut FExit = self.ebpf.program_mut("tcp_close_v4").unwrap().try_into()?;
-        tcp_close.load("tcp_close", &btf)?;
-        tcp_close.attach()?;
-        let tcp_close: &mut FExit = self.ebpf.program_mut("tcp_close_v6").unwrap().try_into()?;
-        tcp_close.load("tcp_close", &btf)?;
-        tcp_close.attach()?;
+        if self.egress.is_some() || self.ingress.is_some() {
+            let tcp_close: &mut FExit =
+                self.ebpf.program_mut("tcp_close_v4").unwrap().try_into()?;
+            tcp_close.load("tcp_close", &btf)?;
+            tcp_close.attach()?;
+            let tcp_close: &mut FExit =
+                self.ebpf.program_mut("tcp_close_v6").unwrap().try_into()?;
+            tcp_close.load("tcp_close", &btf)?;
+            tcp_close.attach()?;
+        }
         Ok(())
     }
 }

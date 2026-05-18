@@ -858,7 +858,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
     let Event::Network(ref mut msg) = generic_event.event else {
         return Err(-1);
     };
-    let pid = ctx.pid();
+    let pid = ctx.tgid();
     let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
