@@ -1,0 +1,72 @@
+name: Bombini Release
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  IMAGE_NAME: bombini
+  VERSION: ${{ github.ref_name }}
+
+jobs:
+  bombini-tarball:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+
+      - name: Install musl toolchain and dependencies
+        run: |
+          sudo apt update && sudo apt install -y clang libbpf-dev
+          cargo install bpf-linker bindgen-cli
+          cargo xtask tarball --release --with-tag $VERSION
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: bombini-tarball
+          path: target/bombini-*.tar.gz
+          retention-days: 1
+
+  bombini-release:
+    runs-on: ubuntu-24.04
+    needs: bombini-tarball
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: bombini-tarball
+          path: release
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/bombini-*.tar.gz
+          tag_name: $VERSION
+          draft: true
+          generate_release_notes: true
+
+  bombini-image:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build image
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME
+      - name: Log in to registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Push image
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+
+          # This changes all uppercase characters to lowercase.
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION

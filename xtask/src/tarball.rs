@@ -24,6 +24,9 @@ pub struct Options {
     /// Build and run the release target
     #[clap(long)]
     pub release: bool,
+    /// Custom tag for the tarball filename (e.g., v1.0.0)
+    #[clap(long)]
+    pub with_tag: Option<String>,
 }
 
 /// Build and run the tests
@@ -107,7 +110,12 @@ pub fn tarball(opts: Options) -> Result<(), anyhow::Error> {
         bombini_systemd.join("bombini.service"),
     )?;
 
-    let tar_gz = File::create(project_root.join("target").join("bombini.tar.gz"))?;
+    // Determine tarball filename
+    let tarball_name = match &opts.with_tag {
+        Some(tag) => format!("bombini-{}.tar.gz", tag),
+        None => "bombini.tar.gz".to_string(),
+    };
+    let tar_gz = File::create(project_root.join("target").join(&tarball_name))?;
     let enc = GzEncoder::new(tar_gz, Compression::default());
     let mut builder = Builder::new(enc);
     builder.append_dir_all("./bombini", &bombini_root_dir)?;
