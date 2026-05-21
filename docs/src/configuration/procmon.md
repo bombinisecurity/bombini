@@ -133,6 +133,9 @@ create_user_ns:
 * `path` - absolute path of executed binary via exec
 * `name` - name of executed binary via exec
 * `path_prefix` - absolute path prefix of executed binary via exec
+* `euid` - euid of executed binary via exec
+* `egid` - egid of executed binary via exec
+* `ecaps` - effective capabilities of executed binary via exec
 
 **Example**
 
