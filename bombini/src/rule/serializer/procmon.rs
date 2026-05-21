@@ -23,3 +23,12 @@ define_predicate!(CredPredicate {
     Attributes::ECAPS,
     Attributes::EUID,
 });
+
+define_predicate!(BprmCheckPredicate {
+    Attributes::Path,
+    Attributes::Name,
+    Attributes::PathPrefix,
+    Attributes::EUID,
+    Attributes::EGID,
+    Attributes::ECAPS,
+});

@@ -6,8 +6,9 @@ use crate::detector::Detector;
 use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME, ZERO_EVENT_MAP};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::dummy::DummyPredicate;
-use crate::rule::serializer::filemon::PathPredicate;
-use crate::rule::serializer::procmon::{CapPredicate, CredPredicate, GidPredicate, UidPredicate};
+use crate::rule::serializer::procmon::{
+    BprmCheckPredicate, CapPredicate, CredPredicate, GidPredicate, UidPredicate,
+};
 use aya::maps::{Array, HashMap, Map, MapData, MapError};
 use aya::programs::{BtfTracePoint, Lsm};
 use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
@@ -213,7 +214,7 @@ impl ProcMon {
         if let Some(bprm_check) = &config.bprm_check
             && bprm_check.enabled
         {
-            hooks.push(Box::new(HookData::<PathPredicate>::new(
+            hooks.push(Box::new(HookData::<BprmCheckPredicate>::new(
                 ProcMonHook::BprmCheck,
                 &bprm_check.rules,
             )?));

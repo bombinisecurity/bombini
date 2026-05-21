@@ -3,6 +3,8 @@ use base64::Engine;
 use common::bombini_launcher::*;
 
 use libc::{memfd_create, write};
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use std::ffi::CString;
 use std::fs::{self};
 use std::path::Path;
@@ -384,5 +386,51 @@ create_user_ns:
     assert_eq!(
         events.matches("\"secureexec\":\"FILELESS_EXEC\"").count(),
         2
+    );
+}
+
+#[test]
+fn test_6_2_procmon_bprm_check() {
+    let config_contents = r#"
+bprm_check:
+  enabled: true
+  rules:
+  - rule: BprmCheckTestRule
+    scope: binary_name == "xargs"
+    event: name == "bash" AND euid == 0 AND egid == 0 AND ecaps == "CAP_SYS_ADMIN"
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    let mut gtfo_proc = Command::new("sudo")
+        .args(["xargs", "-a", "/dev/null", "/bin/bash"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start ls");
+
+    // Wait Events being processed
+    let events = bombini
+        .wait_for_events("\"type\":\"BprmCheck\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
+    let _ = gtfo_proc.wait().unwrap();
+
+    print_example_events!(&events);
+    assert_eq!(events.matches("\"type\":\"BprmCheck\"").count(), 1);
+    assert_eq!(events.matches("\"rule\":\"BprmCheckTestRule\"").count(), 1);
+    ma::assert_ge!(events.matches("\"filename\":\"xargs\"").count(), 6);
+    ma::assert_ge!(
+        events
+            .matches("\"args\":\"-a /dev/null /bin/bash\"")
+            .count(),
+        6
     );
 }
