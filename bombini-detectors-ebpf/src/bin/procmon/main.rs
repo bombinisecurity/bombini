@@ -40,8 +40,10 @@ use bombini_detectors_ebpf::{
     co_re::{self, core_read_kernel},
     event_capture,
     filter::{
-        filemon::path::PathFilter,
-        procmon::cred::{CapFilter, CapValue, CredFilter, UidFilter},
+        procmon::{
+            bprm::BprmCheckFilter,
+            cred::{CapFilter, CapValue, CredFilter, UidFilter},
+        },
         scope::ScopeFilter,
     },
     interpreter::{self, rule::IsEmpty},
@@ -192,6 +194,16 @@ macro_rules! fill_prefix_map {
 #[map]
 static DYNPTR_HELPER: PerCpuArray<bpf_dynptr> = PerCpuArray::with_max_entries(1, 0);
 
+#[inline(always)]
+fn hack_dynptr_for_verifier() {
+    // <VERIFIER_ISSUE>
+    // Very dirty hack to make BPF verifier happy with stack area used for dynptr.
+    // After dynptr is passed away from the scope, BPF verifier still thinks that stack area is untouchable.
+    // We can create new variable that will may separate this stack area from the dynptr.
+    let __very_dirty_verifier_hack = 0u8;
+    core::hint::black_box(__very_dirty_verifier_hack);
+}
+
 macro_rules! memzero {
     ($mut_ptr:expr, $size:expr) => {{
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
@@ -206,12 +218,7 @@ macro_rules! memzero {
         );
         bpf_dynptr_write(&tmp as *const _, 0, zero_ptr as *mut _, $size as u32, 0);
     }
-    // <VERIFIER_ISSUE>
-    // Very dirty hack to make BPF verifier happy with stack area used for dynptr.
-    // After dynptr is passed away from the scope, BPF verifier still thinks that stack area is untouchable.
-    // We can create new variable that will may separate this stack area from the dynptr.
-    let __very_dirty_verifier_hack = 0u8;
-    core::hint::black_box(__very_dirty_verifier_hack);};
+    hack_dynptr_for_verifier();};
 }
 
 // Attribute helper maps
@@ -1327,6 +1334,15 @@ static PROCMON_BPRM_CHECK_PREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 
 #[map]
+static PROCMON_BPRM_CHECK_EUID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_EGID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_ECAP_MAP: HashMap<CapKey, Capabilities> = HashMap::with_max_entries(1, 0);
+
+#[map]
 static PROCMON_BPRM_CHECK_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
 
 #[map]
@@ -1410,6 +1426,25 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
         // Get file prefix
         let file_prefix = fill_prefix_map!(PROCMON_PATH_PREFIX_MAP, &event.binary);
 
+        hack_dynptr_for_verifier();
+
+        let cred = core_read_kernel!(binrpm, cred).ok_or(-1i32)?;
+
+        let proc_euid = UIDKey {
+            rule_idx: 0,
+            value: cred.euid(),
+        };
+
+        let proc_egid = UIDKey {
+            rule_idx: 0,
+            value: cred.egid(),
+        };
+
+        let proc_ecap = CapValue {
+            rule_idx: 0,
+            caps: Capabilities::from_bits_retain(cred.cap_effective()),
+        };
+
         // Get binary name
         let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
@@ -1436,13 +1471,19 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             ))?;
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if scope_passed {
-                let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
+                let mut event_filter = interpreter::Interpreter::new(BprmCheckFilter::new(
                     &PROCMON_BPRM_CHECK_NAME_MAP,
                     &PROCMON_BPRM_CHECK_PATH_MAP,
                     &PROCMON_BPRM_CHECK_PREFIX_MAP,
+                    &PROCMON_BPRM_CHECK_EUID_MAP,
+                    &PROCMON_BPRM_CHECK_EGID_MAP,
+                    &PROCMON_BPRM_CHECK_ECAP_MAP,
                     file_name,
                     file_path,
                     file_prefix,
+                    &proc_euid,
+                    &proc_egid,
+                    &proc_ecap,
                 ))?;
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
