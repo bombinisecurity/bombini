@@ -8,14 +8,13 @@ use anyhow::anyhow;
 use std::{sync::Arc, time::Duration};
 
 use bombini_common::event::{
-    Event, GenericEvent, MSG_FILE, MSG_GTFOBINS, MSG_IOURING, MSG_KERNEL, MSG_NETWORK, MSG_PROCESS,
+    Event, GenericEvent, MSG_FILE, MSG_IOURING, MSG_KERNEL, MSG_NETWORK, MSG_PROCESS,
     MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
     process::{ProcInfo, ProcessKey},
 };
 
 mod cache;
 mod file;
-mod gtfobins;
 mod io_uring;
 mod kernel;
 mod network;
@@ -27,7 +26,6 @@ use crate::{
 };
 
 use file::FileEventTransmuter;
-use gtfobins::GTFOBinsEventTransmuter;
 use io_uring::IOUringEventTransmuter;
 use kernel::KernelEventTransmuter;
 use network::NetworkEventTransmuter;
@@ -97,10 +95,6 @@ impl TransmuterRegistry {
                 DetectorConfig::IOUringMon => {
                     registry.handlers[MSG_IOURING as usize] =
                         Some(Arc::new(IOUringEventTransmuter));
-                }
-                DetectorConfig::GTFOBins(_) => {
-                    registry.handlers[MSG_GTFOBINS as usize] =
-                        Some(Arc::new(GTFOBinsEventTransmuter));
                 }
             }
         }

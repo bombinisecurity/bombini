@@ -7,18 +7,18 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
     options::Options,
-    proto::config::{FileMonConfig, GtfoBinsConfig, KernelMonConfig, NetMonConfig, ProcMonConfig},
+    proto::config::{FileMonConfig, KernelMonConfig, NetMonConfig, ProcMonConfig},
 };
 
 /// Unified Detector's config representation
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum DetectorConfig {
     ProcMon(Arc<ProcMonConfig>),
     FileMon(Arc<FileMonConfig>),
     NetMon(Arc<NetMonConfig>),
     KernelMon(Arc<KernelMonConfig>),
     IOUringMon,
-    GTFOBins(Arc<GtfoBinsConfig>),
 }
 
 /// Configuration for agent and all detectors
@@ -70,10 +70,6 @@ impl Config {
                     DetectorConfig::KernelMon(Arc::new(config))
                 }
                 "io_uringmon" => DetectorConfig::IOUringMon,
-                "gtfobins" => {
-                    let config: GtfoBinsConfig = serde_yml::from_str(yaml_config.as_ref())?;
-                    DetectorConfig::GTFOBins(Arc::new(config))
-                }
                 _ => {
                     return Err(anyhow!("{} unknown detector", name));
                 }

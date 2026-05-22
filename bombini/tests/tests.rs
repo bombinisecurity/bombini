@@ -1,5 +1,6 @@
 use std::fs;
 
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::{thread, time::Duration};
 
@@ -26,9 +27,7 @@ fn test_6_2_detectors_load() {
         .detector("netmon", None);
 
     if kernel_ver >= ver_6_8 {
-        builder
-            .detector("io_uringmon", None)
-            .detector("gtfobins", None);
+        builder.detector("io_uringmon", None);
     }
 
     let mut bombini = builder.bombini_start_timeout(7).launch().unwrap();
@@ -46,16 +45,17 @@ fn test_6_2_detectors_load() {
     assert!(log.contains("filemon is loaded"));
     assert!(log.contains("netmon is loaded"));
     if kernel_ver >= ver_6_8 {
-        assert!(log.contains("gtfobins is loaded"));
         assert!(log.contains("io_uringmon is loaded"));
     }
 }
 
 #[test]
-fn test_6_8_gtfobins_detector() {
+fn test_6_2_gtfobins() {
+    let gtfobins_config_file =
+        PathBuf::from(BOMBINI_TESTDATA_CONFIG_DIR).join("procmon-gtfobins.yaml");
+    let gtfobins_config = fs::read_to_string(&gtfobins_config_file).unwrap();
     let mut bombini = BombiniBuilder::new()
-        .detector("procmon", None)
-        .detector("gtfobins", None)
+        .detector("procmon", Some(gtfobins_config.as_str()))
         .events_timeout(1)
         .launch()
         .unwrap();
@@ -70,7 +70,7 @@ fn test_6_8_gtfobins_detector() {
 
     // Wait Events being processed
     let events = bombini
-        .wait_for_events("\"type\":\"GTFOBinsEvent\"", 1)
+        .wait_for_events("\"type\":\"BprmCheck\"", 1)
         .unwrap();
     bombini.stop();
 
@@ -78,9 +78,11 @@ fn test_6_8_gtfobins_detector() {
     let _ = gtfo_proc.wait().unwrap();
 
     print_example_events!(&events);
-    assert_eq!(events.matches("\"type\":\"GTFOBinsEvent\"").count(), 1);
-    assert_eq!(events.matches("\"filename\":\"xargs\"").count(), 7);
-    assert_eq!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 7);
+    assert_eq!(events.matches("\"type\":\"BprmCheck\"").count(), 1);
+    assert_eq!(events.matches("\"rule\":\"GTFOBins\"").count(), 1);
+    assert_eq!(events.matches("\"blocked\":true").count(), 1);
+    ma::assert_ge!(events.matches("\"filename\":\"xargs\"").count(), 6);
+    ma::assert_ge!(events.matches("\"args\":\"-a /dev/null sh\"").count(), 6);
 }
 
 #[test]

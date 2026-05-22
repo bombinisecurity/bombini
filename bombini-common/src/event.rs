@@ -1,7 +1,6 @@
 //! Event module provide generic event message for all detectors
 
 pub mod file;
-pub mod gtfobins;
 pub mod io_uring;
 pub mod kernel;
 pub mod network;
@@ -35,8 +34,6 @@ pub enum Event {
     IOUring(io_uring::IOUringMsg) = 6,
     /// Kernel event type
     Kernel(kernel::KernelMsg) = 7,
-    /// GTFOBins execution event type
-    GTFOBins(gtfobins::GTFOBinsMsg) = 32,
 }
 
 // Event message codes
@@ -57,5 +54,3 @@ pub const MSG_NETWORK: u8 = 5;
 pub const MSG_IOURING: u8 = 6;
 /// Kernel message code
 pub const MSG_KERNEL: u8 = 7;
-/// GTFOBins execution message code
-pub const MSG_GTFOBINS: u8 = 32;
