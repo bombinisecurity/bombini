@@ -15,9 +15,7 @@ Detectors are organized by event class and kernel subsystem:
 
 All Detectors perform in-kernel event filtering directly within eBPF programs, minimizing overhead and reducing the volume of data sent to userspace.
 
-For advanced threat detection, Bombini also supports specialized Detectors, such as:
-
-* *GTFOBins*: Detects attempts to spawn a privileged shell through abuse of [GTFOBins](https://gtfobins.github.io/)-eligible binaries.
+Bombini rule engine enables the detection of advanced threats, such as the disclosure of [GTFOBins](https://gtfobins.github.io/), which involves the execution of privileged shells through the abuse of eligible binaries.
 
 Additionally, *ProcMon* and *FileMon* can optionally enforce sandboxing policies, allowing fine-grained control over process execution and file access based on configurable rules.
 

@@ -56,7 +56,6 @@ detectors:
    #- netmon
    # -kernelmon
    #- io_uringmon
-   #- gtfobins
 ```
 
 To enable detectors loading you must put the detector name in config detectors section.
