@@ -87,16 +87,6 @@ pub struct NetMonConfig {
     #[prost(message, optional, tag = "2")]
     pub egress: ::core::option::Option<HookConfig>,
 }
-/// Configuration file for GTFOBinsDetector.
-#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct GtfoBinsConfig {
-    /// Block execution of GTFOBins binaries.
-    #[prost(bool, tag = "1")]
-    pub enforce: bool,
-    /// GTFOBins executables names.
-    #[prost(string, repeated, tag = "2")]
-    pub gtfobins: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-}
 /// Rule definition. Scope and event predicates are used as logical conjunction.
 #[derive(serde::Deserialize)]
 #[serde(default)]

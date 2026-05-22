@@ -20,7 +20,7 @@ use tempfile::{Builder, TempDir};
 pub static EXE_BOMBINI: &str = env!("CARGO_BIN_EXE_bombini");
 pub static PROJECT_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
-static BOMBINI_TESTDATA_CONFIG_DIR: &str =
+pub static BOMBINI_TESTDATA_CONFIG_DIR: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/testdata/config");
 
 #[macro_export]

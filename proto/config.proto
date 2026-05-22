@@ -66,14 +66,6 @@ message NetMonConfig {
     HookConfig egress = 2;
 }
 
-// Configuration file for GTFOBinsDetector.
-message GTFOBinsConfig {
-    // Block execution of GTFOBins binaries.
-    bool enforce = 1;
-    // GTFOBins executables names.
-    repeated string gtfobins = 2;
-}
-
 // Rule definition. Scope and event predicates are used as logical conjunction.
 message Rule {
     // Name of the rule.
