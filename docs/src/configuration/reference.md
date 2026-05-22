@@ -5,7 +5,6 @@
 
 - [proto/config.proto](#proto_config-proto)
     - [FileMonConfig](#config-FileMonConfig)
-    - [GTFOBinsConfig](#config-GTFOBinsConfig)
     - [HookConfig](#config-HookConfig)
     - [KernelMonConfig](#config-KernelMonConfig)
     - [NetMonConfig](#config-NetMonConfig)
@@ -41,22 +40,6 @@ Configuration file for FileMon detector.
 | sb_mount | [HookConfig](#config-HookConfig) |  | security_sb_mount config. |
 | mmap_file | [HookConfig](#config-HookConfig) |  | security_mmap_file config. |
 | file_ioctl | [HookConfig](#config-HookConfig) |  | security_file_ioctl config. |
-
-
-
-
-
-
-<a name="config-GTFOBinsConfig"></a>
-
-### GTFOBinsConfig
-Configuration file for GTFOBinsDetector.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| enforce | [bool](#bool) |  | Block execution of GTFOBins binaries. |
-| gtfobins | [string](#string) | repeated | GTFOBins executables names. |
 
 
 
