@@ -5,6 +5,7 @@
 - [Getting Started](./getting_started/getting_started.md)
     - [Container](./getting_started/container.md)
     - [Kubernetes](./getting_started/k8s.md)
+    - [Tarball](./getting_started/tarball.md)
     - [Build](./getting_started/build.md)
 - [Configuration](./configuration/configuration.md)
     - [Rules](./configuration/rules.md)
