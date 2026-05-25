@@ -12,18 +12,16 @@
 [book-badge]: https://img.shields.io/badge/read%20the-book-9cf.svg?style=for-the-badge&logo=mdbook
 [book-url]: https://bombinisecurity.github.io/bombini/
 
-**Bombini** is an eBPF-based security agent written entirely in Rust using the [Aya](https://github.com/aya-rs/aya) library and built on LSM (Linux Security Module) BPF hooks. At its core, Bombini employs modular components called Detectors, each responsible for monitoring and reporting specific types of system events. 
+**Bombini** is an eBPF-based security agent written entirely in Rust using the [Aya](https://github.com/aya-rs/aya) library and built on LSM (Linux Security Module) BPF hooks. At its core, Bombini employs modular components called Detectors, each responsible for monitoring and reporting specific types of system events.
 
 ## Getting Started
 
 Please, check the compatibility [issues](./docs/src/compatibility.md) first.
 
-The most convenient way now is to build container with Bombini:
+The most convenient way now is to pull Bombini image:
 
 ```bash
-git clone https://github.com/bombinisecurity/bombini.git && \
-cd ./bombini && \
-docker build  -t bombini .
+docker pull ghcr.io/bombinisecurity/bombini:v1.0.0
 ```
 
 ### Run
