@@ -1,16 +1,9 @@
 # Container
 
-Clone Bombini:
+Download Bombini container image:
 
 ```bash
-git clone https://github.com/bombinisecurity/bombini.git
-```
-
-Build container with Bombini:
-
-```bash
-cd ./bombini && \
-docker build  -t bombini .
+docker pull ghcr.io/bombinisecurity/bombini:v1.0.0
 ```
 
 ## Run
@@ -40,4 +33,4 @@ Or send them via unix socket:
 ```bash
 docker run --pid=host --rm -it --privileged -v /tmp/bombini.sock:/log/bombini.sock -v /sys/fs/bpf:/sys/fs/bpf bombini --event-socket /log/bombini.sock
 ```
-Bombini uses `env_logger` crate. To see agent logs pass `--env "RUST_LOG=info|debug"`to docker run. 
+Bombini uses `env_logger` crate. To see agent logs pass `--env "RUST_LOG=info|debug"`to docker run.

@@ -1,9 +1,9 @@
 # Kubernetes
 
-First build `bombini` container and push it to you container registry:
+First pull `bombini` image:
 
 ```bash
-docker build -t bombini .
+docker pull ghcr.io/bombinisecurity/bombini:v1.0.0
 ```
 
 `bombini.yaml` manifest has bombini ConfigMap with all configuration setup. By default, only ProcMon
@@ -19,10 +19,10 @@ Events can be found in bombini k8s log.
 
 ## Kind Example
 
-Build bombini:
+Pull `bombini` image:
 
 ```bash
-docker build -t bombini .
+docker pull ghcr.io/bombinisecurity/bombini:v1.0.0
 ```
 
 Install [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).
@@ -35,7 +35,7 @@ cd ./install/k8s
 Create kind cluster:
 
 ```bash
-kind create cluster --config ./kind-config.yaml --name bombini-test-cluster 
+kind create cluster --config ./kind-config.yaml --name bombini-test-cluster
 ```
 
 Load bombini image in kind cluster:
