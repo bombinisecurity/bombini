@@ -5,6 +5,7 @@ pub mod io_uring;
 pub mod kernel;
 pub mod network;
 pub mod process;
+pub mod sysenum;
 
 /// Generic event for ring buffer
 #[repr(C)]
@@ -34,6 +35,8 @@ pub enum Event {
     IOUring(io_uring::IOUringMsg) = 6,
     /// Kernel event type
     Kernel(kernel::KernelMsg) = 7,
+    /// System enumeration event type
+    SysEnum(sysenum::SysEnumMonMsg) = 33,
 }
 
 // Event message codes
@@ -54,3 +57,5 @@ pub const MSG_NETWORK: u8 = 5;
 pub const MSG_IOURING: u8 = 6;
 /// Kernel message code
 pub const MSG_KERNEL: u8 = 7;
+/// System enumeration message code
+pub const MSG_SYSENUM: u8 = 33;

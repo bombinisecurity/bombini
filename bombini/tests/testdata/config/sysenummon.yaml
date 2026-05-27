@@ -1,0 +1,16 @@
+chain_size: 3
+window_size_sec: 10
+bprm_check:
+  name:
+    - id
+    - whoami
+    - ps
+    - uname
+    - netstat
+    - ss
+    - getcap
+file_open:
+  path:
+    - /etc/shadow
+  path_prefix:
+    - /etc/ssh

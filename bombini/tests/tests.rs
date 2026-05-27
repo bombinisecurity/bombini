@@ -27,7 +27,9 @@ fn test_6_2_detectors_load() {
         .detector("netmon", None);
 
     if kernel_ver >= ver_6_8 {
-        builder.detector("io_uringmon", None);
+        builder
+            .detector("io_uringmon", None)
+            .detector("sysenummon", None);
     }
 
     let mut bombini = builder.bombini_start_timeout(7).launch().unwrap();
@@ -46,6 +48,7 @@ fn test_6_2_detectors_load() {
     assert!(log.contains("netmon is loaded"));
     if kernel_ver >= ver_6_8 {
         assert!(log.contains("io_uringmon is loaded"));
+        assert!(log.contains("sysenummon is loaded"));
     }
 }
 
@@ -114,4 +117,28 @@ fn test_6_8_io_uringmon() {
         events.matches("\"opcode\":\"IORING_OP_EPOLL_CTL\"").count(),
         1
     );
+}
+
+#[test]
+fn test_6_8_sysenummon_behavioral() {
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("sysenummon", None)
+        .events_timeout(1)
+        .launch()
+        .unwrap();
+
+    let _ = Command::new("id").stdout(Stdio::null()).status();
+    let _ = Command::new("ps").stdout(Stdio::null()).status();
+    let _ = Command::new("uname").stdout(Stdio::null()).status();
+    let _ = Command::new("netstat").stdout(Stdio::null()).status();
+
+    let events = bombini
+        .wait_for_events("\"type\":\"SysEnumMonEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"SysEnumMonEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"scenario\":\"linpeas\"").count(), 1);
 }

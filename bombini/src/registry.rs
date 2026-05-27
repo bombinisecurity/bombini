@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::config::{Config, DetectorConfig};
 use crate::detector::filemon::FileMon;
 use crate::detector::io_uringmon::IOUringMon;
+use crate::detector::sysenummon::SysEnumMon;
 
 use crate::detector::Detector;
 use crate::detector::kernelmon::KernelMon;
@@ -109,6 +110,11 @@ impl Registry {
             }
             DetectorConfig::IOUringMon => {
                 let mut detector = IOUringMon::new(obj_path, maps_pin_path)?;
+                detector.load()?;
+                self.detectors.insert(name.to_string(), Box::new(detector));
+            }
+            DetectorConfig::SysEnumMon(cfg) => {
+                let mut detector = SysEnumMon::new(obj_path, maps_pin_path, cfg.clone())?;
                 detector.load()?;
                 self.detectors.insert(name.to_string(), Box::new(detector));
             }

@@ -66,6 +66,29 @@ message NetMonConfig {
     HookConfig egress = 2;
 }
 
+// Configuration file for SysEnumMon detector.
+message SysEnumMonConfig {
+    // Number of unique observations needed within the window to raise an alert.
+    uint32 chain_size = 1;
+    // Sliding window length in seconds.
+    uint64 window_size_sec = 2;
+    // Binary names observed on execve.
+    NameList bprm_check = 3;
+    // File paths observed on file_open.
+    PathList file_open = 4;
+}
+
+// List of binary names.
+message NameList {
+    repeated string name = 1;
+}
+
+// List of file paths and path prefixes.
+message PathList {
+    repeated string path = 1;
+    repeated string path_prefix = 2;
+}
+
 // Rule definition. Scope and event predicates are used as logical conjunction.
 message Rule {
     // Name of the rule.

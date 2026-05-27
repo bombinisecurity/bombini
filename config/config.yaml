@@ -42,3 +42,4 @@ detectors:
    #- netmon
    #- kernelmon
    #- io_uringmon
+   #- sysenummon
