@@ -9,27 +9,38 @@ use aya_ebpf::{
         bpf_get_socket_cookie, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes,
         r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
-    macros::{fexit, map},
+    macros::{fexit, lsm, map},
     maps::{
         LpmTrie, LruHashMap, array::Array, hash_map::HashMap, lpm_trie::Key,
         per_cpu_array::PerCpuArray,
     },
-    programs::FExitContext,
+    programs::{FExitContext, LsmContext},
 };
 
-use bombini_detectors_ebpf::co_re::{self, core_read_kernel};
-
-use bombini_common::event::{
-    Event, GenericEvent, MSG_NETWORK,
-    network::{NetworkMsg, TcpConnectionV4, TcpConnectionV6},
-    process::ProcInfo,
+use bombini_detectors_ebpf::{
+    co_re::{self, core_read_kernel},
+    filter::netmon::socket::{SocketCreateFilter, SocketFlagsValue},
 };
+
 use bombini_common::{
     config::rule::{
         FileNameMapKey, Ipv4MapKey, Ipv6MapKey, PathMapKey, PathPrefixMapKey, PortKey, Rules,
     },
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
     event::network::{NetworkEventNumber, NetworkEventVariant},
+};
+use bombini_common::{
+    config::{
+        netmon::NetMonKernelConfig,
+        rule::{AddressFamilyKey, SocketFlagsKey, SocketTypeKey},
+    },
+    event::{
+        Event, GenericEvent, MSG_NETWORK,
+        network::{
+            AddressFamily, NetworkMsg, SocketFlags, SocketType, TcpConnectionV4, TcpConnectionV6,
+        },
+        process::ProcInfo,
+    },
 };
 
 use bombini_detectors_ebpf::{
@@ -54,6 +65,10 @@ static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
 #[map]
 static NETMON_SOCK_COOKIE_MAP: LruHashMap<u64, u8> = LruHashMap::with_max_entries(512, 0);
+
+// Detector config
+#[map]
+static NETMON_CONFIG: Array<NetMonKernelConfig> = Array::with_max_entries(1, 0);
 
 // Helpers
 #[map]
@@ -231,6 +246,166 @@ static NETMON_IPV6_SRC_MAP: PerCpuArray<Key<Ipv6MapKey>> = PerCpuArray::with_max
 #[map]
 static NETMON_IPV6_DST_MAP: PerCpuArray<Key<Ipv6MapKey>> = PerCpuArray::with_max_entries(1, 0);
 // helper maps end
+
+// Socket create rules maps
+#[map]
+static NETMON_SOCKET_CREATE_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter socket create maps begin
+#[map]
+static NETMON_SOCKET_CREATE_ADDRESS_FAMILY_MAP: HashMap<AddressFamilyKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_TYPE_MAP: HashMap<SocketTypeKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_FLAGS_MAP: HashMap<SocketFlagsKey, SocketFlags> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
+
+const SOCK_TYPE_MASK: u32 = 0xf;
+
+#[lsm(hook = "socket_create")]
+pub fn socket_create_capture(ctx: LsmContext) -> i32 {
+    event_capture!(ctx, MSG_NETWORK, true, try_socket_create)
+}
+
+fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::Network(ref mut msg) = generic_event.event else {
+        return Err(-1);
+    };
+    let pid = ctx.tgid();
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(-1);
+    };
+
+    let Some(rules) = NETMON_SOCKET_CREATE_RULE_MAP.get(0) else {
+        return Err(-1);
+    };
+
+    unsafe {
+        let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
+        *p = NetworkEventNumber::SocketCreate as u8;
+    }
+
+    let NetworkEventVariant::SocketCreate(ref mut event) = msg.event else {
+        return Err(-1);
+    };
+
+    unsafe {
+        event.family = core::mem::transmute::<u32, AddressFamily>(ctx.arg(0));
+        let raw_type: u32 = ctx.arg(1);
+        event.socket_type = core::mem::transmute::<u32, SocketType>(raw_type & SOCK_TYPE_MASK);
+        event.flags = SocketFlags::from_bits_retain(raw_type & !SOCK_TYPE_MASK);
+        event.protocol = ctx.arg(2);
+
+        let Some(ref rule_array) = rules.0 else {
+            enrich_with_proc_info_and_rule_idx(msg, proc, None);
+            return Ok(0);
+        };
+
+        let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
+            return Err(-1);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(-1);
+        };
+
+        let sandbox: Option<bool> = config.sandbox_mode[NetworkEventNumber::SocketCreate as usize];
+
+        // Get address family
+        let mut family_key = AddressFamilyKey {
+            rule_idx: 0,
+            family: event.family,
+        };
+
+        // Get socket type
+        let mut socket_type_key = SocketTypeKey {
+            rule_idx: 0,
+            socket_type: event.socket_type,
+        };
+
+        // Get socket flags
+        let mut socket_flags_key = SocketFlagsValue {
+            rule_idx: 0,
+            flags: event.flags,
+        };
+
+        // Get binary name
+        let binary_name = fill_name_map!(NETMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(NETMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            family_key.rule_idx = idx as u32;
+            socket_type_key.rule_idx = idx as u32;
+            socket_flags_key.rule_idx = idx as u8;
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &NETMON_SOCKET_CREATE_BINNAME_MAP,
+                &NETMON_SOCKET_CREATE_BINPATH_MAP,
+                &NETMON_SOCKET_CREATE_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if scope_passed {
+                let mut event_filter = interpreter::Interpreter::new(SocketCreateFilter::new(
+                    &NETMON_SOCKET_CREATE_ADDRESS_FAMILY_MAP,
+                    &NETMON_SOCKET_CREATE_TYPE_MAP,
+                    &NETMON_SOCKET_CREATE_FLAGS_MAP,
+                    &family_key,
+                    &socket_type_key,
+                    &socket_flags_key,
+                ))?;
+                let passed = event_filter.check_predicate(&rule.event)?;
+                if passed {
+                    if sandbox.is_none() {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        return Ok(0);
+                    }
+                    let deny_list = sandbox.unwrap();
+                    if deny_list {
+                        enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                        msg.blocked = true;
+                        return Ok(-1);
+                    }
+                    // allow list is satisfied: do not send event
+                    return Err(0);
+                } else if let Some(deny_list) = sandbox
+                    && !deny_list
+                {
+                    // allow list is not satisfied: send event
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                    msg.blocked = true;
+                    return Ok(-1);
+                }
+            }
+        }
+    }
+    Err(0)
+}
 
 // Attribute filter maps begin
 #[map]

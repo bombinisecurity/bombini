@@ -86,6 +86,15 @@ pub struct NetMonConfig {
     /// Egress traffic connections
     #[prost(message, optional, tag = "2")]
     pub egress: ::core::option::Option<HookConfig>,
+    /// Socket creation
+    #[prost(message, optional, tag = "3")]
+    pub socket_create: ::core::option::Option<HookConfig>,
+    /// Connect over socket
+    #[prost(message, optional, tag = "4")]
+    pub socket_connect: ::core::option::Option<HookConfig>,
+    /// Accept over socket
+    #[prost(message, optional, tag = "5")]
+    pub socket_accept: ::core::option::Option<HookConfig>,
 }
 /// Rule definition. Scope and event predicates are used as logical conjunction.
 #[derive(serde::Deserialize)]
