@@ -64,6 +64,12 @@ message NetMonConfig {
     HookConfig ingress = 1;
     // Egress traffic connections
     HookConfig egress = 2;
+    // Socket creation
+    HookConfig socket_create = 3;
+    // Connect over socket
+    HookConfig socket_connect = 4;
+    // Accept over socket
+    HookConfig socket_accept = 5;
 }
 
 // Rule definition. Scope and event predicates are used as logical conjunction.

@@ -57,6 +57,9 @@ impl AttributeMeta for Attributes {
             Self::ProgId => Box::new(defs::BpfIdAttribute::default()),
             Self::ProgName => Box::new(defs::BpfNameAttribute::default()),
             Self::ProgPrefix => Box::new(defs::BpfPrefixAttribute::default()),
+            Self::SockFamily => Box::new(defs::SockFamilyAttribute::default()),
+            Self::SockType => Box::new(defs::SockTypeAttribute::default()),
+            Self::SockFlags => Box::new(defs::SockFlagsAttribute::default()),
         }
     }
 
@@ -74,7 +77,7 @@ impl AttributeMeta for Attributes {
             Self::Cmd => "cmd",
             Self::Imode => "mode",
             Self::ProtMode => "prot_mode",
-            Self::MmapFlags => "flags",
+            Self::MmapFlags | Self::SockFlags => "flags",
             Self::ECAPS => "ecaps",
             Self::PCAPS => "pcaps",
             Self::Ipv4Src => "ipv4_src",
@@ -86,10 +89,11 @@ impl AttributeMeta for Attributes {
             Self::BinaryPath => "binary_path",
             Self::BinaryName => "binary_name",
             Self::BinaryPrefix => "binary_prefix",
-            Self::MapType | Self::ProgType => "type",
+            Self::MapType | Self::ProgType | Self::SockType => "type",
             Self::MapId | Self::ProgId => "id",
             Self::MapName | Self::ProgName => "name",
             Self::MapPrefix | Self::ProgPrefix => "prefix",
+            Self::SockFamily => "family",
         }
     }
 }

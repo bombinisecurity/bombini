@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use bombini_common::event::{
     Event,
-    network::{NetworkEventVariant, TcpConnectionV4, TcpConnectionV6},
+    network::{
+        AddressFamily, NetworkEventVariant, SocketFlags, SocketType, TcpConnectionV4,
+        TcpConnectionV6,
+    },
 };
 use serde::Serialize;
 
@@ -24,6 +27,8 @@ struct NetworkEvent<'a> {
     process: Arc<Process>,
     /// Parent process information
     parent: Option<Arc<Process>>,
+    /// If event is blocked by sandbox mode
+    blocked: bool,
     /// Network event
     network_event: NetworkEventType,
     /// Event's date and time
@@ -43,6 +48,7 @@ pub enum NetworkEventType {
     TcpConnectionEstablish(TcpConnection),
     TcpConnectionClose(TcpConnection),
     TcpConnectionAccept(TcpConnection),
+    SocketCreate(SocketCreate),
 }
 
 /// TCP IPv4 connection information
@@ -64,11 +70,30 @@ pub struct TcpConnection {
     cookie: u64,
 }
 
+/// Socket creation information
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[repr(C)]
+pub struct SocketCreate {
+    /// socket family
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    family: AddressFamily,
+    /// socket type
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    sock_type: SocketType,
+    /// socket flags
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    flags: SocketFlags,
+    /// socket protocol
+    protocol: u32,
+}
+
 impl<'a> NetworkEvent<'a> {
     /// Constructs High level event representation from low eBPF message
     pub fn new(
         process: Arc<Process>,
         parent: Option<Arc<Process>>,
+        blocked: bool,
         event: &NetworkEventVariant,
         rule: Option<&'a str>,
         ktime: u64,
@@ -79,6 +104,7 @@ impl<'a> NetworkEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
@@ -89,6 +115,7 @@ impl<'a> NetworkEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     network_event: NetworkEventType::TcpConnectionEstablish(con_event),
                     timestamp: transmute_ktime(ktime),
@@ -99,6 +126,7 @@ impl<'a> NetworkEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
@@ -109,6 +137,7 @@ impl<'a> NetworkEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     network_event: NetworkEventType::TcpConnectionClose(con_event),
                     timestamp: transmute_ktime(ktime),
@@ -119,6 +148,7 @@ impl<'a> NetworkEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
@@ -129,11 +159,25 @@ impl<'a> NetworkEvent<'a> {
                 Self {
                     process,
                     parent,
+                    blocked,
                     rule,
                     network_event: NetworkEventType::TcpConnectionAccept(con_event),
                     timestamp: transmute_ktime(ktime),
                 }
             }
+            NetworkEventVariant::SocketCreate(sock) => Self {
+                process,
+                parent,
+                blocked,
+                rule,
+                network_event: NetworkEventType::SocketCreate(SocketCreate {
+                    family: sock.family,
+                    sock_type: sock.socket_type,
+                    flags: sock.flags,
+                    protocol: sock.protocol,
+                }),
+                timestamp: transmute_ktime(ktime),
+            },
         }
     }
 }
@@ -163,6 +207,8 @@ fn transmute_connection_v6(con: &TcpConnectionV6) -> TcpConnection {
 pub struct NetworkEventTransmuter {
     ingress_rule_names: Vec<String>,
     egress_rule_names: Vec<String>,
+
+    socket_create_rule_names: Vec<String>,
 }
 
 impl NetworkEventTransmuter {
@@ -177,6 +223,7 @@ impl NetworkEventTransmuter {
         Self {
             ingress_rule_names: rule_names_from_hook_config(&cfg.ingress),
             egress_rule_names: rule_names_from_hook_config(&cfg.egress),
+            socket_create_rule_names: rule_names_from_hook_config(&cfg.socket_create),
         }
     }
 
@@ -195,6 +242,7 @@ impl NetworkEventTransmuter {
             NetworkEventVariant::TcpConV4Accept(_) | NetworkEventVariant::TcpConV6Accept(_) => {
                 &self.ingress_rule_names
             }
+            NetworkEventVariant::SocketCreate(_) => &self.socket_create_rule_names,
         };
 
         rule_idx
@@ -240,6 +288,7 @@ impl Transmuter for NetworkEventTransmuter {
                 let high_level_event = NetworkEvent::new(
                     cached_process.process.clone(),
                     parent,
+                    msg.blocked,
                     &msg.event,
                     rule_name,
                     ktime,

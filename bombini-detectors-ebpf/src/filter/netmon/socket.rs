@@ -1,0 +1,76 @@
+//! Socket parameter filters for netmon detector
+
+use aya_ebpf::maps::HashMap;
+use bombini_common::{
+    config::rule::{AddressFamilyKey, Attributes, SocketFlagsKey, SocketTypeKey},
+    event::network::SocketFlags,
+};
+
+use crate::interpreter::CheckIn;
+
+pub struct SocketFlagsValue {
+    pub rule_idx: u8,
+    pub flags: SocketFlags,
+}
+
+#[repr(C)]
+pub struct SocketCreateFilter<'a> {
+    pub family_map: &'a HashMap<AddressFamilyKey, u8>,
+    pub stype_map: &'a HashMap<SocketTypeKey, u8>,
+    pub sflags_map: &'a HashMap<SocketFlagsKey, SocketFlags>,
+
+    pub family: &'a AddressFamilyKey,
+    pub stype: &'a SocketTypeKey,
+    pub sflags: &'a SocketFlagsValue,
+}
+
+impl<'a> SocketCreateFilter<'a> {
+    pub fn new(
+        family_map: &'a HashMap<AddressFamilyKey, u8>,
+        stype_map: &'a HashMap<SocketTypeKey, u8>,
+        sflags_map: &'a HashMap<SocketFlagsKey, SocketFlags>,
+
+        family: &'a AddressFamilyKey,
+        stype: &'a SocketTypeKey,
+        sflags: &'a SocketFlagsValue,
+    ) -> Self {
+        Self {
+            family_map,
+            stype_map,
+            sflags_map,
+            family,
+            stype,
+            sflags,
+        }
+    }
+}
+
+impl CheckIn for SocketCreateFilter<'_> {
+    fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
+        match attribute_map_id {
+            id if id == Attributes::SockType as u8 => unsafe {
+                let Some(mask_type) = self.stype_map.get(self.stype) else {
+                    return Ok(false);
+                };
+                Ok(*mask_type & (1 << in_op_idx) != 0)
+            },
+            id if id == Attributes::SockFlags as u8 => unsafe {
+                let sflags_key = SocketFlagsKey {
+                    rule_idx: self.sflags.rule_idx,
+                    in_idx: in_op_idx,
+                };
+                let Some(sflags) = self.sflags_map.get(&sflags_key) else {
+                    return Ok(false);
+                };
+                Ok(*sflags & self.sflags.flags != SocketFlags::empty())
+            },
+            id if id == Attributes::SockFamily as u8 => unsafe {
+                let Some(mask_family) = self.family_map.get(self.family) else {
+                    return Ok(false);
+                };
+                Ok(*mask_family & (1 << in_op_idx) != 0)
+            },
+            _ => Err(-1),
+        }
+    }
+}

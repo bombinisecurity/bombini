@@ -8,15 +8,17 @@ use aya::maps::LpmTrie;
 use aya::maps::hash_map::HashMap as EbpfHashMap;
 use aya::maps::lpm_trie::Key;
 use bombini_common::config::rule::{
-    AccessModeKey, BpfIdKey, BpfMapTypeKey, BpfNameKey, BpfPrefixKey, BpfProgTypeKey, CapKey,
-    CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, Ipv4MapKey, Ipv6MapKey, PathMapKey,
-    PathPrefixMapKey, PortKey, ProtModeKey, UIDKey,
+    AccessModeKey, AddressFamilyKey, BpfIdKey, BpfMapTypeKey, BpfNameKey, BpfPrefixKey,
+    BpfProgTypeKey, CapKey, CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, Ipv4MapKey,
+    Ipv6MapKey, PathMapKey, PathPrefixMapKey, PortKey, ProtModeKey, SocketFlagsKey, SocketTypeKey,
+    UIDKey,
 };
 use bombini_common::constants::{
     MAX_BPFNAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE,
 };
 use bombini_common::event::file::{AccessMode, CreationFlags, Imode, ProtMode, SharingType};
 use bombini_common::event::kernel::{BpfMapType, BpfProgType};
+use bombini_common::event::network::{AddressFamily, SocketFlags, SocketType};
 use bombini_common::event::process::Capabilities;
 
 use crate::rule::{
@@ -1369,31 +1371,7 @@ pub(crate) struct BpfMapTypeAttribute {
 
 impl Attribute for BpfMapTypeAttribute {
     fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
-        let values: Result<Vec<BpfMapType>, anyhow::Error> = values
-            .iter()
-            .map(|lit| match lit {
-                Literal::String(s) => Ok(s.clone()),
-                Literal::Uint(i) => Err(anyhow::anyhow!(
-                    "expected String literal, found Uint: {}",
-                    i
-                )),
-            })
-            .map(|s| {
-                s.and_then(|s| {
-                    serde_json::from_str(&format!("\"{s}\"")).map_err(|x| {
-                        anyhow::anyhow!("Error while parsing bpf map type: {s}, {}", x)
-                    })
-                })
-            })
-            .collect();
-        let values = values?;
-        for key in values {
-            self.map
-                .entry(key)
-                .and_modify(|value| *value |= 1 << in_idx)
-                .or_insert(1 << in_idx);
-        }
-        Ok(())
+        util::serialize_enum_attr("bpf map type", &mut self.map, values, in_idx)
     }
 
     fn store_attribute(
@@ -1428,31 +1406,7 @@ pub(crate) struct BpfProgTypeAttribute {
 
 impl Attribute for BpfProgTypeAttribute {
     fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
-        let values: Result<Vec<BpfProgType>, anyhow::Error> = values
-            .iter()
-            .map(|lit| match lit {
-                Literal::String(s) => Ok(s.clone()),
-                Literal::Uint(i) => Err(anyhow::anyhow!(
-                    "expected String literal, found Uint: {}",
-                    i
-                )),
-            })
-            .map(|s| {
-                s.and_then(|s| {
-                    serde_json::from_str(&format!("\"{s}\"")).map_err(|x| {
-                        anyhow::anyhow!("Error while parsing bpf map type: {s}, {}", x)
-                    })
-                })
-            })
-            .collect();
-        let values = values?;
-        for key in values {
-            self.map
-                .entry(key)
-                .and_modify(|value| *value |= 1 << in_idx)
-                .or_insert(1 << in_idx);
-        }
-        Ok(())
+        util::serialize_enum_attr("bpf program type", &mut self.map, values, in_idx)
     }
 
     fn store_attribute(
@@ -1477,5 +1431,137 @@ impl Attribute for BpfProgTypeAttribute {
 
     fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
         (format!("{map_name_prefix}_TYPE_MAP"), self.map.len() as u32)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct SockFamilyAttribute {
+    pub map: HashMap<AddressFamily, u8>,
+}
+
+impl Attribute for SockFamilyAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_enum_attr("socket address family", &mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut family_map: EbpfHashMap<_, AddressFamilyKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_ADDRESS_FAMILY_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (family, value) in self.map.iter() {
+            let key = AddressFamilyKey {
+                rule_idx: rule_idx as u32,
+                family: *family,
+            };
+            let _ = family_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_ADDRESS_FAMILY_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct SockTypeAttribute {
+    pub map: HashMap<SocketType, u8>,
+}
+
+impl Attribute for SockTypeAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_enum_attr("socket type", &mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut type_map: EbpfHashMap<_, SocketTypeKey, u8> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_TYPE_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (socket_type, value) in self.map.iter() {
+            let key = SocketTypeKey {
+                rule_idx: rule_idx as u32,
+                socket_type: *socket_type,
+            };
+            let _ = type_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (format!("{map_name_prefix}_TYPE_MAP"), self.map.len() as u32)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct SockFlagsAttribute {
+    pub map: HashMap<u8, SocketFlags>,
+}
+
+impl Attribute for SockFlagsAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        let values: Result<Vec<SocketFlags>, anyhow::Error> = values
+            .iter()
+            .map(|lit| match lit {
+                Literal::String(s) => Ok(s.clone()),
+                Literal::Uint(i) => Err(anyhow::anyhow!(
+                    "expected String literal, found Uint: {}",
+                    i
+                )),
+            })
+            .map(|s| {
+                s.and_then(|s| {
+                    SocketFlags::from_str(&s)
+                        .map_err(|x| anyhow::anyhow!("Error while parsing socket flags: {}", x))
+                })
+            })
+            .collect();
+        let flags = values?.into_iter().fold(SocketFlags::empty(), |a, b| a | b);
+
+        if self.map.insert(in_idx, flags).is_some() {
+            bail!("socket flags already set for index {}", in_idx);
+        }
+        Ok(())
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut flags_map: EbpfHashMap<_, SocketFlagsKey, SocketFlags> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_FLAGS_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (in_idx, value) in self.map.iter() {
+            let key = SocketFlagsKey {
+                rule_idx,
+                in_idx: *in_idx,
+            };
+            let _ = flags_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_FLAGS_MAP"),
+            self.map.len() as u32,
+        )
     }
 }

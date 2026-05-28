@@ -12,3 +12,9 @@ define_predicate!(TcpConnectionPredicate {
     Attributes::PortSrc,
     Attributes::PortDst,
 });
+
+define_predicate!(SocketCreatePredicate {
+    Attributes::SockFamily,
+    Attributes::SockType,
+    Attributes::SockFlags,
+});

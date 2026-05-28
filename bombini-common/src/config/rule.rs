@@ -2,6 +2,7 @@ use crate::constants::{MAX_BPFNAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FIL
 use crate::constants::{MAX_RULE_OPERATIONS, MAX_RULES_COUNT};
 use crate::event::file::AccessMode;
 use crate::event::kernel::{BpfMapType, BpfProgType};
+use crate::event::network::{AddressFamily, SocketType};
 
 #[derive(Clone, Debug, Copy)]
 #[repr(C)]
@@ -48,6 +49,9 @@ pub enum Attributes {
     Ipv6Dst,
     PortSrc,
     PortDst,
+    SockFamily,
+    SockType,
+    SockFlags,
     // Procmon attributes
     UID,
     EUID,
@@ -160,12 +164,28 @@ pub type ImodeKey = CapKey;
 pub type CreationFlagsKey = CapKey;
 pub type ProtModeKey = CapKey;
 pub type FlagsKey = CapKey;
+pub type SocketFlagsKey = CapKey;
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct AddressFamilyKey {
+    pub rule_idx: u32,
+    pub family: AddressFamily,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct SocketTypeKey {
+    pub rule_idx: u32,
+    pub socket_type: SocketType,
+}
 
 #[cfg(feature = "user")]
 pub mod user {
     use super::*;
     use crate::event::{
         file::{CreationFlags, Imode, ProtMode, SharingType},
+        network::SocketFlags,
         process::Capabilities,
     };
 
@@ -181,10 +201,13 @@ pub mod user {
     unsafe impl aya::Pod for PortKey {}
     unsafe impl aya::Pod for Imode {}
     unsafe impl aya::Pod for CreationFlags {}
+    unsafe impl aya::Pod for SocketFlags {}
     unsafe impl aya::Pod for AccessModeKey {}
     unsafe impl aya::Pod for ProtMode {}
     unsafe impl aya::Pod for SharingType {}
     unsafe impl aya::Pod for BpfNameKey {}
     unsafe impl aya::Pod for BpfMapTypeKey {}
     unsafe impl aya::Pod for BpfProgTypeKey {}
+    unsafe impl aya::Pod for AddressFamilyKey {}
+    unsafe impl aya::Pod for SocketTypeKey {}
 }
