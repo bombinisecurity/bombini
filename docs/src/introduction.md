@@ -17,6 +17,6 @@ All Detectors perform in-kernel event filtering directly within eBPF programs, m
 
 Bombini rule engine enables the detection of advanced threats, such as the disclosure of [GTFOBins](https://gtfobins.github.io/), which involves the execution of privileged shells through the abuse of eligible binaries.
 
-Additionally, *ProcMon* and *FileMon* can optionally enforce sandboxing policies, allowing fine-grained control over process execution and file access based on configurable rules.
+Additionally, *ProcMon*, *FileMon* and *NetMon* can optionally enforce sandboxing policies, allowing fine-grained control over process execution, file access and ip connections based on configurable rules.
 
 By combining the safety of Rust, the power of eBPF, and the flexibility of LSM hooks, Bombini provides a lightweight, high-performance, and extensible runtime security monitoring solution for Linux systems.
