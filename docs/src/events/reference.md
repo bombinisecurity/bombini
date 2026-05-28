@@ -1104,6 +1104,10 @@ JSON schema for all events.
   "description": "Network event",
   "type": "object",
   "properties": {
+    "blocked": {
+      "description": "If event is blocked by sandbox mode",
+      "type": "boolean"
+    },
     "network_event": {
       "description": "Network event",
       "$ref": "#/$defs/NetworkEventType"
@@ -1137,6 +1141,7 @@ JSON schema for all events.
   },
   "required": [
     "process",
+    "blocked",
     "network_event",
     "timestamp"
   ],
@@ -1178,6 +1183,32 @@ JSON schema for all events.
             }
           },
           "$ref": "#/$defs/TcpConnection",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "SocketCreate"
+            }
+          },
+          "$ref": "#/$defs/SocketCreate",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "SocketConnect"
+            }
+          },
+          "$ref": "#/$defs/SocketConnect",
           "required": [
             "type"
           ]
@@ -1312,6 +1343,74 @@ JSON schema for all events.
         "args",
         "exec_id",
         "parent_exec_id"
+      ]
+    },
+    "SocketConnect": {
+      "description": "Socket connect information",
+      "type": "object",
+      "properties": {
+        "daddr": {
+          "description": "destination IP address,",
+          "type": "string"
+        },
+        "dport": {
+          "description": "destination port",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "family": {
+          "description": "socket family",
+          "type": "string"
+        },
+        "protocol": {
+          "description": "socket protocol",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sock_type": {
+          "description": "socket type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "family",
+        "sock_type",
+        "protocol",
+        "daddr",
+        "dport"
+      ]
+    },
+    "SocketCreate": {
+      "description": "Socket creation information",
+      "type": "object",
+      "properties": {
+        "family": {
+          "description": "socket family",
+          "type": "string"
+        },
+        "flags": {
+          "description": "socket flags",
+          "type": "string"
+        },
+        "protocol": {
+          "description": "socket protocol",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sock_type": {
+          "description": "socket type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "family",
+        "sock_type",
+        "flags",
+        "protocol"
       ]
     },
     "TcpConnection": {

@@ -91,6 +91,8 @@ Configuration file for NetMon detector.
 | ----- | ---- | ----- | ----------- |
 | ingress | [HookConfig](#config-HookConfig) |  | Ingress traffic connections |
 | egress | [HookConfig](#config-HookConfig) |  | Egress traffic connections |
+| socket_create | [HookConfig](#config-HookConfig) |  | Socket creation |
+| socket_connect | [HookConfig](#config-HookConfig) |  | Connect over socket |
 
 
 

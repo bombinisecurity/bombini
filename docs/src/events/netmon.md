@@ -326,3 +326,136 @@ telnet localhost 7878
   "timestamp": "2025-12-11T12:31:34.646Z"
 }
 ```
+
+## SocketCreate
+
+Example:
+
+```bash
+nc -l 7878
+```
+
+```json
+{
+  "type": "NetworkEvent",
+  "process": {
+    "start_time": "2026-05-28T15:45:13.131Z",
+    "cloned": false,
+    "pid": 3445,
+    "tid": 3445,
+    "ppid": 1778,
+    "uid": 535357931,
+    "euid": 535357931,
+    "gid": 1000,
+    "egid": 1000,
+    "auid": 535357931,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "nc.openbsd",
+    "binary_path": "/usr/bin/nc.openbsd",
+    "args": "-l 7878",
+    "exec_id": "MzQ0NToxMTUwMDI0MjcxNTAxNA",
+    "parent_exec_id": "MTc3ODoxMjc2MDAwMDAwMA"
+  },
+  "parent": {
+    "start_time": "2026-05-28T12:33:45.648Z",
+    "cloned": false,
+    "pid": 1778,
+    "tid": 1778,
+    "ppid": 1700,
+    "uid": 535357931,
+    "euid": 535357931,
+    "gid": 1000,
+    "egid": 1000,
+    "auid": 535357931,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "bash",
+    "binary_path": "/usr/bin/bash",
+    "args": "--login",
+    "exec_id": "MTc3ODoxMjc2MDAwMDAwMA",
+    "parent_exec_id": "MTcwMDo5NjEwMDAwMDAw"
+  },
+  "blocked": false,
+  "network_event": {
+    "type": "SocketCreate",
+    "family": "AF_INET",
+    "sock_type": "SOCK_STREAM",
+    "flags": "",
+    "protocol": 6
+  },
+  "timestamp": "2026-05-28T15:45:13.133Z"
+}
+```
+
+## SocketConnect
+
+Example:
+
+```bash
+nc -l 7871
+telnet localhost 7871
+```
+
+```json
+{
+  "type": "NetworkEvent",
+  "process": {
+    "start_time": "2026-05-31T13:56:01.177Z",
+    "cloned": false,
+    "pid": 17649,
+    "tid": 17649,
+    "ppid": 1830,
+    "uid": 535357931,
+    "euid": 535357931,
+    "gid": 1000,
+    "egid": 1000,
+    "auid": 535357931,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "inetutils-telnet",
+    "binary_path": "/usr/bin/inetutils-telnet",
+    "args": "-4 localhost 7871",
+    "exec_id": "MTc2NDk6ODg1Njg1ODQ4OTg0MQ",
+    "parent_exec_id": "MTgzMDoyMTUxMDAwMDAwMA"
+  },
+  "parent": {
+    "start_time": "2026-05-31T11:28:45.829Z",
+    "cloned": false,
+    "pid": 1830,
+    "tid": 1830,
+    "ppid": 1753,
+    "uid": 535357931,
+    "euid": 535357931,
+    "gid": 1000,
+    "egid": 1000,
+    "auid": 535357931,
+    "cap_inheritable": "",
+    "cap_permitted": "",
+    "cap_effective": "",
+    "secureexec": "",
+    "filename": "bash",
+    "binary_path": "/usr/bin/bash",
+    "args": "--login",
+    "exec_id": "MTgzMDoyMTUxMDAwMDAwMA",
+    "parent_exec_id": "MTc1MzoxNTIyMDAwMDAwMA"
+  },
+  "blocked": false,
+  "network_event": {
+    "type": "SocketConnect",
+    "family": "AF_INET",
+    "sock_type": "SOCK_STREAM",
+    "protocol": 6,
+    "daddr": "127.0.0.1",
+    "dport": 7871
+  },
+  "timestamp": "2026-05-31T13:56:01.181Z",
+  "rule": "SocketConnecttestRule"
+}
+```

@@ -186,7 +186,7 @@ file_open:
 
 ## Sandbox Mode
 
-Bombini supports sandboxing for ProcMon and FileMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy. In allow-list mode, `event` restrictions are tied to the `scope` of the event. If there is no `scope` restriction, the `event` restriction is applied to the entire host.
+Bombini supports sandboxing for ProcMon, FileMon and NetMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy. In allow-list mode, `event` restrictions are tied to the `scope` of the event. If there is no `scope` restriction, the `event` restriction is applied to the entire host.
 
 Sandbox configuration is added at the hook level and follows this pattern:
 
@@ -248,4 +248,18 @@ bprm_check:
   rules:
   - rule: BprmCheckTestRule
     event: path_prefix in ["/usr", "/bin", "/sbin", "/home"]
+```
+
+Allow `curl` to connect only to `127.0.0.1` and port `8080`:
+
+```yaml
+socket_connect:
+  enabled: true
+  sandbox:
+    enabled: true
+    deny_list: false
+  rules:
+  - rule: SocketConnectSandboxRule
+    scope: binary_name == "curl"
+    event: ipv4_addr == "127.0.0.1" AND port == 8080
 ```
