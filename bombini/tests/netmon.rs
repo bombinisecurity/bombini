@@ -128,3 +128,167 @@ egress:
     ma::assert_ge!(events.matches("\"type\":\"TcpConnectionClose\"").count(), 1);
     ma::assert_ge!(events.matches("\"args\":\"-6 localhost 7879\"").count(), 4);
 }
+
+#[test]
+fn test_6_2_netmon_socket_create() {
+    let config_contents = r#"
+socket_create:
+  enabled: true
+  rules:
+  - rule: SocketCreateTestRule
+    event: family == "AF_INET6" AND type == "SOCK_STREAM"
+
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("netmon", Some(config_contents))
+        .events_timeout(4)
+        .launch()
+        .unwrap();
+
+    let mut nc = Command::new("nc")
+        .args(["-6", "-l", "7879"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start nc");
+
+    // Wait nc
+    thread::sleep(Duration::from_millis(1500));
+
+    // Wait Events being processed
+    let events = bombini
+        .wait_for_events("\"type\":\"NetworkEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(nc.id() as i32), Signal::SIGKILL);
+    let _ = nc.wait().unwrap();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"NetworkEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"SocketCreate\"").count(), 1);
+    ma::assert_ge!(events.matches("\"family\":\"AF_INET6\"").count(), 1);
+    ma::assert_ge!(events.matches("\"sock_type\":\"SOCK_STREAM\"").count(), 1);
+    ma::assert_ge!(events.matches("\"args\":\"-6 -l 7879\"").count(), 1);
+    ma::assert_ge!(
+        events.matches("\"rule\":\"SocketCreateTestRule\"").count(),
+        1
+    );
+}
+
+#[test]
+fn test_6_2_netmon_socket_connect_v4() {
+    let config_contents = r#"
+socket_connect:
+  enabled: true
+  rules:
+  - rule: SocketConnectIpv4Test
+    event: ipv4_dst == "127.0.0.1" AND port_dst == 7879
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("netmon", Some(config_contents))
+        .events_timeout(4)
+        .launch()
+        .unwrap();
+
+    let mut nc = Command::new("nc")
+        .args(["-4", "-l", "7879"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start nc");
+
+    // Wait nc
+    thread::sleep(Duration::from_millis(1500));
+
+    let _ = Command::new("telnet")
+        .args(["-4", "localhost", "7879"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start nc");
+
+    // Wait Events being processed
+    let events = bombini
+        .wait_for_events("\"type\":\"NetworkEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(nc.id() as i32), Signal::SIGKILL);
+    let _ = nc.wait().unwrap();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"NetworkEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"SocketConnect\"").count(), 1);
+    ma::assert_ge!(
+        events.matches("\"rule\":\"SocketConnectIpv4Test\"").count(),
+        1
+    );
+    ma::assert_ge!(events.matches("\"family\":\"AF_INET\"").count(), 1);
+    ma::assert_ge!(events.matches("\"sock_type\":\"SOCK_STREAM\"").count(), 1);
+    ma::assert_ge!(events.matches("\"args\":\"-4 localhost 7879\"").count(), 3);
+}
+
+#[test]
+fn test_6_2_netmon_socket_connect_v6() {
+    let config_contents = r#"
+socket_connect:
+  enabled: true
+  rules:
+  - rule: SocketConnectIpv6Test
+    event: ipv6_dst == "::1" AND port_dst == 7879
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("netmon", Some(config_contents))
+        .events_timeout(4)
+        .launch()
+        .unwrap();
+
+    let mut nc = Command::new("nc")
+        .args(["-6", "-l", "7879"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start nc");
+
+    // Wait nc
+    thread::sleep(Duration::from_millis(1500));
+
+    let _ = Command::new("telnet")
+        .args(["-6", "localhost", "7879"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start nc");
+
+    // Wait Events being processed
+    let events = bombini
+        .wait_for_events("\"type\":\"NetworkEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(nc.id() as i32), Signal::SIGKILL);
+    let _ = nc.wait().unwrap();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"NetworkEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"SocketConnect\"").count(), 1);
+    ma::assert_ge!(
+        events.matches("\"rule\":\"SocketConnectIpv6Test\"").count(),
+        1
+    );
+    ma::assert_ge!(events.matches("\"family\":\"AF_INET6\"").count(), 1);
+    ma::assert_ge!(events.matches("\"sock_type\":\"SOCK_STREAM\"").count(), 1);
+    ma::assert_ge!(events.matches("\"args\":\"-6 localhost 7879\"").count(), 3);
+}
