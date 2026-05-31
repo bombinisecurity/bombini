@@ -6,7 +6,7 @@ use std::sync::Arc;
 use bombini_common::event::{
     Event,
     network::{
-        AddressFamily, NetworkEventVariant, SocketFlags, SocketType, TcpConnectionV4,
+        AddressFamily, IPAddress, NetworkEventVariant, SocketFlags, SocketType, TcpConnectionV4,
         TcpConnectionV6,
     },
 };
@@ -49,6 +49,7 @@ pub enum NetworkEventType {
     TcpConnectionClose(TcpConnection),
     TcpConnectionAccept(TcpConnection),
     SocketCreate(SocketCreate),
+    SocketConnect(SocketConnect),
 }
 
 /// TCP IPv4 connection information
@@ -86,6 +87,26 @@ pub struct SocketCreate {
     flags: SocketFlags,
     /// socket protocol
     protocol: u32,
+}
+
+/// Socket connect information
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[repr(C)]
+pub struct SocketConnect {
+    /// socket family
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    family: AddressFamily,
+    /// socket type
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    sock_type: SocketType,
+    /// socket protocol
+    protocol: u32,
+    /// destination IP address,
+    #[cfg_attr(feature = "schema", schemars(with = "String"))]
+    daddr: IpAddr,
+    /// destination port
+    dport: u16,
 }
 
 impl<'a> NetworkEvent<'a> {
@@ -178,7 +199,28 @@ impl<'a> NetworkEvent<'a> {
                 }),
                 timestamp: transmute_ktime(ktime),
             },
+            NetworkEventVariant::SocketConnect(sock) => Self {
+                process,
+                parent,
+                blocked,
+                rule,
+                network_event: NetworkEventType::SocketConnect(SocketConnect {
+                    family: sock.family,
+                    sock_type: sock.socket_type,
+                    protocol: sock.protocol,
+                    daddr: transmute_socket_connect_addr(sock.daddr),
+                    dport: sock.dport.swap_bytes(),
+                }),
+                timestamp: transmute_ktime(ktime),
+            },
         }
+    }
+}
+
+fn transmute_socket_connect_addr(addr: IPAddress) -> IpAddr {
+    match addr {
+        IPAddress::IPv4(v4) => Ipv4Addr::from_bits(v4.swap_bytes()).into(),
+        IPAddress::IPv6(v6) => Ipv6Addr::from_bits(u128::from_be_bytes(v6)).into(),
     }
 }
 
@@ -209,6 +251,7 @@ pub struct NetworkEventTransmuter {
     egress_rule_names: Vec<String>,
 
     socket_create_rule_names: Vec<String>,
+    socket_connect_rule_names: Vec<String>,
 }
 
 impl NetworkEventTransmuter {
@@ -224,6 +267,7 @@ impl NetworkEventTransmuter {
             ingress_rule_names: rule_names_from_hook_config(&cfg.ingress),
             egress_rule_names: rule_names_from_hook_config(&cfg.egress),
             socket_create_rule_names: rule_names_from_hook_config(&cfg.socket_create),
+            socket_connect_rule_names: rule_names_from_hook_config(&cfg.socket_connect),
         }
     }
 
@@ -243,6 +287,7 @@ impl NetworkEventTransmuter {
                 &self.ingress_rule_names
             }
             NetworkEventVariant::SocketCreate(_) => &self.socket_create_rule_names,
+            NetworkEventVariant::SocketConnect(_) => &self.socket_connect_rule_names,
         };
 
         rule_idx

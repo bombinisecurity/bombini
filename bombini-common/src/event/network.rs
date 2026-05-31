@@ -53,6 +53,30 @@ pub struct SocketCreate {
     pub protocol: u32,
 }
 
+/// Socket connect information
+#[derive(Clone, Debug)]
+#[repr(C)]
+pub struct SocketConnect {
+    /// socket family
+    pub family: AddressFamily,
+    /// socket type
+    pub socket_type: SocketType,
+    /// socket protocol number
+    pub protocol: u32,
+    /// Destination address
+    pub daddr: IPAddress,
+    /// Destination port
+    pub dport: u16,
+}
+
+/// IP address representation
+#[derive(Clone, Debug, Copy)]
+#[repr(C)]
+pub enum IPAddress {
+    IPv4(u32),
+    IPv6([u8; 16]),
+}
+
 /// Raw network event messages
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
@@ -72,6 +96,8 @@ pub enum NetworkEventVariant {
     TcpConV6Accept(TcpConnectionV6) = NetworkEventNumber::TcpConV6Accept as u8,
     /// Creating socket
     SocketCreate(SocketCreate) = NetworkEventNumber::SocketCreate as u8,
+    /// Socket connect
+    SocketConnect(SocketConnect) = NetworkEventNumber::SocketConnect as u8,
 }
 
 /// Should be the same as in the kernel
@@ -154,7 +180,6 @@ bitflags! {
     pub struct SocketFlags: u32 {
         const SOCK_CLOEXEC	= 0o2000000;
         const SOCK_NONBLOCK	= 0o4000;
-        const SOCK_COREDUMP	= 0o400;
     }
 }
 
@@ -176,6 +201,7 @@ pub enum NetworkEventNumber {
     TcpConV4Accept,
     TcpConV6Accept,
     SocketCreate,
+    SocketConnect,
 
     TotalNetworkEvents,
 }

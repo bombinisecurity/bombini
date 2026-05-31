@@ -1,6 +1,8 @@
 ingress:
-  enabled: true
+  enabled: false
 egress:
-  enabled: true
+  enabled: false
 socket_create:
+  enabled: false
+socket_connect:
   enabled: false

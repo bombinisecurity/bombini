@@ -92,9 +92,6 @@ pub struct NetMonConfig {
     /// Connect over socket
     #[prost(message, optional, tag = "4")]
     pub socket_connect: ::core::option::Option<HookConfig>,
-    /// Accept over socket
-    #[prost(message, optional, tag = "5")]
-    pub socket_accept: ::core::option::Option<HookConfig>,
 }
 /// Rule definition. Scope and event predicates are used as logical conjunction.
 #[derive(serde::Deserialize)]

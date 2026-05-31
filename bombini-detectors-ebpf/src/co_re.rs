@@ -169,9 +169,10 @@ macro_rules! rust_shim_kernel_trusted_or_null_impl {
             if !self.is_null()
                 && paste::paste! {[<shim_ $struct _ $member _trusted_or_null_exists>]}(self.as_ptr_mut())
             {
-                return Some(
-                    paste::paste! {[<shim_ $struct _ $member _trusted_or_null>]}(self.as_ptr_mut()).into()
-                );
+                let pointer = paste::paste! {[<shim_ $struct _ $member _trusted_or_null>]}(self.as_ptr_mut());
+                if core::hint::black_box(!pointer.is_null()) {
+                    return Some(pointer.into());
+                }
             }
             None
         }
