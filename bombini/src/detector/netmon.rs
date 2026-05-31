@@ -12,7 +12,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 use crate::detector::Detector;
 use crate::proto::config::{NetMonConfig, Rule};
 use crate::rule::serializer::PredicateSerializer;
-use crate::rule::serializer::netmon::SocketCreatePredicate;
+use crate::rule::serializer::netmon::{SocketConnectPredicate, SocketCreatePredicate};
 use crate::rule::serializer::{SerializedRules, netmon::TcpConnectionPredicate};
 
 #[derive(Debug, Copy, Clone)]
@@ -20,6 +20,7 @@ enum NetMonHook {
     Ingress,
     Egress,
     SocketCreate,
+    SocketConnect,
 }
 
 struct ConnectionControlData<T: PredicateSerializer + Default> {
@@ -48,6 +49,7 @@ impl NetMonHook {
             NetMonHook::Ingress => "NETMON_INGRESS",
             NetMonHook::Egress => "NETMON_EGRESS",
             NetMonHook::SocketCreate => "NETMON_SOCKET_CREATE",
+            NetMonHook::SocketConnect => "NETMON_SOCKET_CONNECT",
         }
     }
 }
@@ -58,6 +60,7 @@ pub struct NetMon {
     ingress: Option<Box<ConnectionControlData<TcpConnectionPredicate>>>,
     egress: Option<Box<ConnectionControlData<TcpConnectionPredicate>>>,
     socket_create: Option<Box<ConnectionControlData<SocketCreatePredicate>>>,
+    socket_connect: Option<Box<ConnectionControlData<SocketConnectPredicate>>>,
 }
 
 impl NetMon {
@@ -111,6 +114,22 @@ impl NetMon {
         } else {
             None
         };
+        let socket_connect = if let Some(socket_connect_cfg) = &config.socket_connect
+            && socket_connect_cfg.enabled
+        {
+            if let Some(sandbox) = &socket_connect_cfg.sandbox
+                && sandbox.enabled
+            {
+                detector_config.sandbox_mode[NetworkEventNumber::SocketConnect as usize] =
+                    Some(sandbox.deny_list);
+            }
+            Some(Box::new(ConnectionControlData::new(
+                NetMonHook::SocketConnect,
+                &socket_connect_cfg.rules,
+            )?))
+        } else {
+            None
+        };
 
         // Resize maps
         if let Some(ref ingress) = ingress {
@@ -143,6 +162,16 @@ impl NetMon {
                 });
         }
 
+        if let Some(ref socket_connect) = socket_connect {
+            socket_connect
+                .map_sizes
+                .iter()
+                .filter(|(_, size)| **size > 1)
+                .for_each(|(name, size)| {
+                    ebpf_loader_ref.set_max_entries(name, *size);
+                });
+        }
+
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
         Ok(NetMon {
             ebpf,
@@ -150,6 +179,7 @@ impl NetMon {
             ingress,
             egress,
             socket_create,
+            socket_connect,
         })
     }
 }
@@ -198,6 +228,14 @@ impl Detector for NetMon {
             socket_create
                 .serialized_rules
                 .store_rules(&mut self.ebpf, socket_create.hook.map_prefix())
+                .map_err(|e| MapError::InvalidName {
+                    name: e.to_string(),
+                })?;
+        }
+        if let Some(ref socket_connect) = self.socket_connect {
+            socket_connect
+                .serialized_rules
+                .store_rules(&mut self.ebpf, socket_connect.hook.map_prefix())
                 .map_err(|e| MapError::InvalidName {
                     name: e.to_string(),
                 })?;
@@ -253,6 +291,16 @@ impl Detector for NetMon {
             socket_create.load("socket_create", &btf)?;
             socket_create.attach()?;
         }
+        if self.socket_connect.is_some() {
+            let socket_connect: &mut Lsm = self
+                .ebpf
+                .program_mut("socket_connect_capture")
+                .unwrap()
+                .try_into()?;
+            socket_connect.load("socket_connect", &btf)?;
+            socket_connect.attach()?;
+        }
+
         Ok(())
     }
 }

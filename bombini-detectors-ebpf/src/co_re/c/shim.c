@@ -325,9 +325,45 @@ SHIM_REF(sock_common, skc_v6_rcv_saddr);
 struct sock
 {
     struct sock_common __sk_common;
+    u16 sk_protocol;
 } __attribute__((preserve_access_index));
 
 SHIM_REF(sock, __sk_common);
+SHIM_TRUSTED(sock, sk_protocol);
+
+struct socket {
+	short			type;
+	struct sock		*sk;
+} __attribute__((preserve_access_index));
+
+SHIM_TRUSTED(socket, type);
+SHIM_TRUSTED_OR_NULL(socket, sk);
+
+struct in_addr {
+    __be32       s_addr;     /* address in network byte order */
+} __attribute__((preserve_access_index));
+
+SHIM_TRUSTED(in_addr, s_addr);
+
+struct sockaddr_in {
+    __kernel_sa_family_t    sin_family; /* address family: AF_INET */
+    __be16		sin_port;	/* port */
+    struct in_addr	sin_addr;	/* Internet address		*/
+} __attribute__((preserve_access_index));
+
+SHIM_TRUSTED(sockaddr_in, sin_family);
+SHIM_TRUSTED(sockaddr_in, sin_port);
+SHIM_REF(sockaddr_in, sin_addr);
+
+struct sockaddr_in6 {
+	unsigned short int	sin6_family;    /* AF_INET6 */
+	__be16			sin6_port;      /* Transport layer port # */
+	struct in6_addr		sin6_addr;
+}__attribute__((preserve_access_index));
+
+SHIM_TRUSTED(sockaddr_in6, sin6_family);
+SHIM_TRUSTED(sockaddr_in6, sin6_port);
+SHIM_REF(sockaddr_in6, sin6_addr);
 
 struct io_cmd_data
 {

@@ -18,3 +18,9 @@ define_predicate!(SocketCreatePredicate {
     Attributes::SockType,
     Attributes::SockFlags,
 });
+
+define_predicate!(SocketConnectPredicate {
+    Attributes::Ipv4Dst,
+    Attributes::Ipv6Dst,
+    Attributes::PortDst,
+});

@@ -19,7 +19,9 @@ use aya_ebpf::{
 
 use bombini_detectors_ebpf::{
     co_re::{self, core_read_kernel},
-    filter::netmon::socket::{SocketCreateFilter, SocketFlagsValue},
+    filter::netmon::socket::{
+        SocketConnectIPv4Filter, SocketConnectIPv6Filter, SocketCreateFilter, SocketFlagsValue,
+    },
 };
 
 use bombini_common::{
@@ -27,7 +29,7 @@ use bombini_common::{
         FileNameMapKey, Ipv4MapKey, Ipv6MapKey, PathMapKey, PathPrefixMapKey, PortKey, Rules,
     },
     constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
-    event::network::{NetworkEventNumber, NetworkEventVariant},
+    event::network::{IPAddress, NetworkEventNumber, NetworkEventVariant},
 };
 use bombini_common::{
     config::{
@@ -401,6 +403,270 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                     msg.blocked = true;
                     return Ok(-1);
                 }
+            }
+        }
+    }
+    Err(0)
+}
+
+// Socket connect rules maps
+#[map]
+static NETMON_SOCKET_CONNECT_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+// Filter socket connect maps begin
+#[map]
+static NETMON_SOCKET_CONNECT_DST_IPV6_MAP: LpmTrie<Ipv6MapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_DST_IPV4_MAP: LpmTrie<Ipv4MapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_DST_PORT_MAP: HashMap<PortKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+// Filter maps end
+
+#[lsm(hook = "socket_connect")]
+pub fn socket_connect_capture(ctx: LsmContext) -> i32 {
+    // Check that socket family is AF_INET or AF_INET6
+    let family: u16 = unsafe { *(ctx.arg::<*const u16>(1)) };
+    if family != AddressFamily::AF_INET as u16 && family != AddressFamily::AF_INET6 as u16 {
+        return 0;
+    }
+
+    event_capture!(ctx, MSG_NETWORK, true, try_socket_connect)
+}
+
+fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+    let Event::Network(ref mut msg) = generic_event.event else {
+        return Err(-1);
+    };
+    let pid = ctx.tgid();
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(-1);
+    };
+
+    let Some(rules) = NETMON_SOCKET_CONNECT_RULE_MAP.get(0) else {
+        return Err(-1);
+    };
+
+    unsafe {
+        let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
+        *p = NetworkEventNumber::SocketConnect as u8;
+    }
+
+    let NetworkEventVariant::SocketConnect(ref mut event) = msg.event else {
+        return Err(-1);
+    };
+
+    unsafe {
+        let socket = co_re::socket::from_ptr(ctx.arg(0));
+        let Some(sock) = core_read_kernel!(socket, sk) else {
+            return Err(-1);
+        };
+        let family: u16 = *(ctx.arg::<*const u16>(1));
+        event.family = core::mem::transmute::<u32, AddressFamily>(family as u32);
+        event.socket_type = core::mem::transmute::<u32, SocketType>(
+            core_read_kernel!(socket, r#type).unwrap() as u32,
+        );
+        event.protocol = core_read_kernel!(sock, sk_protocol).unwrap() as u32;
+
+        match event.family {
+            AddressFamily::AF_INET => {
+                let sockaddr_in = co_re::sockaddr_in::from_ptr(ctx.arg(1));
+                let raw_ip = core_read_kernel!(sockaddr_in, sin_addr, s_addr).unwrap();
+                event.daddr = IPAddress::IPv4(raw_ip);
+                event.dport = core_read_kernel!(sockaddr_in, sin_port).unwrap();
+
+                let Some(ref rule_array) = rules.0 else {
+                    enrich_with_proc_info_and_rule_idx(msg, proc, None);
+                    return Ok(0);
+                };
+
+                let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
+                    return Err(-1);
+                };
+                let config = config_ptr.as_ref();
+                let Some(config) = config else {
+                    return Err(-1);
+                };
+
+                let sandbox: Option<bool> =
+                    config.sandbox_mode[NetworkEventNumber::SocketConnect as usize];
+
+                // Get ip_dst
+                let daddr = raw_ip.to_le_bytes();
+                let ip_dst = fill_ip_map!(NETMON_IPV4_DST_MAP, &daddr, 4);
+
+                // Get port_dst
+                let mut port_dst = PortKey {
+                    rule_idx: 0,
+                    port: event.dport.swap_bytes(),
+                };
+
+                // Get binary name
+                let binary_name = fill_name_map!(NETMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+                // Get binary path
+                let binary_path = fill_path_map!(NETMON_BINARY_PATH_MAP, &proc.binary_path);
+
+                // Get binary prefix
+                let binary_prefix =
+                    fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+                    ip_dst.data.rule_idx = idx as u8;
+                    port_dst.rule_idx = idx as u16;
+                    binary_name.rule_idx = idx as u8;
+                    binary_path.rule_idx = idx as u8;
+                    binary_prefix.data.rule_idx = idx as u8;
+                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                        &NETMON_SOCKET_CONNECT_BINNAME_MAP,
+                        &NETMON_SOCKET_CONNECT_BINPATH_MAP,
+                        &NETMON_SOCKET_CONNECT_BINPREFIX_MAP,
+                        binary_name,
+                        binary_path,
+                        binary_prefix,
+                    ))?;
+                    let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+                    if scope_passed {
+                        let mut event_filter =
+                            interpreter::Interpreter::new(SocketConnectIPv4Filter::new(
+                                &NETMON_SOCKET_CONNECT_DST_IPV4_MAP,
+                                &NETMON_SOCKET_CONNECT_DST_PORT_MAP,
+                                ip_dst,
+                                &port_dst,
+                            ))?;
+                        let passed = event_filter.check_predicate(&rule.event)?;
+                        if passed {
+                            if sandbox.is_none() {
+                                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                                return Ok(0);
+                            }
+                            let deny_list = sandbox.unwrap();
+                            if deny_list {
+                                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                                msg.blocked = true;
+                                return Ok(-1);
+                            }
+                            // allow list is satisfied: do not send event
+                            return Err(0);
+                        } else if let Some(deny_list) = sandbox
+                            && !deny_list
+                        {
+                            // allow list is not satisfied: send event
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                            msg.blocked = true;
+                            return Ok(-1);
+                        }
+                    }
+                }
+            }
+            AddressFamily::AF_INET6 => {
+                let sockaddr_in6 = co_re::sockaddr_in6::from_ptr(ctx.arg(1));
+                let sin6_addr = core_read_kernel!(sockaddr_in6, sin6_addr, u6_addr8).unwrap();
+                let mut ipv6_raw = [0u8; 16];
+                bpf_probe_read_kernel_buf(sin6_addr, &mut ipv6_raw).map_err(|_| -1i32)?;
+                event.daddr = IPAddress::IPv6(ipv6_raw);
+                event.dport = core_read_kernel!(sockaddr_in6, sin6_port).unwrap();
+
+                let Some(ref rule_array) = rules.0 else {
+                    enrich_with_proc_info_and_rule_idx(msg, proc, None);
+                    return Ok(0);
+                };
+
+                let Some(config_ptr) = NETMON_CONFIG.get_ptr(0) else {
+                    return Err(-1);
+                };
+                let config = config_ptr.as_ref();
+                let Some(config) = config else {
+                    return Err(-1);
+                };
+
+                let sandbox: Option<bool> =
+                    config.sandbox_mode[NetworkEventNumber::SocketConnect as usize];
+
+                // Get ip_dst
+                let ip_dst = fill_ip_map!(NETMON_IPV6_DST_MAP, &ipv6_raw, 16);
+
+                // Get port_dst
+                let mut port_dst = PortKey {
+                    rule_idx: 0,
+                    port: event.dport.swap_bytes(),
+                };
+
+                // Get binary name
+                let binary_name = fill_name_map!(NETMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+                // Get binary path
+                let binary_path = fill_path_map!(NETMON_BINARY_PATH_MAP, &proc.binary_path);
+
+                // Get binary prefix
+                let binary_prefix =
+                    fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+                    ip_dst.data.rule_idx = idx as u8;
+                    port_dst.rule_idx = idx as u16;
+                    binary_name.rule_idx = idx as u8;
+                    binary_path.rule_idx = idx as u8;
+                    binary_prefix.data.rule_idx = idx as u8;
+                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                        &NETMON_SOCKET_CONNECT_BINNAME_MAP,
+                        &NETMON_SOCKET_CONNECT_BINPATH_MAP,
+                        &NETMON_SOCKET_CONNECT_BINPREFIX_MAP,
+                        binary_name,
+                        binary_path,
+                        binary_prefix,
+                    ))?;
+                    let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+                    if scope_passed {
+                        let mut event_filter =
+                            interpreter::Interpreter::new(SocketConnectIPv6Filter::new(
+                                &NETMON_SOCKET_CONNECT_DST_IPV6_MAP,
+                                &NETMON_SOCKET_CONNECT_DST_PORT_MAP,
+                                ip_dst,
+                                &port_dst,
+                            ))?;
+                        let passed = event_filter.check_predicate(&rule.event)?;
+                        if passed {
+                            if sandbox.is_none() {
+                                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                                return Ok(0);
+                            }
+                            let deny_list = sandbox.unwrap();
+                            if deny_list {
+                                enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                                msg.blocked = true;
+                                return Ok(-1);
+                            }
+                            // allow list is satisfied: do not send event
+                            return Err(0);
+                        } else if let Some(deny_list) = sandbox
+                            && !deny_list
+                        {
+                            // allow list is not satisfied: send event
+                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                            msg.blocked = true;
+                            return Ok(-1);
+                        }
+                    }
+                }
+            }
+            _ => {
+                return Err(-1);
             }
         }
     }
