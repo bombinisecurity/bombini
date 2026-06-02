@@ -35,6 +35,12 @@ pub enum Attributes {
     BinaryPath,
     BinaryPrefix,
     BinaryName,
+    ParentBinaryPath,
+    ParentBinaryPrefix,
+    ParentBinaryName,
+    AncestorBinaryPath,
+    AncestorBinaryPrefix,
+    AncestorBinaryName,
     // Filemon attributes
     CreationFlags,
     AccessMode,

@@ -21,7 +21,7 @@ use bombini_common::{
         AccessModeKey, CmdKey, CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, PathMapKey,
         PathPrefixMapKey, ProtModeKey, Rules, UIDKey,
     },
-    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE},
+    constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_RULES_COUNT},
     event::{
         Event, GenericEvent, MSG_FILE,
         file::{
@@ -40,10 +40,11 @@ use bombini_detectors_ebpf::{
             fileopen::{CreationFlagsValue, FileOpenFilter},
             mmap::{MmapFileFilter, MmapFlagsValue, ProtModeValue},
         },
-        scope::ScopeFilter,
+        scope::{ScopeResults, eval_scope_predicate},
     },
+    gen_scope_precompute,
     interpreter::{self, rule::IsEmpty},
-    util,
+    run_scope_precompute, util,
 };
 
 use bombini_detectors_ebpf::filter::filemon::{
@@ -186,6 +187,205 @@ static FILEMON_BINARY_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> =
 static FILEMON_BINARY_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
     PerCpuArray::with_max_entries(1, 0);
 
+const ANCESTOR_MAX_DEPTH: usize = 4;
+
+// Per-CPU buffer holding all pre-computed binary/parent/ancestor scope masks.
+#[map]
+static FILEMON_SCOPE_RESULTS: PerCpuArray<ScopeResults> = PerCpuArray::with_max_entries(1, 0);
+
+gen_scope_precompute!(
+    file_open,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_FILE_OPEN_BINNAME_MAP,
+        FILEMON_FILE_OPEN_BINPATH_MAP,
+        FILEMON_FILE_OPEN_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_FILE_OPEN_PARENT_BINNAME_MAP,
+        FILEMON_FILE_OPEN_PARENT_BINPATH_MAP,
+        FILEMON_FILE_OPEN_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_FILE_OPEN_ANCESTOR_BINNAME_MAP,
+        FILEMON_FILE_OPEN_ANCESTOR_BINPATH_MAP,
+        FILEMON_FILE_OPEN_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+gen_scope_precompute!(
+    path_truncate,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_PATH_TRUNCATE_BINNAME_MAP,
+        FILEMON_PATH_TRUNCATE_BINPATH_MAP,
+        FILEMON_PATH_TRUNCATE_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_PATH_TRUNCATE_PARENT_BINNAME_MAP,
+        FILEMON_PATH_TRUNCATE_PARENT_BINPATH_MAP,
+        FILEMON_PATH_TRUNCATE_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_PATH_TRUNCATE_ANCESTOR_BINNAME_MAP,
+        FILEMON_PATH_TRUNCATE_ANCESTOR_BINPATH_MAP,
+        FILEMON_PATH_TRUNCATE_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+gen_scope_precompute!(
+    path_chmod,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_PATH_CHMOD_BINNAME_MAP,
+        FILEMON_PATH_CHMOD_BINPATH_MAP,
+        FILEMON_PATH_CHMOD_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_PATH_CHMOD_PARENT_BINNAME_MAP,
+        FILEMON_PATH_CHMOD_PARENT_BINPATH_MAP,
+        FILEMON_PATH_CHMOD_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_PATH_CHMOD_ANCESTOR_BINNAME_MAP,
+        FILEMON_PATH_CHMOD_ANCESTOR_BINPATH_MAP,
+        FILEMON_PATH_CHMOD_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+gen_scope_precompute!(
+    path_chown,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_PATH_CHOWN_BINNAME_MAP,
+        FILEMON_PATH_CHOWN_BINPATH_MAP,
+        FILEMON_PATH_CHOWN_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_PATH_CHOWN_PARENT_BINNAME_MAP,
+        FILEMON_PATH_CHOWN_PARENT_BINPATH_MAP,
+        FILEMON_PATH_CHOWN_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_PATH_CHOWN_ANCESTOR_BINNAME_MAP,
+        FILEMON_PATH_CHOWN_ANCESTOR_BINPATH_MAP,
+        FILEMON_PATH_CHOWN_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+gen_scope_precompute!(
+    path_symlink,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_PATH_SYMLINK_BINNAME_MAP,
+        FILEMON_PATH_SYMLINK_BINPATH_MAP,
+        FILEMON_PATH_SYMLINK_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_PATH_SYMLINK_PARENT_BINNAME_MAP,
+        FILEMON_PATH_SYMLINK_PARENT_BINPATH_MAP,
+        FILEMON_PATH_SYMLINK_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_PATH_SYMLINK_ANCESTOR_BINNAME_MAP,
+        FILEMON_PATH_SYMLINK_ANCESTOR_BINPATH_MAP,
+        FILEMON_PATH_SYMLINK_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+gen_scope_precompute!(
+    path_unlink,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_PATH_UNLINK_BINNAME_MAP,
+        FILEMON_PATH_UNLINK_BINPATH_MAP,
+        FILEMON_PATH_UNLINK_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_PATH_UNLINK_PARENT_BINNAME_MAP,
+        FILEMON_PATH_UNLINK_PARENT_BINPATH_MAP,
+        FILEMON_PATH_UNLINK_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_PATH_UNLINK_ANCESTOR_BINNAME_MAP,
+        FILEMON_PATH_UNLINK_ANCESTOR_BINPATH_MAP,
+        FILEMON_PATH_UNLINK_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+gen_scope_precompute!(
+    file_ioctl,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_FILE_IOCTL_BINNAME_MAP,
+        FILEMON_FILE_IOCTL_BINPATH_MAP,
+        FILEMON_FILE_IOCTL_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_FILE_IOCTL_PARENT_BINNAME_MAP,
+        FILEMON_FILE_IOCTL_PARENT_BINPATH_MAP,
+        FILEMON_FILE_IOCTL_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_FILE_IOCTL_ANCESTOR_BINNAME_MAP,
+        FILEMON_FILE_IOCTL_ANCESTOR_BINPATH_MAP,
+        FILEMON_FILE_IOCTL_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+gen_scope_precompute!(
+    mmap_file,
+    proc_map = PROCMON_PROC_MAP,
+    results = FILEMON_SCOPE_RESULTS,
+    name_key = FILEMON_BINARY_FILE_NAME_MAP,
+    path_key = FILEMON_BINARY_PATH_MAP,
+    prefix_key = FILEMON_BINARY_PATH_PREFIX_MAP,
+    depth = ANCESTOR_MAX_DEPTH,
+    bin = [
+        FILEMON_MMAP_FILE_BINNAME_MAP,
+        FILEMON_MMAP_FILE_BINPATH_MAP,
+        FILEMON_MMAP_FILE_BINPREFIX_MAP
+    ],
+    parent = [
+        FILEMON_MMAP_FILE_PARENT_BINNAME_MAP,
+        FILEMON_MMAP_FILE_PARENT_BINPATH_MAP,
+        FILEMON_MMAP_FILE_PARENT_BINPREFIX_MAP
+    ],
+    ancestor = [
+        FILEMON_MMAP_FILE_ANCESTOR_BINNAME_MAP,
+        FILEMON_MMAP_FILE_ANCESTOR_BINPATH_MAP,
+        FILEMON_MMAP_FILE_ANCESTOR_BINPREFIX_MAP
+    ],
+);
+
 // Rules maps
 #[map]
 static FILEMON_FILE_OPEN_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
@@ -217,6 +417,30 @@ static FILEMON_FILE_OPEN_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::wit
 
 #[map]
 static FILEMON_FILE_OPEN_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_OPEN_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_OPEN_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_OPEN_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_OPEN_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_OPEN_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_OPEN_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -301,14 +525,8 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             rule_idx: 0,
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(file_open, proc, FILEMON_SCOPE_RESULTS);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
@@ -316,18 +534,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             file_prefix.data.rule_idx = idx as u8;
             access_mode.rule_idx = idx as u32;
             creation_flags.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_FILE_OPEN_BINNAME_MAP,
-                &FILEMON_FILE_OPEN_BINPATH_MAP,
-                &FILEMON_FILE_OPEN_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(FileOpenFilter::new(
                     &FILEMON_FILE_OPEN_NAME_MAP,
@@ -417,6 +624,30 @@ static FILEMON_PATH_TRUNCATE_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 #[map]
 static FILEMON_PATH_TRUNCATE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_TRUNCATE_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_TRUNCATE_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_TRUNCATE_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_TRUNCATE_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_TRUNCATE_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_TRUNCATE_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
 #[lsm(hook = "path_truncate")]
@@ -486,30 +717,14 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, event);
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(path_truncate, proc, FILEMON_SCOPE_RESULTS);
 
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_PATH_TRUNCATE_BINNAME_MAP,
-                &FILEMON_PATH_TRUNCATE_BINPATH_MAP,
-                &FILEMON_PATH_TRUNCATE_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_TRUNCATE_NAME_MAP,
@@ -571,6 +786,30 @@ static FILEMON_PATH_UNLINK_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static FILEMON_PATH_UNLINK_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_UNLINK_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_UNLINK_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_UNLINK_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_UNLINK_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_UNLINK_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_UNLINK_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -660,30 +899,14 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, event);
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(path_unlink, proc, FILEMON_SCOPE_RESULTS);
 
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_PATH_UNLINK_BINNAME_MAP,
-                &FILEMON_PATH_UNLINK_BINPATH_MAP,
-                &FILEMON_PATH_UNLINK_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_UNLINK_NAME_MAP,
@@ -745,6 +968,30 @@ static FILEMON_PATH_SYMLINK_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static FILEMON_PATH_SYMLINK_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_SYMLINK_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_SYMLINK_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_SYMLINK_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_SYMLINK_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_SYMLINK_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_SYMLINK_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -837,30 +1084,14 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.old_path);
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(path_symlink, proc, FILEMON_SCOPE_RESULTS);
 
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_PATH_SYMLINK_BINNAME_MAP,
-                &FILEMON_PATH_SYMLINK_BINPATH_MAP,
-                &FILEMON_PATH_SYMLINK_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_SYMLINK_NAME_MAP,
@@ -926,6 +1157,30 @@ static FILEMON_PATH_CHMOD_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static FILEMON_PATH_CHMOD_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHMOD_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHMOD_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHMOD_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHMOD_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHMOD_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHMOD_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -1002,31 +1257,15 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             rule_idx: 0,
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(path_chmod, proc, FILEMON_SCOPE_RESULTS);
 
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
             chomd_value.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_PATH_CHMOD_BINNAME_MAP,
-                &FILEMON_PATH_CHMOD_BINPATH_MAP,
-                &FILEMON_PATH_CHMOD_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(ChmodFilter::new(
                     &FILEMON_PATH_CHMOD_NAME_MAP,
@@ -1091,6 +1330,30 @@ static FILEMON_PATH_CHOWN_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static FILEMON_PATH_CHOWN_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_PATH_CHOWN_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 
 #[map]
@@ -1169,14 +1432,8 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(path_chown, proc, FILEMON_SCOPE_RESULTS);
 
         // Get UID
         let mut owner_uid = UIDKey {
@@ -1196,18 +1453,7 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             file_prefix.data.rule_idx = idx as u8;
             owner_uid.rule_idx = idx as u32;
             owner_gid.rule_idx = idx as u32;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_PATH_CHOWN_BINNAME_MAP,
-                &FILEMON_PATH_CHOWN_BINPATH_MAP,
-                &FILEMON_PATH_CHOWN_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(ChownFilter::new(
                     &FILEMON_PATH_CHOWN_NAME_MAP,
@@ -1323,6 +1569,30 @@ static FILEMON_MMAP_FILE_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::wit
 #[map]
 static FILEMON_MMAP_FILE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_MMAP_FILE_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_MMAP_FILE_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_MMAP_FILE_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_MMAP_FILE_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_MMAP_FILE_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_MMAP_FILE_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
 #[inline(always)]
@@ -1432,32 +1702,16 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             rule_idx: 0,
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(mmap_file, proc, FILEMON_SCOPE_RESULTS);
 
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
             prot_mode.rule_idx = idx as u8;
             flags.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_MMAP_FILE_BINNAME_MAP,
-                &FILEMON_MMAP_FILE_BINPATH_MAP,
-                &FILEMON_MMAP_FILE_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(MmapFileFilter::new(
                     &FILEMON_MMAP_FILE_NAME_MAP,
@@ -1527,6 +1781,30 @@ static FILEMON_FILE_IOCTL_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static FILEMON_FILE_IOCTL_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_IOCTL_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_IOCTL_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_IOCTL_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_IOCTL_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_IOCTL_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static FILEMON_FILE_IOCTL_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -1601,14 +1879,8 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
         // Get file prefix
         let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
-        // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Pre-compute binary/parent/ancestor scope results
+        let scope_results = run_scope_precompute!(file_ioctl, proc, FILEMON_SCOPE_RESULTS);
 
         // Get Cmd
         let mut cmd = CmdKey {
@@ -1620,18 +1892,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
             cmd.rule_idx = idx as u32;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &FILEMON_FILE_IOCTL_BINNAME_MAP,
-                &FILEMON_FILE_IOCTL_BINPATH_MAP,
-                &FILEMON_FILE_IOCTL_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(FileIoctlFilter::new(
                     &FILEMON_FILE_IOCTL_NAME_MAP,

@@ -297,6 +297,292 @@ impl Attribute for BinaryPrefixAttribute {
 }
 
 #[derive(Default, Debug, Clone)]
+pub(crate) struct ParentBinaryPathAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for ParentBinaryPathAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut path_map: EbpfHashMap<_, PathMapKey, u8> = EbpfHashMap::try_from({
+            let Some(m) = ebpf.map_mut(&format!("{map_name_prefix}_PARENT_BINPATH_MAP")) else {
+                return Ok(());
+            };
+            m
+        })?;
+        for (path, value) in self.map.iter() {
+            let mut key = PathMapKey {
+                rule_idx,
+                path: [0u8; MAX_FILE_PATH],
+            };
+            let path_bytes = path.as_bytes();
+            let len = path_bytes.len();
+            if len < MAX_FILE_PATH {
+                key.path[..len].clone_from_slice(path_bytes);
+            } else {
+                key.path.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
+            }
+            let _ = path_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_PARENT_BINPATH_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct ParentBinaryNameAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for ParentBinaryNameAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut name_map: EbpfHashMap<_, FileNameMapKey, u8> = EbpfHashMap::try_from({
+            let Some(m) = ebpf.map_mut(&format!("{map_name_prefix}_PARENT_BINNAME_MAP")) else {
+                return Ok(());
+            };
+            m
+        })?;
+        for (name, value) in self.map.iter() {
+            let mut key = FileNameMapKey {
+                rule_idx,
+                name: [0u8; MAX_FILENAME_SIZE],
+            };
+            let name_bytes = name.as_bytes();
+            let len = name_bytes.len();
+            if len < MAX_FILENAME_SIZE {
+                key.name[..len].clone_from_slice(name_bytes);
+            } else {
+                key.name.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
+            }
+            let _ = name_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_PARENT_BINNAME_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct ParentBinaryPrefixAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for ParentBinaryPrefixAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut prefix_map: LpmTrie<_, PathPrefixMapKey, u8> = LpmTrie::try_from({
+            let Some(m) = ebpf.map_mut(&format!("{map_name_prefix}_PARENT_BINPREFIX_MAP")) else {
+                return Ok(());
+            };
+            m
+        })?;
+        for (prefix, value) in self.map.iter() {
+            let mut key = PathPrefixMapKey {
+                rule_idx,
+                path_prefix: [0u8; MAX_FILE_PREFIX],
+            };
+            let prefix_bytes = prefix.as_bytes();
+            let len = prefix_bytes.len();
+            if len < MAX_FILE_PREFIX {
+                key.path_prefix[..len].clone_from_slice(prefix_bytes);
+            } else {
+                key.path_prefix
+                    .clone_from_slice(&prefix_bytes[..MAX_FILE_PREFIX]);
+            }
+            let map_key = Key::new(((prefix.len() + 1) * 8) as u32, key);
+            let _ = prefix_map.insert(&map_key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_PARENT_BINPREFIX_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct AncestorBinaryPathAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for AncestorBinaryPathAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut path_map: EbpfHashMap<_, PathMapKey, u8> = EbpfHashMap::try_from({
+            let Some(m) = ebpf.map_mut(&format!("{map_name_prefix}_ANCESTOR_BINPATH_MAP")) else {
+                return Ok(());
+            };
+            m
+        })?;
+        for (path, value) in self.map.iter() {
+            let mut key = PathMapKey {
+                rule_idx,
+                path: [0u8; MAX_FILE_PATH],
+            };
+            let path_bytes = path.as_bytes();
+            let len = path_bytes.len();
+            if len < MAX_FILE_PATH {
+                key.path[..len].clone_from_slice(path_bytes);
+            } else {
+                key.path.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
+            }
+            let _ = path_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_ANCESTOR_BINPATH_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct AncestorBinaryNameAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for AncestorBinaryNameAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut name_map: EbpfHashMap<_, FileNameMapKey, u8> = EbpfHashMap::try_from({
+            let Some(m) = ebpf.map_mut(&format!("{map_name_prefix}_ANCESTOR_BINNAME_MAP")) else {
+                return Ok(());
+            };
+            m
+        })?;
+        for (name, value) in self.map.iter() {
+            let mut key = FileNameMapKey {
+                rule_idx,
+                name: [0u8; MAX_FILENAME_SIZE],
+            };
+            let name_bytes = name.as_bytes();
+            let len = name_bytes.len();
+            if len < MAX_FILENAME_SIZE {
+                key.name[..len].clone_from_slice(name_bytes);
+            } else {
+                key.name.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
+            }
+            let _ = name_map.insert(key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_ANCESTOR_BINNAME_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct AncestorBinaryPrefixAttribute {
+    pub map: HashMap<String, u8>,
+}
+
+impl Attribute for AncestorBinaryPrefixAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        util::serialize_string_attr(&mut self.map, values, in_idx)
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut prefix_map: LpmTrie<_, PathPrefixMapKey, u8> = LpmTrie::try_from({
+            let Some(m) = ebpf.map_mut(&format!("{map_name_prefix}_ANCESTOR_BINPREFIX_MAP")) else {
+                return Ok(());
+            };
+            m
+        })?;
+        for (prefix, value) in self.map.iter() {
+            let mut key = PathPrefixMapKey {
+                rule_idx,
+                path_prefix: [0u8; MAX_FILE_PREFIX],
+            };
+            let prefix_bytes = prefix.as_bytes();
+            let len = prefix_bytes.len();
+            if len < MAX_FILE_PREFIX {
+                key.path_prefix[..len].clone_from_slice(prefix_bytes);
+            } else {
+                key.path_prefix
+                    .clone_from_slice(&prefix_bytes[..MAX_FILE_PREFIX]);
+            }
+            let map_key = Key::new(((prefix.len() + 1) * 8) as u32, key);
+            let _ = prefix_map.insert(&map_key, value, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (
+            format!("{map_name_prefix}_ANCESTOR_BINPREFIX_MAP"),
+            self.map.len() as u32,
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
 pub(crate) struct AccessModeAttribute {
     pub map: HashMap<AccessMode, u8>,
 }

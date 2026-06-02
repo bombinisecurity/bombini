@@ -255,6 +255,10 @@ impl Detector for FileMon {
     }
 
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+        // Test scaffolding: see procmon detector's note. Loads (runs the verifier)
+        // but skips attach, so the verifier can be exercised on kernels where
+        // attach is unsupported (arm64 < 6.4 has no BPF-trampoline direct calls).
+        let no_attach = std::env::var_os("BOMBINI_NO_ATTACH").is_some();
         let btf = Btf::from_sys_fs()?;
         let kernel_ver = Version::current().expect("Cannot get kernel version");
         let ver_6_8 = Version::new(6, 8, 0);
@@ -277,7 +281,9 @@ impl Detector for FileMon {
                     .unwrap()
                     .try_into()?;
                 program.load(hook_name, &btf)?;
-                program.attach()?;
+                if !no_attach {
+                    program.attach()?;
+                }
             } else {
                 log::warn!("Cannot load hook: {hook_name}. Kernel version is too old.");
             }

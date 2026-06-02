@@ -8,4 +8,10 @@ define_predicate!(ScopePredicate {
     Attributes::BinaryPath,
     Attributes::BinaryName,
     Attributes::BinaryPrefix,
+    Attributes::ParentBinaryPath,
+    Attributes::ParentBinaryName,
+    Attributes::ParentBinaryPrefix,
+    Attributes::AncestorBinaryPath,
+    Attributes::AncestorBinaryName,
+    Attributes::AncestorBinaryPrefix,
 });

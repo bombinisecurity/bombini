@@ -434,3 +434,89 @@ bprm_check:
         6
     );
 }
+
+/// `sudo xargs -a /dev/null /bin/bash`: xargs forks a child to exec bash, so at
+/// the bprm_check for the bash exec the executing process's direct parent is the
+/// `xargs` process. This verifies the `parent_binary_*` scope filter resolves the
+/// direct parent's binary.
+#[test]
+fn test_6_2_procmon_bprm_parent_scope() {
+    let config_contents = r#"
+bprm_check:
+  enabled: true
+  rules:
+  - rule: ParentScopeRule
+    scope: parent_binary_name == "xargs"
+    event: name == "bash"
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    let mut gtfo_proc = Command::new("sudo")
+        .args(["xargs", "-a", "/dev/null", "/bin/bash"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start sudo");
+
+    let events = bombini
+        .wait_for_events("\"type\":\"BprmCheck\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
+    let _ = gtfo_proc.wait().unwrap();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"BprmCheck\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"ParentScopeRule\"").count(), 1);
+    ma::assert_ge!(events.matches("\"filename\":\"bash\"").count(), 1);
+}
+
+/// Same process tree as the parent test, but using an `ancestor_binary_*` scope.
+/// `sudo` is an ancestor (the direct parent here) of the `xargs` process, so the
+/// ancestor-chain walk must find it. This verifies the ancestor-binary scope
+/// filter (which can replace the custom GTFOBins detector).
+#[test]
+fn test_6_2_procmon_bprm_ancestor_scope() {
+    let config_contents = r#"
+bprm_check:
+  enabled: true
+  rules:
+  - rule: AncestorScopeRule
+    scope: ancestor_binary_name == "sudo"
+    event: name == "bash"
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    let mut gtfo_proc = Command::new("sudo")
+        .args(["xargs", "-a", "/dev/null", "/bin/bash"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start sudo");
+
+    let events = bombini
+        .wait_for_events("\"type\":\"BprmCheck\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
+    let _ = gtfo_proc.wait().unwrap();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"BprmCheck\"").count(), 1);
+    ma::assert_ge!(events.matches("\"rule\":\"AncestorScopeRule\"").count(), 1);
+    ma::assert_ge!(events.matches("\"filename\":\"xargs\"").count(), 1);
+}

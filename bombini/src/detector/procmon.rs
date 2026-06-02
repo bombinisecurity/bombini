@@ -299,6 +299,11 @@ impl Detector for ProcMon {
     }
 
     fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+        // Test scaffolding: BOMBINI_NO_ATTACH loads every program (running the
+        // verifier) but skips attach. Lets us exercise the verifier on kernels
+        // where attach is unsupported (e.g. arm64 < 6.4 has no BPF-trampoline
+        // direct calls, so fentry/tp_btf/LSM attach returns ENOTSUPP).
+        let no_attach = std::env::var_os("BOMBINI_NO_ATTACH").is_some();
         let btf = Btf::from_sys_fs()?;
         let exec: &mut BtfTracePoint = self
             .ebpf
@@ -306,19 +311,27 @@ impl Detector for ProcMon {
             .unwrap()
             .try_into()?;
         exec.load("sched_process_exec", &btf)?;
-        exec.attach()?;
+        if !no_attach {
+            exec.attach()?;
+        }
 
         let fork: &mut BtfTracePoint = self.ebpf.program_mut("fork_capture").unwrap().try_into()?;
         fork.load("sched_process_fork", &btf)?;
-        fork.attach()?;
+        if !no_attach {
+            fork.attach()?;
+        }
 
         let exit: &mut BtfTracePoint = self.ebpf.program_mut("exit_capture").unwrap().try_into()?;
         exit.load("sched_process_exit", &btf)?;
-        exit.attach()?;
+        if !no_attach {
+            exit.attach()?;
+        }
 
         let program: &mut Lsm = self.ebpf.program_mut("creds_capture").unwrap().try_into()?;
         program.load("bprm_committing_creds", &btf)?;
-        program.attach()?;
+        if !no_attach {
+            program.attach()?;
+        }
 
         for hook in &self.hooks {
             let program: &mut Lsm = self
@@ -327,7 +340,9 @@ impl Detector for ProcMon {
                 .unwrap()
                 .try_into()?;
             program.load(hook.hook().hook_name(), &btf)?;
-            program.attach()?;
+            if !no_attach {
+                program.attach()?;
+            }
         }
         Ok(())
     }

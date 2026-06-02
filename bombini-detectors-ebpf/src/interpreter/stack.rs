@@ -1,6 +1,15 @@
 use aya_ebpf::{macros::map, maps::PerCpuArray};
 
-pub const STACK_SIZE: usize = 65;
+use bombini_common::constants::MAX_RULE_OPERATIONS;
+
+/// A predicate has at most `MAX_RULE_OPERATIONS` RPN operations, so the operand
+/// stack never grows past that depth (plus the index-1 start sentinel). Sizing
+/// the stack tightly is important for the verifier: the operand index `len` is a
+/// runtime value, so the verifier explores a distinct state for every possible
+/// `len` at each `data[len]` access. An oversized stack (was 65) multiplies that
+/// state count and, on older verifiers (e.g. 6.2), pushes complex programs over
+/// the 1M-instruction limit.
+pub const STACK_SIZE: usize = MAX_RULE_OPERATIONS + 1;
 
 #[map]
 static STACK_DATA: PerCpuArray<[bool; STACK_SIZE]> = PerCpuArray::with_max_entries(1, 0);
