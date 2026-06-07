@@ -93,6 +93,54 @@ file_open:
 }
 
 #[test]
+fn test_6_2_filemon_open_parent_binary() {
+    let config_contents = r#"
+file_open:
+  enabled: true
+  rules:
+  - rule: ParentBinaryTestRule
+    scope: parent_binary_name == "xargs"
+    event: name == "filemon.yaml"
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("filemon", Some(config_contents))
+        .events_timeout(1)
+        .launch()
+        .unwrap();
+
+    let bombini_temp_dir = bombini.get_working_dir();
+    let filemon_config = bombini_temp_dir.join("config/filemon.yaml");
+
+    let head_conf = Command::new("xargs")
+        .args(["-a", "/dev/null", "head", filemon_config.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start xargs head");
+
+    assert!(head_conf.success());
+
+    let events = bombini
+        .wait_for_events("\"type\":\"FileEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
+    ma::assert_ge!(events.matches("\"type\":\"FileOpen\"").count(), 1);
+    ma::assert_ge!(
+        events.matches("\"rule\":\"ParentBinaryTestRule\"").count(),
+        1
+    );
+    let mut file_path = String::from("\"path\":\"");
+    file_path.push_str(filemon_config.to_str().unwrap());
+    assert_eq!(events.matches(&file_path).count(), 1);
+}
+
+#[test]
 fn test_6_8_filemon_truncate() {
     let config_contents = r#"
 path_truncate:

@@ -45,7 +45,9 @@ To enable hook:
 
 ## Event Filtering
 
-All hooks support scope filtering.
+All hooks support scope filtering. In addition to the `binary_*` attributes, ProcMon scope
+filtering supports matching the direct parent process binary via the `parent_binary_path`,
+`parent_binary_name` and `parent_binary_prefix` attributes (see [Rules](./rules.md)).
 
 The following list of hooks support event filtering by rules and sandbox mode:
 

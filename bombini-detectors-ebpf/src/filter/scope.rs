@@ -60,3 +60,103 @@ impl CheckIn for ScopeFilter<'_> {
         }
     }
 }
+
+// FIXME: `ParentScopeFilter` is a strict superset of `ScopeFilter` — it adds the
+// `parent_*` attribute maps/keys on top of the very same binary `name`/`path`/`prefix`
+// handling. Once the interpreter/maps are refactored, this type can be removed and the
+// parent attributes folded into `ScopeFilter` (e.g. via optional parent maps), so callers
+// only ever build a single scope filter.
+#[repr(C)]
+pub struct ParentScopeFilter<'a> {
+    pub name_map: &'a HashMap<FileNameMapKey, u8>,
+    pub path_map: &'a HashMap<PathMapKey, u8>,
+    pub prefix_map: &'a LpmTrie<PathPrefixMapKey, u8>,
+    pub parent_name_map: &'a HashMap<FileNameMapKey, u8>,
+    pub parent_path_map: &'a HashMap<PathMapKey, u8>,
+    pub parent_prefix_map: &'a LpmTrie<PathPrefixMapKey, u8>,
+
+    pub name: &'a FileNameMapKey,
+    pub path: &'a PathMapKey,
+    pub prefix: &'a Key<PathPrefixMapKey>,
+    pub parent_name: &'a FileNameMapKey,
+    pub parent_path: &'a PathMapKey,
+    pub parent_prefix: &'a Key<PathPrefixMapKey>,
+}
+
+impl<'a> ParentScopeFilter<'a> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        name_map: &'a HashMap<FileNameMapKey, u8>,
+        path_map: &'a HashMap<PathMapKey, u8>,
+        prefix_map: &'a LpmTrie<PathPrefixMapKey, u8>,
+        parent_name_map: &'a HashMap<FileNameMapKey, u8>,
+        parent_path_map: &'a HashMap<PathMapKey, u8>,
+        parent_prefix_map: &'a LpmTrie<PathPrefixMapKey, u8>,
+
+        name: &'a FileNameMapKey,
+        path: &'a PathMapKey,
+        prefix: &'a Key<PathPrefixMapKey>,
+        parent_name: &'a FileNameMapKey,
+        parent_path: &'a PathMapKey,
+        parent_prefix: &'a Key<PathPrefixMapKey>,
+    ) -> Self {
+        Self {
+            name_map,
+            path_map,
+            prefix_map,
+            parent_name_map,
+            parent_path_map,
+            parent_prefix_map,
+            name,
+            path,
+            prefix,
+            parent_name,
+            parent_path,
+            parent_prefix,
+        }
+    }
+}
+
+impl CheckIn for ParentScopeFilter<'_> {
+    fn check_in_op(&self, attribute_map_id: u8, in_op_idx: u8) -> Result<bool, i32> {
+        match attribute_map_id {
+            id if id == Attributes::BinaryName as u8 => unsafe {
+                let Some(mask_name) = self.name_map.get(self.name) else {
+                    return Ok(false);
+                };
+                Ok(*mask_name & (1 << in_op_idx) != 0)
+            },
+            id if id == Attributes::BinaryPath as u8 => unsafe {
+                let Some(mask_path) = self.path_map.get(self.path) else {
+                    return Ok(false);
+                };
+                Ok(*mask_path & (1 << in_op_idx) != 0)
+            },
+            id if id == Attributes::BinaryPrefix as u8 => {
+                let Some(mask_path) = self.prefix_map.get(self.prefix) else {
+                    return Ok(false);
+                };
+                Ok(*mask_path & (1 << in_op_idx) != 0)
+            }
+            id if id == Attributes::ParentBinaryName as u8 => unsafe {
+                let Some(mask_name) = self.parent_name_map.get(self.parent_name) else {
+                    return Ok(false);
+                };
+                Ok(*mask_name & (1 << in_op_idx) != 0)
+            },
+            id if id == Attributes::ParentBinaryPath as u8 => unsafe {
+                let Some(mask_path) = self.parent_path_map.get(self.parent_path) else {
+                    return Ok(false);
+                };
+                Ok(*mask_path & (1 << in_op_idx) != 0)
+            },
+            id if id == Attributes::ParentBinaryPrefix as u8 => {
+                let Some(mask_path) = self.parent_prefix_map.get(self.parent_prefix) else {
+                    return Ok(false);
+                };
+                Ok(*mask_path & (1 << in_op_idx) != 0)
+            }
+            _ => Err(-1),
+        }
+    }
+}
