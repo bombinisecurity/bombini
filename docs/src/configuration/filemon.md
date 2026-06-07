@@ -45,6 +45,10 @@ For each file hook the following options are supported:
 
 ## Event Filtering
 
+All hooks support scope filtering. In addition to the `binary_*` attributes, FileMon scope
+filtering supports matching the direct parent process binary via the `parent_binary_path`,
+`parent_binary_name` and `parent_binary_prefix` attributes (see [Rules](./rules.md)).
+
 The following list of hooks support event filtering by rules and sandbox mode:
 
 * file_open

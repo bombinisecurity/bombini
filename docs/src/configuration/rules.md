@@ -37,6 +37,12 @@ To capture all events corresponding to the entire host, just keep scope predicat
 * **binary_name**: Executable name
 * **binary_prefix**: Absolute path prefix for the executable (up to 255 bytes)
 
+The same attributes are also available for the direct parent process (supported by the `procmon` and `filemon` detectors only):
+
+* **parent_binary_path**: Full absolute path to the parent executable
+* **parent_binary_name**: Parent executable name
+* **parent_binary_prefix**: Absolute path prefix for the parent executable (up to 255 bytes)
+
 
 **Event Predicate.**
 The event predicate defines the event characteristics that should trigger the rule. Attribute maps for event filtering
