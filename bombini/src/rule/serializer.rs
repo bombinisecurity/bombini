@@ -805,6 +805,74 @@ mod tests {
     }
 
     #[test]
+    fn test_serialize_rules_parent_binary_scope() {
+        let rules = vec![Rule {
+            name: "parent_scope".to_string(),
+            scope:
+                r#"parent_binary_name in ["sudo", "sh"] AND parent_binary_path == "/usr/bin/sudo""#
+                    .to_string(),
+            event: "".to_string(),
+        }];
+
+        let mut serialized = SerializedRules::<filemon::PathPredicate> { rules: Vec::new() };
+
+        serialized.serialize_rules(&rules).unwrap();
+        assert_eq!(serialized.rules.len(), 1);
+
+        let map_sizes = serialized.map_sizes("FILEMON_OPEN");
+        assert_eq!(map_sizes.get("FILEMON_OPEN_PBINNAME_MAP"), Some(&2));
+        assert_eq!(map_sizes.get("FILEMON_OPEN_PBINPATH_MAP"), Some(&1));
+        assert_eq!(map_sizes.get("FILEMON_OPEN_PBINPREFIX_MAP"), Some(&0));
+
+        let rule = &serialized.rules[0];
+
+        let pname_attr = rule
+            .scope_predicate
+            .attrs
+            .get("parent_binary_name")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::ParentBinaryNameAttribute>()
+            .unwrap();
+        assert_eq!(pname_attr.map.len(), 2);
+        assert_eq!(*pname_attr.map.get("sudo").unwrap(), 1 << 0);
+        assert_eq!(*pname_attr.map.get("sh").unwrap(), 1 << 0);
+
+        let ppath_attr = rule
+            .scope_predicate
+            .attrs
+            .get("parent_binary_path")
+            .unwrap()
+            .0
+            .as_any()
+            .downcast_ref::<defs::ParentBinaryPathAttribute>()
+            .unwrap();
+        assert_eq!(ppath_attr.map.len(), 1);
+        assert_eq!(*ppath_attr.map.get("/usr/bin/sudo").unwrap(), 1 << 0);
+
+        match rule.scope_predicate.predicate[0] {
+            RuleOp::In {
+                attribute_map_id, ..
+            } => assert_eq!(
+                attribute_map_id,
+                bombini_common::config::rule::Attributes::ParentBinaryName as u8
+            ),
+            _ => panic!("Expected In at scope[0]"),
+        }
+        match rule.scope_predicate.predicate[1] {
+            RuleOp::In {
+                attribute_map_id, ..
+            } => assert_eq!(
+                attribute_map_id,
+                bombini_common::config::rule::Attributes::ParentBinaryPath as u8
+            ),
+            _ => panic!("Expected In at scope[1]"),
+        }
+        assert_eq!(rule.scope_predicate.predicate[2], RuleOp::And);
+    }
+
+    #[test]
     fn test_serialize_rules_with_logical_ops() {
         let rules = vec![Rule {
             name: "logical_ops".to_string(),

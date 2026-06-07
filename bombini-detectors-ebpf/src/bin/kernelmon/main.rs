@@ -32,7 +32,7 @@ use bombini_detectors_ebpf::{
     co_re::{self, core_read_kernel},
     filter::{
         kernelmon::{bpfmap::BpfMapFilter, bpfprog::BpfProgFilter},
-        scope::ScopeFilter,
+        scope::ProcScopeFilter,
     },
     interpreter::{self, rule::IsEmpty},
     uapi::BpfProgLoadAttr,
@@ -153,6 +153,24 @@ macro_rules! fill_prefix_map {
     }};
 }
 
+macro_rules! fill_parent_keys {
+    ($proc:expr) => {{
+        let ppid = $proc.ppid;
+        let parent = PROCMON_PROC_MAP.get(&ppid);
+        let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let (pname_src, ppath_src): (*const u8, *const u8) = match parent {
+            Some(p) => (p.filename.as_ptr(), p.binary_path.as_ptr()),
+            None => (zero_ptr as *const u8, zero_ptr as *const u8),
+        };
+        let parent_name = fill_name_map!(KERNELMON_PARENT_FILE_NAME_MAP, pname_src);
+        let parent_path = fill_path_map!(KERNELMON_PARENT_PATH_MAP, ppath_src);
+        let parent_prefix = fill_prefix_map!(KERNELMON_PARENT_PATH_PREFIX_MAP, ppath_src);
+        (parent_name, parent_path, parent_prefix)
+    }};
+}
+
 // Attribute helpers maps
 #[map]
 static KERNELMON_BINARY_PATH_MAP: PerCpuArray<PathMapKey> = PerCpuArray::with_max_entries(1, 0);
@@ -163,6 +181,17 @@ static KERNELMON_BINARY_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> =
 
 #[map]
 static KERNELMON_BINARY_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
+    PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_PARENT_PATH_MAP: PerCpuArray<PathMapKey> = PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_PARENT_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> =
+    PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_PARENT_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
     PerCpuArray::with_max_entries(1, 0);
 
 // Bpf map rules maps
@@ -190,6 +219,16 @@ static KERNELMON_BPF_MAP_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::wit
 
 #[map]
 static KERNELMON_BPF_MAP_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_MAP_PBINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_MAP_PBINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_MAP_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -286,6 +325,8 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             bpf_id.rule_idx = idx as u32;
             bpf_map_type.rule_idx = idx as u32;
@@ -294,13 +335,22 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            parent_name.rule_idx = idx as u8;
+            parent_path.rule_idx = idx as u8;
+            parent_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                 &KERNELMON_BPF_MAP_BINNAME_MAP,
                 &KERNELMON_BPF_MAP_BINPATH_MAP,
                 &KERNELMON_BPF_MAP_BINPREFIX_MAP,
+                &KERNELMON_BPF_MAP_PBINNAME_MAP,
+                &KERNELMON_BPF_MAP_PBINPATH_MAP,
+                &KERNELMON_BPF_MAP_PBINPREFIX_MAP,
                 binary_name,
                 binary_path,
                 binary_prefix,
+                parent_name,
+                parent_path,
+                parent_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfMapFilter::new(
@@ -372,6 +422,16 @@ static KERNELMON_BPF_MAP_CREATE_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static KERNELMON_BPF_MAP_CREATE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_MAP_CREATE_PBINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_MAP_CREATE_PBINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_MAP_CREATE_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -480,6 +540,8 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             bpf_id.rule_idx = idx as u32;
             bpf_map_type.rule_idx = idx as u32;
@@ -488,13 +550,22 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            parent_name.rule_idx = idx as u8;
+            parent_path.rule_idx = idx as u8;
+            parent_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                 &KERNELMON_BPF_MAP_CREATE_BINNAME_MAP,
                 &KERNELMON_BPF_MAP_CREATE_BINPATH_MAP,
                 &KERNELMON_BPF_MAP_CREATE_BINPREFIX_MAP,
+                &KERNELMON_BPF_MAP_CREATE_PBINNAME_MAP,
+                &KERNELMON_BPF_MAP_CREATE_PBINPATH_MAP,
+                &KERNELMON_BPF_MAP_CREATE_PBINPREFIX_MAP,
                 binary_name,
                 binary_path,
                 binary_prefix,
+                parent_name,
+                parent_path,
+                parent_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfMapFilter::new(
@@ -561,6 +632,16 @@ static KERNELMON_BPF_PROG_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static KERNELMON_BPF_PROG_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_PROG_PBINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_PROG_PBINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_PROG_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -660,6 +741,8 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             bpf_id.rule_idx = idx as u32;
             bpf_prog_type.rule_idx = idx as u32;
@@ -668,13 +751,22 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            parent_name.rule_idx = idx as u8;
+            parent_path.rule_idx = idx as u8;
+            parent_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                 &KERNELMON_BPF_PROG_BINNAME_MAP,
                 &KERNELMON_BPF_PROG_BINPATH_MAP,
                 &KERNELMON_BPF_PROG_BINPREFIX_MAP,
+                &KERNELMON_BPF_PROG_PBINNAME_MAP,
+                &KERNELMON_BPF_PROG_PBINPATH_MAP,
+                &KERNELMON_BPF_PROG_PBINPREFIX_MAP,
                 binary_name,
                 binary_path,
                 binary_prefix,
+                parent_name,
+                parent_path,
+                parent_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
@@ -745,6 +837,16 @@ static KERNELMON_BPF_PROG_LOAD_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static KERNELMON_BPF_PROG_LOAD_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_PROG_LOAD_PBINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_PROG_LOAD_PBINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static KERNELMON_BPF_PROG_LOAD_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -839,6 +941,8 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             bpf_id.rule_idx = idx as u32;
             bpf_prog_type.rule_idx = idx as u32;
@@ -847,13 +951,22 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            parent_name.rule_idx = idx as u8;
+            parent_path.rule_idx = idx as u8;
+            parent_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                 &KERNELMON_BPF_PROG_LOAD_BINNAME_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPATH_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPREFIX_MAP,
+                &KERNELMON_BPF_PROG_LOAD_PBINNAME_MAP,
+                &KERNELMON_BPF_PROG_LOAD_PBINPATH_MAP,
+                &KERNELMON_BPF_PROG_LOAD_PBINPREFIX_MAP,
                 binary_name,
                 binary_path,
                 binary_prefix,
+                parent_name,
+                parent_path,
+                parent_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
@@ -998,6 +1111,8 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             bpf_id.rule_idx = idx as u32;
             bpf_prog_type.rule_idx = idx as u32;
@@ -1006,13 +1121,22 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            parent_name.rule_idx = idx as u8;
+            parent_path.rule_idx = idx as u8;
+            parent_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                 &KERNELMON_BPF_PROG_LOAD_BINNAME_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPATH_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPREFIX_MAP,
+                &KERNELMON_BPF_PROG_LOAD_PBINNAME_MAP,
+                &KERNELMON_BPF_PROG_LOAD_PBINPATH_MAP,
+                &KERNELMON_BPF_PROG_LOAD_PBINPREFIX_MAP,
                 binary_name,
                 binary_path,
                 binary_prefix,
+                parent_name,
+                parent_path,
+                parent_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
