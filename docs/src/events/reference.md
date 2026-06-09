@@ -2438,3 +2438,215 @@ JSON schema for all events.
 }
 ```
 
+## SysEnumMon
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SysEnumMonEvent",
+  "type": "object",
+  "properties": {
+    "chain": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ChainEntry"
+      }
+    },
+    "process": {
+      "$ref": "#/$defs/Process"
+    },
+    "timestamp": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "process",
+    "chain",
+    "timestamp"
+  ],
+  "$defs": {
+    "ChainEntry": {
+      "type": "object",
+      "properties": {
+        "entry": {
+          "$ref": "#/$defs/ChainEntryType"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry",
+        "timestamp"
+      ]
+    },
+    "ChainEntryType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "binary": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "Exec"
+            }
+          },
+          "required": [
+            "type",
+            "binary"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "FileOpen"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ]
+        }
+      ]
+    },
+    "Process": {
+      "description": "Process information",
+      "type": "object",
+      "properties": {
+        "args": {
+          "description": "current work directory",
+          "type": "string"
+        },
+        "auid": {
+          "description": "login UID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "binary_ima_hash": {
+          "description": "IMA binary hash",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "binary_path": {
+          "description": "full binary path",
+          "type": "string"
+        },
+        "cap_effective": {
+          "type": "string"
+        },
+        "cap_inheritable": {
+          "type": "string"
+        },
+        "cap_permitted": {
+          "type": "string"
+        },
+        "cloned": {
+          "description": "is process cloned without exec",
+          "type": "boolean"
+        },
+        "container_id": {
+          "description": "skip for host",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "egid": {
+          "description": "EGID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "euid": {
+          "description": "EUID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "exec_id": {
+          "description": "Execution ID (hash of the process's PID and start time)",
+          "type": "string"
+        },
+        "filename": {
+          "description": "executable name",
+          "type": "string"
+        },
+        "gid": {
+          "description": "GID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "parent_exec_id": {
+          "description": "Parent execution ID (hash of the parent's PID and start time)",
+          "type": "string"
+        },
+        "pid": {
+          "description": "PID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ppid": {
+          "description": "Parent PID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "secureexec": {
+          "description": "SETUID, SETGID, FILECAPS, FILELESS_EXEC",
+          "type": "string"
+        },
+        "start_time": {
+          "description": "last exec or clone time",
+          "type": "string"
+        },
+        "tid": {
+          "description": "TID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "uid": {
+          "description": "UID",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "start_time",
+        "cloned",
+        "pid",
+        "tid",
+        "ppid",
+        "uid",
+        "euid",
+        "gid",
+        "egid",
+        "auid",
+        "cap_inheritable",
+        "cap_permitted",
+        "cap_effective",
+        "secureexec",
+        "filename",
+        "binary_path",
+        "args",
+        "exec_id",
+        "parent_exec_id"
+      ]
+    }
+  }
+}
+```
+
