@@ -56,6 +56,7 @@ detectors:
    #- netmon
    # -kernelmon
    #- io_uringmon
+   #- sysenummon
 ```
 
 To enable detectors loading you must put the detector name in config detectors section.

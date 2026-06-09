@@ -11,6 +11,7 @@ Detectors are organized by event class and kernel subsystem:
 * *NetMon*: Observes TCP connection establishment and teardown.
 * *KernelMon*: Detects interaction with eBPF kernel subsystem.
 * *IOUringMon*: Inspects io_uring submission queue activity.
+* *SysEnumMon* (experimental): Detects system enumeration by correlating distinct watch-list observations within a sliding time window.
 
 
 All Detectors perform in-kernel event filtering directly within eBPF programs, minimizing overhead and reducing the volume of data sent to userspace.
