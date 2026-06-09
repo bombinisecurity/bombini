@@ -9,7 +9,7 @@ use std::{sync::Arc, time::Duration};
 
 use bombini_common::event::{
     Event, GenericEvent, MSG_FILE, MSG_IOURING, MSG_KERNEL, MSG_NETWORK, MSG_PROCESS,
-    MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
+    MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT, MSG_SYSENUM,
     process::{ProcInfo, ProcessKey},
 };
 
@@ -19,6 +19,7 @@ mod io_uring;
 mod kernel;
 mod network;
 mod process;
+mod sysenum;
 
 use crate::{
     config::{Config, DetectorConfig},
@@ -33,6 +34,7 @@ use process::{
     Process, ProcessCloneTransmuter, ProcessEventTransmuter, ProcessExecTransmuter,
     ProcessExitTransmuter,
 };
+use sysenum::SysEnumMonEventTransmuter;
 
 pub struct TransmuterRegistry {
     handlers: [Option<Arc<dyn Transmuter>>; 256],
@@ -95,6 +97,10 @@ impl TransmuterRegistry {
                 DetectorConfig::IOUringMon => {
                     registry.handlers[MSG_IOURING as usize] =
                         Some(Arc::new(IOUringEventTransmuter));
+                }
+                DetectorConfig::SysEnumMon(_cfg) => {
+                    registry.handlers[MSG_SYSENUM as usize] =
+                        Some(Arc::new(SysEnumMonEventTransmuter));
                 }
             }
         }

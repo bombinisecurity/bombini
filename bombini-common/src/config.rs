@@ -5,3 +5,4 @@ pub mod kernelmon;
 pub mod netmon;
 pub mod procmon;
 pub mod rule;
+pub mod sysenummon;

@@ -1,0 +1,38 @@
+chain_size: 5
+window_size_sec: 10
+bprm_check:
+  name:
+    - id
+    - whoami
+    - groups
+    - capsh
+    - getcap
+    - su
+    - ps
+    - pgrep
+    - pidof
+    - uname
+    - hostname
+    - sysctl
+    - dmesg
+    - lsmod
+    - netstat
+    - ss
+    - ifconfig
+    - route
+    - iptables
+    - crontab
+    - w
+    - last
+file_open:
+  path:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/passwd
+    - /etc/crontab
+  path_prefix:
+    - /etc/ssh
+    - /etc/cron.
+    - /var/spool/cron
+    - /root/.ssh

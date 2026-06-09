@@ -93,6 +93,36 @@ pub struct NetMonConfig {
     #[prost(message, optional, tag = "4")]
     pub socket_connect: ::core::option::Option<HookConfig>,
 }
+/// Configuration file for SysEnumMon detector.
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SysEnumMonConfig {
+    /// Number of unique observations needed within the window to raise an alert.
+    #[prost(uint32, tag = "1")]
+    pub chain_size: u32,
+    /// Sliding window length in seconds.
+    #[prost(uint64, tag = "2")]
+    pub window_size_sec: u64,
+    /// Binary names observed on execve.
+    #[prost(message, optional, tag = "3")]
+    pub bprm_check: ::core::option::Option<SysEnumMonBins>,
+    /// File paths observed on file_open.
+    #[prost(message, optional, tag = "4")]
+    pub file_open: ::core::option::Option<SysEnumMonFiles>,
+}
+/// List of binary names.
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SysEnumMonBins {
+    #[prost(string, repeated, tag = "1")]
+    pub name: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// List of file paths and path prefixes.
+#[derive(serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SysEnumMonFiles {
+    #[prost(string, repeated, tag = "1")]
+    pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, repeated, tag = "2")]
+    pub path_prefix: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
 /// Rule definition. Scope and event predicates are used as logical conjunction.
 #[derive(serde::Deserialize)]
 #[serde(default)]
