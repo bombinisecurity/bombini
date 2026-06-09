@@ -32,7 +32,7 @@ use bombini_detectors_ebpf::{
     co_re::{self, core_read_kernel},
     filter::{
         kernelmon::{bpfmap::BpfMapFilter, bpfprog::BpfProgFilter},
-        scope::ScopeFilter,
+        scope::BinaryScopeFilter,
     },
     interpreter::{self, rule::IsEmpty},
     uapi::BpfProgLoadAttr,
@@ -294,7 +294,7 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &KERNELMON_BPF_MAP_BINNAME_MAP,
                 &KERNELMON_BPF_MAP_BINPATH_MAP,
                 &KERNELMON_BPF_MAP_BINPREFIX_MAP,
@@ -488,7 +488,7 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &KERNELMON_BPF_MAP_CREATE_BINNAME_MAP,
                 &KERNELMON_BPF_MAP_CREATE_BINPATH_MAP,
                 &KERNELMON_BPF_MAP_CREATE_BINPREFIX_MAP,
@@ -668,7 +668,7 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &KERNELMON_BPF_PROG_BINNAME_MAP,
                 &KERNELMON_BPF_PROG_BINPATH_MAP,
                 &KERNELMON_BPF_PROG_BINPREFIX_MAP,
@@ -847,7 +847,7 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &KERNELMON_BPF_PROG_LOAD_BINNAME_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPATH_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPREFIX_MAP,
@@ -1006,7 +1006,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &KERNELMON_BPF_PROG_LOAD_BINNAME_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPATH_MAP,
                 &KERNELMON_BPF_PROG_LOAD_BINPREFIX_MAP,

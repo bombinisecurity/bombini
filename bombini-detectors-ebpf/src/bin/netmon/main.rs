@@ -49,7 +49,7 @@ use bombini_detectors_ebpf::{
     event_capture,
     filter::{
         netmon::ip::{Ipv4Filter, Ipv6Filter},
-        scope::ScopeFilter,
+        scope::BinaryScopeFilter,
     },
     interpreter::{self, rule::IsEmpty},
     util,
@@ -363,7 +363,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &NETMON_SOCKET_CREATE_BINNAME_MAP,
                 &NETMON_SOCKET_CREATE_BINPATH_MAP,
                 &NETMON_SOCKET_CREATE_BINPREFIX_MAP,
@@ -532,7 +532,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_SOCKET_CONNECT_BINNAME_MAP,
                         &NETMON_SOCKET_CONNECT_BINPATH_MAP,
                         &NETMON_SOCKET_CONNECT_BINPREFIX_MAP,
@@ -623,7 +623,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_SOCKET_CONNECT_BINNAME_MAP,
                         &NETMON_SOCKET_CONNECT_BINPATH_MAP,
                         &NETMON_SOCKET_CONNECT_BINPREFIX_MAP,
@@ -846,7 +846,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &NETMON_EGRESS_BINNAME_MAP,
                 &NETMON_EGRESS_BINPATH_MAP,
                 &NETMON_EGRESS_BINPREFIX_MAP,
@@ -954,7 +954,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                 &NETMON_EGRESS_BINNAME_MAP,
                 &NETMON_EGRESS_BINPATH_MAP,
                 &NETMON_EGRESS_BINPREFIX_MAP,
@@ -1071,7 +1071,7 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_INGRESS_BINNAME_MAP,
                         &NETMON_INGRESS_BINPATH_MAP,
                         &NETMON_INGRESS_BINPREFIX_MAP,
@@ -1107,7 +1107,7 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_EGRESS_BINNAME_MAP,
                         &NETMON_EGRESS_BINPATH_MAP,
                         &NETMON_EGRESS_BINPREFIX_MAP,
@@ -1222,7 +1222,7 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_INGRESS_BINNAME_MAP,
                         &NETMON_INGRESS_BINPATH_MAP,
                         &NETMON_INGRESS_BINPREFIX_MAP,
@@ -1258,7 +1258,7 @@ fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_EGRESS_BINNAME_MAP,
                         &NETMON_EGRESS_BINPATH_MAP,
                         &NETMON_EGRESS_BINPREFIX_MAP,
@@ -1372,7 +1372,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_INGRESS_BINNAME_MAP,
                         &NETMON_INGRESS_BINPATH_MAP,
                         &NETMON_INGRESS_BINPREFIX_MAP,
@@ -1451,7 +1451,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    let mut scope_filter = interpreter::Interpreter::new(BinaryScopeFilter::new(
                         &NETMON_INGRESS_BINNAME_MAP,
                         &NETMON_INGRESS_BINPATH_MAP,
                         &NETMON_INGRESS_BINPREFIX_MAP,

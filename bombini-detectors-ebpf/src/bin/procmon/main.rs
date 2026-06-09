@@ -24,7 +24,7 @@ use bombini_common::{
     config::rule::{CapKey, FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
     constants::{
         MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
-        PAGE_SIZE,
+        MAX_RULES_COUNT, PAGE_SIZE,
     },
     event::{
         Event, GenericEvent, MSG_PROCESS, MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
@@ -44,7 +44,7 @@ use bombini_detectors_ebpf::{
             bprm::BprmCheckFilter,
             cred::{CapFilter, CapValue, CredFilter, UidFilter},
         },
-        scope::ScopeFilter,
+        scope::{ScopeResults, eval_scope_predicate},
     },
     interpreter::{self, rule::IsEmpty},
     util,
@@ -232,6 +232,421 @@ static PROCMON_BINARY_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> =
 #[map]
 static PROCMON_BINARY_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
     PerCpuArray::with_max_entries(1, 0);
+
+const ANCESTOR_MAX_DEPTH: usize = 4;
+
+// Per-CPU buffer holding all pre-computed parent/ancestor match masks.
+#[map]
+static PROCMON_SCOPE_RESULTS: PerCpuArray<ScopeResults> = PerCpuArray::with_max_entries(1, 0);
+
+// The per-attribute precompute functions below each walk up to `$depth` ancestor
+// levels (1 = direct parent, ANCESTOR_MAX_DEPTH = full chain) and OR the per-rule
+// match masks into the result buffer. Each function references exactly one static
+// filter map (`$map`). Because it is its own `#[inline(never)]` subprogram with a
+// single map live, the map address stays in a register and does not get spilled
+// to the stack as a split 32-bit constant (which the verifier would reject with
+// "pointer arithmetic on map_ptr prohibited"). Keeping `ScopeFilter` itself free
+// of map references is what makes that possible.
+
+/// Define a file-name scope precompute function bound to a specific static map.
+macro_rules! def_precompute_name {
+    ($fn_name:ident, $field:ident, $map:ident, $depth:expr) => {
+        #[inline(never)]
+        fn $fn_name(ppid: u32) -> Result<(), i32> {
+            unsafe {
+                let res_ptr = PROCMON_SCOPE_RESULTS.get_ptr_mut(0).ok_or(-1i32)?;
+                (*res_ptr).$field = [0u8; MAX_RULES_COUNT];
+                let mut ppid = ppid;
+                let mut depth = 0;
+                while depth < $depth {
+                    let Some(anc) = PROCMON_PROC_MAP.get(&ppid) else {
+                        break;
+                    };
+                    let key_ptr = PROCMON_BINARY_FILE_NAME_MAP.get_ptr_mut(0).ok_or(-1i32)?;
+                    (*key_ptr).name = [0u8; MAX_FILENAME_SIZE];
+                    bpf_probe_read_kernel_str_bytes(
+                        anc.filename.as_ptr() as *const u8,
+                        &mut (*key_ptr).name,
+                    )
+                    .ok();
+                    let mut ridx = 0;
+                    while ridx < MAX_RULES_COUNT {
+                        (*key_ptr).rule_idx = ridx as u8;
+                        if let Some(mask) = $map.get(&*key_ptr) {
+                            (*res_ptr).$field[ridx] |= *mask;
+                        }
+                        ridx += 1;
+                    }
+                    ppid = anc.ppid;
+                    depth += 1;
+                }
+            }
+            Ok(())
+        }
+    };
+}
+
+/// Same as [`def_precompute_name`] but for the full binary path.
+macro_rules! def_precompute_path {
+    ($fn_name:ident, $field:ident, $map:ident, $depth:expr) => {
+        #[inline(never)]
+        fn $fn_name(ppid: u32) -> Result<(), i32> {
+            unsafe {
+                let res_ptr = PROCMON_SCOPE_RESULTS.get_ptr_mut(0).ok_or(-1i32)?;
+                (*res_ptr).$field = [0u8; MAX_RULES_COUNT];
+                let mut ppid = ppid;
+                let mut depth = 0;
+                while depth < $depth {
+                    let Some(anc) = PROCMON_PROC_MAP.get(&ppid) else {
+                        break;
+                    };
+                    let key_ptr = PROCMON_BINARY_PATH_MAP.get_ptr_mut(0).ok_or(-1i32)?;
+                    (*key_ptr).path = [0u8; MAX_FILE_PATH];
+                    bpf_probe_read_kernel_str_bytes(
+                        anc.binary_path.as_ptr() as *const u8,
+                        &mut (*key_ptr).path,
+                    )
+                    .ok();
+                    let mut ridx = 0;
+                    while ridx < MAX_RULES_COUNT {
+                        (*key_ptr).rule_idx = ridx as u8;
+                        if let Some(mask) = $map.get(&*key_ptr) {
+                            (*res_ptr).$field[ridx] |= *mask;
+                        }
+                        ridx += 1;
+                    }
+                    ppid = anc.ppid;
+                    depth += 1;
+                }
+            }
+            Ok(())
+        }
+    };
+}
+
+/// Same as [`def_precompute_name`] but for the binary path prefix (LPM trie).
+macro_rules! def_precompute_prefix {
+    ($fn_name:ident, $field:ident, $map:ident, $depth:expr) => {
+        #[inline(never)]
+        fn $fn_name(ppid: u32) -> Result<(), i32> {
+            unsafe {
+                let res_ptr = PROCMON_SCOPE_RESULTS.get_ptr_mut(0).ok_or(-1i32)?;
+                (*res_ptr).$field = [0u8; MAX_RULES_COUNT];
+                let mut ppid = ppid;
+                let mut depth = 0;
+                while depth < $depth {
+                    let Some(anc) = PROCMON_PROC_MAP.get(&ppid) else {
+                        break;
+                    };
+                    let key_ptr = PROCMON_BINARY_PATH_PREFIX_MAP.get_ptr_mut(0).ok_or(-1i32)?;
+                    (*key_ptr).data.path_prefix = [0u8; MAX_FILE_PREFIX];
+                    bpf_probe_read_kernel_buf(
+                        anc.binary_path.as_ptr() as *const u8,
+                        &mut (*key_ptr).data.path_prefix,
+                    )
+                    .ok();
+                    (*key_ptr).prefix_len = (MAX_FILE_PREFIX * 8) as u32;
+                    let mut ridx = 0;
+                    while ridx < MAX_RULES_COUNT {
+                        (*key_ptr).data.rule_idx = ridx as u8;
+                        if let Some(mask) = $map.get(&*key_ptr) {
+                            (*res_ptr).$field[ridx] |= *mask;
+                        }
+                        ridx += 1;
+                    }
+                    ppid = anc.ppid;
+                    depth += 1;
+                }
+            }
+            Ok(())
+        }
+    };
+}
+
+/// Combined parent+ancestor precompute for a file name. Walks the ancestor chain
+/// once: depth 0 (the direct parent) feeds both the parent and ancestor results;
+/// deeper levels feed only the ancestor result. Combining halves the number of
+/// precompute subprograms (relative to one-per-scope), which keeps total verifier
+/// work under the program complexity limit.
+macro_rules! def_precompute_pa_name {
+    ($fn_name:ident, $parent_field:ident, $anc_field:ident, $parent_map:ident, $anc_map:ident) => {
+        #[inline(never)]
+        fn $fn_name(ppid: u32) -> Result<(), i32> {
+            unsafe {
+                let res_ptr = PROCMON_SCOPE_RESULTS.get_ptr_mut(0).ok_or(-1i32)?;
+                (*res_ptr).$parent_field = [0u8; MAX_RULES_COUNT];
+                (*res_ptr).$anc_field = [0u8; MAX_RULES_COUNT];
+                let mut ppid = ppid;
+                let mut depth = 0;
+                while depth < ANCESTOR_MAX_DEPTH {
+                    let Some(anc) = PROCMON_PROC_MAP.get(&ppid) else {
+                        break;
+                    };
+                    let key_ptr = PROCMON_BINARY_FILE_NAME_MAP.get_ptr_mut(0).ok_or(-1i32)?;
+                    (*key_ptr).name = [0u8; MAX_FILENAME_SIZE];
+                    bpf_probe_read_kernel_str_bytes(
+                        anc.filename.as_ptr() as *const u8,
+                        &mut (*key_ptr).name,
+                    )
+                    .ok();
+                    let is_parent = depth == 0;
+                    let mut ridx = 0;
+                    while ridx < MAX_RULES_COUNT {
+                        (*key_ptr).rule_idx = ridx as u8;
+                        if let Some(mask) = $anc_map.get(&*key_ptr) {
+                            (*res_ptr).$anc_field[ridx] |= *mask;
+                        }
+                        if is_parent && let Some(mask) = $parent_map.get(&*key_ptr) {
+                            (*res_ptr).$parent_field[ridx] |= *mask;
+                        }
+                        ridx += 1;
+                    }
+                    ppid = anc.ppid;
+                    depth += 1;
+                }
+            }
+            Ok(())
+        }
+    };
+}
+
+/// Combined parent+ancestor precompute for the full binary path.
+macro_rules! def_precompute_pa_path {
+    ($fn_name:ident, $parent_field:ident, $anc_field:ident, $parent_map:ident, $anc_map:ident) => {
+        #[inline(never)]
+        fn $fn_name(ppid: u32) -> Result<(), i32> {
+            unsafe {
+                let res_ptr = PROCMON_SCOPE_RESULTS.get_ptr_mut(0).ok_or(-1i32)?;
+                (*res_ptr).$parent_field = [0u8; MAX_RULES_COUNT];
+                (*res_ptr).$anc_field = [0u8; MAX_RULES_COUNT];
+                let mut ppid = ppid;
+                let mut depth = 0;
+                while depth < ANCESTOR_MAX_DEPTH {
+                    let Some(anc) = PROCMON_PROC_MAP.get(&ppid) else {
+                        break;
+                    };
+                    let key_ptr = PROCMON_BINARY_PATH_MAP.get_ptr_mut(0).ok_or(-1i32)?;
+                    (*key_ptr).path = [0u8; MAX_FILE_PATH];
+                    bpf_probe_read_kernel_str_bytes(
+                        anc.binary_path.as_ptr() as *const u8,
+                        &mut (*key_ptr).path,
+                    )
+                    .ok();
+                    let is_parent = depth == 0;
+                    let mut ridx = 0;
+                    while ridx < MAX_RULES_COUNT {
+                        (*key_ptr).rule_idx = ridx as u8;
+                        if let Some(mask) = $anc_map.get(&*key_ptr) {
+                            (*res_ptr).$anc_field[ridx] |= *mask;
+                        }
+                        if is_parent && let Some(mask) = $parent_map.get(&*key_ptr) {
+                            (*res_ptr).$parent_field[ridx] |= *mask;
+                        }
+                        ridx += 1;
+                    }
+                    ppid = anc.ppid;
+                    depth += 1;
+                }
+            }
+            Ok(())
+        }
+    };
+}
+
+/// Combined parent+ancestor precompute for the binary path prefix (LPM trie).
+macro_rules! def_precompute_pa_prefix {
+    ($fn_name:ident, $parent_field:ident, $anc_field:ident, $parent_map:ident, $anc_map:ident) => {
+        #[inline(never)]
+        fn $fn_name(ppid: u32) -> Result<(), i32> {
+            unsafe {
+                let res_ptr = PROCMON_SCOPE_RESULTS.get_ptr_mut(0).ok_or(-1i32)?;
+                (*res_ptr).$parent_field = [0u8; MAX_RULES_COUNT];
+                (*res_ptr).$anc_field = [0u8; MAX_RULES_COUNT];
+                let mut ppid = ppid;
+                let mut depth = 0;
+                while depth < ANCESTOR_MAX_DEPTH {
+                    let Some(anc) = PROCMON_PROC_MAP.get(&ppid) else {
+                        break;
+                    };
+                    let key_ptr = PROCMON_BINARY_PATH_PREFIX_MAP.get_ptr_mut(0).ok_or(-1i32)?;
+                    (*key_ptr).data.path_prefix = [0u8; MAX_FILE_PREFIX];
+                    bpf_probe_read_kernel_buf(
+                        anc.binary_path.as_ptr() as *const u8,
+                        &mut (*key_ptr).data.path_prefix,
+                    )
+                    .ok();
+                    (*key_ptr).prefix_len = (MAX_FILE_PREFIX * 8) as u32;
+                    let is_parent = depth == 0;
+                    let mut ridx = 0;
+                    while ridx < MAX_RULES_COUNT {
+                        (*key_ptr).data.rule_idx = ridx as u8;
+                        if let Some(mask) = $anc_map.get(&*key_ptr) {
+                            (*res_ptr).$anc_field[ridx] |= *mask;
+                        }
+                        if is_parent && let Some(mask) = $parent_map.get(&*key_ptr) {
+                            (*res_ptr).$parent_field[ridx] |= *mask;
+                        }
+                        ridx += 1;
+                    }
+                    ppid = anc.ppid;
+                    depth += 1;
+                }
+            }
+            Ok(())
+        }
+    };
+}
+
+/// Generate the six per-hook precompute functions: three for the executing
+/// binary (depth 1, starting at `proc.pid`) and three combined parent+ancestor
+/// walks (starting at `proc.ppid`).
+macro_rules! def_hook_scope_precompute {
+    ($hook:ident,
+     $bin_name_map:ident, $bin_path_map:ident, $bin_prefix_map:ident,
+     $parent_name_map:ident, $parent_path_map:ident, $parent_prefix_map:ident,
+     $anc_name_map:ident, $anc_path_map:ident, $anc_prefix_map:ident) => {
+        paste::paste! {
+            def_precompute_name!(
+                [<precompute_ $hook _binary_name>],
+                binary_name, $bin_name_map, 1usize
+            );
+            def_precompute_path!(
+                [<precompute_ $hook _binary_path>],
+                binary_path, $bin_path_map, 1usize
+            );
+            def_precompute_prefix!(
+                [<precompute_ $hook _binary_prefix>],
+                binary_prefix, $bin_prefix_map, 1usize
+            );
+            def_precompute_pa_name!(
+                [<precompute_ $hook _pa_name>],
+                parent_name, ancestor_name, $parent_name_map, $anc_name_map
+            );
+            def_precompute_pa_path!(
+                [<precompute_ $hook _pa_path>],
+                parent_path, ancestor_path, $parent_path_map, $anc_path_map
+            );
+            def_precompute_pa_prefix!(
+                [<precompute_ $hook _pa_prefix>],
+                parent_prefix, ancestor_prefix, $parent_prefix_map, $anc_prefix_map
+            );
+
+            // Single entry point so the hook has *one* `?` call site for the whole
+            // scope precompute instead of six. Six sequential `?` calls in the hot
+            // hook each fork the verifier's state on their error path, and with the
+            // per-rule event interpreter already near the 1M-insn limit on the
+            // 6.2/6.14 verifiers that fan-out tips it over. Collapsing them into one
+            // `#[inline(never)]` subprogram (verified once) keeps the hook flat.
+            #[inline(never)]
+            fn [<precompute_ $hook _all>](pid: u32, ppid: u32) -> Result<(), i32> {
+                [<precompute_ $hook _binary_name>](pid)?;
+                [<precompute_ $hook _binary_path>](pid)?;
+                [<precompute_ $hook _binary_prefix>](pid)?;
+                [<precompute_ $hook _pa_name>](ppid)?;
+                [<precompute_ $hook _pa_path>](ppid)?;
+                [<precompute_ $hook _pa_prefix>](ppid)?;
+                Ok(())
+            }
+        }
+    };
+}
+
+def_hook_scope_precompute!(
+    setuid,
+    PROCMON_SETUID_BINNAME_MAP,
+    PROCMON_SETUID_BINPATH_MAP,
+    PROCMON_SETUID_BINPREFIX_MAP,
+    PROCMON_SETUID_PARENT_BINNAME_MAP,
+    PROCMON_SETUID_PARENT_BINPATH_MAP,
+    PROCMON_SETUID_PARENT_BINPREFIX_MAP,
+    PROCMON_SETUID_ANCESTOR_BINNAME_MAP,
+    PROCMON_SETUID_ANCESTOR_BINPATH_MAP,
+    PROCMON_SETUID_ANCESTOR_BINPREFIX_MAP
+);
+def_hook_scope_precompute!(
+    setgid,
+    PROCMON_SETGID_BINNAME_MAP,
+    PROCMON_SETGID_BINPATH_MAP,
+    PROCMON_SETGID_BINPREFIX_MAP,
+    PROCMON_SETGID_PARENT_BINNAME_MAP,
+    PROCMON_SETGID_PARENT_BINPATH_MAP,
+    PROCMON_SETGID_PARENT_BINPREFIX_MAP,
+    PROCMON_SETGID_ANCESTOR_BINNAME_MAP,
+    PROCMON_SETGID_ANCESTOR_BINPATH_MAP,
+    PROCMON_SETGID_ANCESTOR_BINPREFIX_MAP
+);
+def_hook_scope_precompute!(
+    capset,
+    PROCMON_CAPSET_BINNAME_MAP,
+    PROCMON_CAPSET_BINPATH_MAP,
+    PROCMON_CAPSET_BINPREFIX_MAP,
+    PROCMON_CAPSET_PARENT_BINNAME_MAP,
+    PROCMON_CAPSET_PARENT_BINPATH_MAP,
+    PROCMON_CAPSET_PARENT_BINPREFIX_MAP,
+    PROCMON_CAPSET_ANCESTOR_BINNAME_MAP,
+    PROCMON_CAPSET_ANCESTOR_BINPATH_MAP,
+    PROCMON_CAPSET_ANCESTOR_BINPREFIX_MAP
+);
+def_hook_scope_precompute!(
+    prctl,
+    PROCMON_PRCTL_BINNAME_MAP,
+    PROCMON_PRCTL_BINPATH_MAP,
+    PROCMON_PRCTL_BINPREFIX_MAP,
+    PROCMON_PRCTL_PARENT_BINNAME_MAP,
+    PROCMON_PRCTL_PARENT_BINPATH_MAP,
+    PROCMON_PRCTL_PARENT_BINPREFIX_MAP,
+    PROCMON_PRCTL_ANCESTOR_BINNAME_MAP,
+    PROCMON_PRCTL_ANCESTOR_BINPATH_MAP,
+    PROCMON_PRCTL_ANCESTOR_BINPREFIX_MAP
+);
+def_hook_scope_precompute!(
+    userns,
+    PROCMON_USERNS_BINNAME_MAP,
+    PROCMON_USERNS_BINPATH_MAP,
+    PROCMON_USERNS_BINPREFIX_MAP,
+    PROCMON_USERNS_PARENT_BINNAME_MAP,
+    PROCMON_USERNS_PARENT_BINPATH_MAP,
+    PROCMON_USERNS_PARENT_BINPREFIX_MAP,
+    PROCMON_USERNS_ANCESTOR_BINNAME_MAP,
+    PROCMON_USERNS_ANCESTOR_BINPATH_MAP,
+    PROCMON_USERNS_ANCESTOR_BINPREFIX_MAP
+);
+def_hook_scope_precompute!(
+    ptrace,
+    PROCMON_PTRACE_ACCESS_CHECK_BINNAME_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_BINPATH_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_BINPREFIX_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_PARENT_BINNAME_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_PARENT_BINPATH_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_PARENT_BINPREFIX_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_ANCESTOR_BINNAME_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_ANCESTOR_BINPATH_MAP,
+    PROCMON_PTRACE_ACCESS_CHECK_ANCESTOR_BINPREFIX_MAP
+);
+def_hook_scope_precompute!(
+    bprm_check,
+    PROCMON_BPRM_CHECK_BINNAME_MAP,
+    PROCMON_BPRM_CHECK_BINPATH_MAP,
+    PROCMON_BPRM_CHECK_BINPREFIX_MAP,
+    PROCMON_BPRM_CHECK_PARENT_BINNAME_MAP,
+    PROCMON_BPRM_CHECK_PARENT_BINPATH_MAP,
+    PROCMON_BPRM_CHECK_PARENT_BINPREFIX_MAP,
+    PROCMON_BPRM_CHECK_ANCESTOR_BINNAME_MAP,
+    PROCMON_BPRM_CHECK_ANCESTOR_BINPATH_MAP,
+    PROCMON_BPRM_CHECK_ANCESTOR_BINPREFIX_MAP
+);
+
+/// Run the six per-hook precompute functions and return a reference to the
+/// per-CPU [`ScopeResults`] buffer they filled.
+macro_rules! fill_ancestor_and_parent {
+    ($hook:ident, $proc:expr) => {{
+        paste::paste! {
+            [<precompute_ $hook _all>]($proc.pid, $proc.ppid)?;
+        }
+        let results_ptr = PROCMON_SCOPE_RESULTS.get_ptr(0).ok_or(-1i32)?;
+        &*results_ptr
+    }};
+}
 
 #[inline(always)]
 fn get_creds(proc: &mut ProcInfo, task: co_re::task_struct) -> Result<u32, i32> {
@@ -599,6 +1014,29 @@ static PROCMON_SETUID_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_m
 #[map]
 static PROCMON_SETUID_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETUID_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
 #[lsm(hook = "task_fix_setuid")]
@@ -661,30 +1099,18 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             value: event.euid,
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        // Ancestor pre-computation and parent fill
+        let scope_results = fill_ancestor_and_parent!(setuid, proc);
 
-        // Get binary path
-        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut idx = 0;
+        while idx < MAX_RULES_COUNT {
+            let rule = &rule_array[idx];
+            if rule.is_empty() {
+                break;
+            }
             proc_uid.rule_idx = idx as u32;
             proc_euid.rule_idx = idx as u32;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &PROCMON_SETUID_BINNAME_MAP,
-                &PROCMON_SETUID_BINPATH_MAP,
-                &PROCMON_SETUID_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
                     &PROCMON_SETUID_UID_MAP,
@@ -715,6 +1141,7 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     return Ok(-1);
                 }
             }
+            idx += 1;
         }
     }
     Err(0)
@@ -739,6 +1166,29 @@ static PROCMON_SETGID_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_m
 
 #[map]
 static PROCMON_SETGID_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_SETGID_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -802,30 +1252,13 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             value: event.egid,
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Ancestor pre-computation and parent fill
+        let scope_results = fill_ancestor_and_parent!(setgid, proc);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             proc_gid.rule_idx = idx as u32;
             proc_egid.rule_idx = idx as u32;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &PROCMON_SETGID_BINNAME_MAP,
-                &PROCMON_SETGID_BINPATH_MAP,
-                &PROCMON_SETGID_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
                     &PROCMON_SETGID_GID_MAP,
@@ -881,6 +1314,29 @@ static PROCMON_CAPSET_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_m
 
 #[map]
 static PROCMON_CAPSET_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_CAPSET_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -943,30 +1399,13 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             caps: event.permitted,
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Ancestor pre-computation and parent fill
+        let scope_results = fill_ancestor_and_parent!(capset, proc);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             proc_ecap.rule_idx = idx as u8;
             proc_pcap.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &PROCMON_CAPSET_BINNAME_MAP,
-                &PROCMON_CAPSET_BINPATH_MAP,
-                &PROCMON_CAPSET_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(CapFilter::new(
                     &PROCMON_CAPSET_ECAP_MAP,
@@ -1016,6 +1455,29 @@ static PROCMON_PRCTL_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_ma
 
 #[map]
 static PROCMON_PRCTL_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> = LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PRCTL_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
 #[lsm(hook = "task_prctl")]
@@ -1066,28 +1528,11 @@ fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
             return Ok(0);
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Ancestor pre-computation and parent fill
+        let scope_results = fill_ancestor_and_parent!(prctl, proc);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &PROCMON_PRCTL_BINNAME_MAP,
-                &PROCMON_PRCTL_BINPATH_MAP,
-                &PROCMON_PRCTL_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            if eval_scope_predicate(scope_results, idx, &rule.scope)? {
                 enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                 return Ok(0);
             }
@@ -1116,6 +1561,29 @@ static PROCMON_USERNS_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_m
 
 #[map]
 static PROCMON_USERNS_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_USERNS_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -1179,30 +1647,13 @@ fn try_create_user_ns_capture(
             value: euid,
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Ancestor pre-computation and parent fill
+        let scope_results = fill_ancestor_and_parent!(userns, proc);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             proc_ecap.rule_idx = idx as u8;
             proc_euid.rule_idx = idx as u32;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &PROCMON_USERNS_BINNAME_MAP,
-                &PROCMON_USERNS_BINPATH_MAP,
-                &PROCMON_USERNS_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(CredFilter::new(
                     &PROCMON_USERNS_ECAP_MAP,
@@ -1254,6 +1705,30 @@ static PROCMON_PTRACE_ACCESS_CHECK_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 #[map]
 static PROCMON_PTRACE_ACCESS_CHECK_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_PTRACE_ACCESS_CHECK_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
 #[lsm(hook = "ptrace_access_check")]
@@ -1289,28 +1764,11 @@ fn try_ptrace_access_check_capture(
             return enrich_ptrace_access_check_info(msg, proc, &ctx);
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Ancestor pre-computation and parent fill
+        let scope_results = fill_ancestor_and_parent!(ptrace, proc);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &PROCMON_PTRACE_ACCESS_CHECK_BINNAME_MAP,
-                &PROCMON_PTRACE_ACCESS_CHECK_BINPATH_MAP,
-                &PROCMON_PTRACE_ACCESS_CHECK_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            if scope_filter.check_predicate(&rule.scope)? {
+            if eval_scope_predicate(scope_results, idx, &rule.scope)? {
                 return enrich_ptrace_access_check_info(msg, proc, &ctx);
             }
         }
@@ -1351,6 +1809,30 @@ static PROCMON_BPRM_CHECK_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static PROCMON_BPRM_CHECK_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_PARENT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_PARENT_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_PARENT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_ANCESTOR_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_ANCESTOR_BINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_BPRM_CHECK_ANCESTOR_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -1445,31 +1927,14 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             caps: Capabilities::from_bits_retain(cred.cap_effective()),
         };
 
-        // Get binary name
-        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-        // Get binary path
-        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
-
-        // Get binary prefix
-        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        // Ancestor pre-computation and parent fill
+        let scope_results = fill_ancestor_and_parent!(bprm_check, proc);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
-            binary_name.rule_idx = idx as u8;
-            binary_path.rule_idx = idx as u8;
-            binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                &PROCMON_BPRM_CHECK_BINNAME_MAP,
-                &PROCMON_BPRM_CHECK_BINPATH_MAP,
-                &PROCMON_BPRM_CHECK_BINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            let scope_passed = eval_scope_predicate(scope_results, idx, &rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(BprmCheckFilter::new(
                     &PROCMON_BPRM_CHECK_NAME_MAP,
