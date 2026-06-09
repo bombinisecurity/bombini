@@ -24,7 +24,8 @@ fn test_6_2_detectors_load() {
     builder
         .detector("procmon", None)
         .detector("filemon", None)
-        .detector("netmon", None);
+        .detector("netmon", None)
+        .detector("sysenummon", None);
 
     if kernel_ver >= ver_6_8 {
         builder.detector("io_uringmon", None);
@@ -44,6 +45,7 @@ fn test_6_2_detectors_load() {
     assert!(log.contains("procmon is loaded"));
     assert!(log.contains("filemon is loaded"));
     assert!(log.contains("netmon is loaded"));
+    assert!(log.contains("sysenummon is loaded"));
     if kernel_ver >= ver_6_8 {
         assert!(log.contains("io_uringmon is loaded"));
     }
@@ -112,6 +114,57 @@ fn test_6_8_io_uringmon() {
     ma::assert_ge!(events.matches("\"type\":\"IOUringEvent\"").count(), 1);
     ma::assert_ge!(
         events.matches("\"opcode\":\"IORING_OP_EPOLL_CTL\"").count(),
+        1
+    );
+}
+
+#[test]
+fn test_6_2_sysenummon() {
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("sysenummon", None)
+        .events_timeout(1)
+        .launch()
+        .unwrap();
+
+    let _ = Command::new("id").stdout(Stdio::null()).status();
+    let _ = Command::new("uname").stdout(Stdio::null()).status();
+    let _ = Command::new("cat")
+        .arg("/etc/shadow")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let _ = Command::new("ls")
+        .arg("/etc/ssh")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    let events = bombini
+        .wait_for_events("\"type\":\"SysEnumMonEvent\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    print_example_events!(&events);
+    ma::assert_ge!(events.matches("\"type\":\"SysEnumMonEvent\"").count(), 1);
+    // The chain must carry the correlated observations, not just fire: two execs
+    // and the exact-path file open that completed the chain.
+    ma::assert_ge!(
+        events
+            .matches("\"type\":\"Exec\",\"binary\":\"id\"")
+            .count(),
+        1
+    );
+    ma::assert_ge!(
+        events
+            .matches("\"type\":\"Exec\",\"binary\":\"uname\"")
+            .count(),
+        1
+    );
+    ma::assert_ge!(
+        events
+            .matches("\"type\":\"FileOpen\",\"path\":\"/etc/shadow\"")
+            .count(),
         1
     );
 }
