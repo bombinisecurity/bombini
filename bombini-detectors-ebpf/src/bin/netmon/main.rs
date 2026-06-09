@@ -55,13 +55,6 @@ use bombini_detectors_ebpf::{
     util,
 };
 
-#[derive(Clone, Copy)]
-#[repr(u8)]
-pub enum Direction {
-    Ingress = 0,
-    Egress,
-}
-
 #[map]
 static PROCMON_PROC_MAP: LruHashMap<u32, ProcInfo> = LruHashMap::pinned(1, 0);
 
@@ -804,7 +797,8 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
 
         let Some(ref rule_array) = rules.0 else {
-            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
+            // Put 255 if we don't have any rules
+            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
@@ -866,8 +860,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     &port_dst,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    let _ =
-                        NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(idx as u8), 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
@@ -914,7 +907,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
 
         let Some(ref rule_array) = rules.0 else {
-            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
+            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
@@ -974,8 +967,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     &port_dst,
                 ))?;
                 if event_filter.check_predicate(&rule.event)? {
-                    let _ =
-                        NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(Direction::Egress as u8), 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(idx as u8), 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     return Ok(0);
                 }
@@ -984,13 +976,12 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
     }
     Err(0)
 }
-
 #[fexit(function = "tcp_close")]
-pub fn tcp_close_v4(ctx: FExitContext) -> i32 {
-    event_capture!(ctx, MSG_NETWORK, true, try_tcp_close_v4)
+pub fn tcp_close(ctx: FExitContext) -> i32 {
+    event_capture!(ctx, MSG_NETWORK, true, try_tcp_close)
 }
 
-fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
+fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
     let Event::Network(ref mut msg) = generic_event.event else {
         return Err(-1);
     };
@@ -999,295 +990,55 @@ fn try_tcp_close_v4(ctx: FExitContext, generic_event: &mut GenericEvent) -> Resu
     let Some(proc) = proc else {
         return Err(-1);
     };
-
-    let Some(rules_ingress) = NETMON_INGRESS_RULE_MAP.get(0) else {
-        return Err(-1);
-    };
-
-    let Some(rules_egress) = NETMON_EGRESS_RULE_MAP.get(0) else {
-        return Err(-1);
-    };
-
     unsafe {
         let s = co_re::sock::from_ptr(ctx.arg(0));
         let family = core_read_kernel!(s, __sk_common, skc_family).unwrap_or(0);
-
-        if family == AF_INET {
-            // Get binary name
-            let binary_name = fill_name_map!(NETMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-            // Get binary path
-            let binary_path = fill_path_map!(NETMON_BINARY_PATH_MAP, &proc.binary_path);
-
-            // Get binary prefix
-            let binary_prefix = fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-
-            let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
-            *p = NetworkEventNumber::TcpConV4Close as u8;
-            let NetworkEventVariant::TcpConV4Close(ref mut event) = msg.event else {
-                return Err(-1);
-            };
-            let _ = parse_v4_sock(event, s);
-            let Some(direction) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
-                // There is no previous connection, so it is not an error
-                return Err(0);
-            };
-            let direction = *direction;
-            let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
-
-            if rules_egress.0.is_none() && rules_ingress.0.is_none() {
-                enrich_with_proc_info_and_rule_idx(msg, proc, None);
-                return Ok(0);
+        match family {
+            AF_INET => {
+                let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
+                *p = NetworkEventNumber::TcpConV4Close as u8;
+                let NetworkEventVariant::TcpConV4Close(ref mut event) = msg.event else {
+                    return Err(-1);
+                };
+                let _ = parse_v4_sock(event, s);
+                let Some(rule_idx) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
+                    // There is no previous connection, so it is not an error
+                    return Err(0);
+                };
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
+                let rule_idx = if *rule_idx != 255u8 {
+                    Some(*rule_idx)
+                } else {
+                    None
+                };
+                // We don't need to apply rules because they are applied on connection
+                enrich_with_proc_info_and_rule_idx(msg, proc, rule_idx);
+                Ok(0)
             }
-
-            // Get ip_src
-            let saddr = event.saddr.to_le_bytes();
-            let ip_src = fill_ip_map!(NETMON_IPV4_SRC_MAP, &saddr, 4);
-
-            // Get ip_dst
-            let daddr = event.daddr.to_le_bytes();
-            let ip_dst = fill_ip_map!(NETMON_IPV4_DST_MAP, &daddr, 4);
-
-            // Get port_src
-            let mut port_src = PortKey {
-                rule_idx: 0,
-                port: event.sport,
-            };
-
-            // Get port_dst
-            let mut port_dst = PortKey {
-                rule_idx: 0,
-                port: event.dport,
-            };
-
-            if direction == Direction::Ingress as u8
-                && let Some(ref rule_array) = rules_ingress.0
-            {
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
-                    ip_src.data.rule_idx = idx as u8;
-                    ip_dst.data.rule_idx = idx as u8;
-                    port_src.rule_idx = idx as u16;
-                    port_dst.rule_idx = idx as u16;
-                    binary_name.rule_idx = idx as u8;
-                    binary_path.rule_idx = idx as u8;
-                    binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                        &NETMON_INGRESS_BINNAME_MAP,
-                        &NETMON_INGRESS_BINPATH_MAP,
-                        &NETMON_INGRESS_BINPREFIX_MAP,
-                        binary_name,
-                        binary_path,
-                        binary_prefix,
-                    ))?;
-                    if scope_filter.check_predicate(&rule.scope)? {
-                        let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
-                            &NETMON_INGRESS_SRC_IPV4_MAP,
-                            &NETMON_INGRESS_DST_IPV4_MAP,
-                            &NETMON_INGRESS_SRC_PORT_MAP,
-                            &NETMON_INGRESS_DST_PORT_MAP,
-                            ip_src,
-                            ip_dst,
-                            &port_src,
-                            &port_dst,
-                        ))?;
-                        if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                            return Ok(0);
-                        }
-                    }
-                }
-            } else if direction == Direction::Egress as u8
-                && let Some(ref rule_array) = rules_egress.0
-            {
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
-                    ip_src.data.rule_idx = idx as u8;
-                    ip_dst.data.rule_idx = idx as u8;
-                    port_src.rule_idx = idx as u16;
-                    port_dst.rule_idx = idx as u16;
-                    binary_name.rule_idx = idx as u8;
-                    binary_path.rule_idx = idx as u8;
-                    binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                        &NETMON_EGRESS_BINNAME_MAP,
-                        &NETMON_EGRESS_BINPATH_MAP,
-                        &NETMON_EGRESS_BINPREFIX_MAP,
-                        binary_name,
-                        binary_path,
-                        binary_prefix,
-                    ))?;
-                    if scope_filter.check_predicate(&rule.scope)? {
-                        let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
-                            &NETMON_EGRESS_SRC_IPV4_MAP,
-                            &NETMON_EGRESS_DST_IPV4_MAP,
-                            &NETMON_EGRESS_SRC_PORT_MAP,
-                            &NETMON_EGRESS_DST_PORT_MAP,
-                            ip_src,
-                            ip_dst,
-                            &port_src,
-                            &port_dst,
-                        ))?;
-                        if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                            return Ok(0);
-                        }
-                    }
-                }
+            AF_INET6 => {
+                let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
+                *p = NetworkEventNumber::TcpConV6Close as u8;
+                let NetworkEventVariant::TcpConV6Close(ref mut event) = msg.event else {
+                    return Err(-1);
+                };
+                parse_v6_sock(event, s)?;
+                let Some(rule_idx) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
+                    // There is no previous connection, so it is not an error
+                    return Err(0);
+                };
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
+                let rule_idx = if *rule_idx != 255u8 {
+                    Some(*rule_idx)
+                } else {
+                    None
+                };
+                // We don't need to apply rules because they are applied on connection
+                enrich_with_proc_info_and_rule_idx(msg, proc, rule_idx);
+                Ok(0)
             }
+            _ => Err(0),
         }
     }
-    Err(0)
-}
-
-#[fexit(function = "tcp_close")]
-pub fn tcp_close_v6(ctx: FExitContext) -> i32 {
-    event_capture!(ctx, MSG_NETWORK, true, try_tcp_close_v6)
-}
-
-fn try_tcp_close_v6(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
-    let Event::Network(ref mut msg) = generic_event.event else {
-        return Err(-1);
-    };
-    let pid = ctx.tgid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
-    let Some(proc) = proc else {
-        return Err(-1);
-    };
-
-    let Some(rules_ingress) = NETMON_INGRESS_RULE_MAP.get(0) else {
-        return Err(-1);
-    };
-
-    let Some(rules_egress) = NETMON_EGRESS_RULE_MAP.get(0) else {
-        return Err(-1);
-    };
-
-    unsafe {
-        let s = co_re::sock::from_ptr(ctx.arg(0));
-        let family = core_read_kernel!(s, __sk_common, skc_family).unwrap_or(0);
-
-        if family == AF_INET6 {
-            // Get binary name
-            let binary_name = fill_name_map!(NETMON_BINARY_FILE_NAME_MAP, &proc.filename);
-
-            // Get binary path
-            let binary_path = fill_path_map!(NETMON_BINARY_PATH_MAP, &proc.binary_path);
-
-            // Get binary prefix
-            let binary_prefix = fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-
-            let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
-            *p = NetworkEventNumber::TcpConV6Close as u8;
-            let NetworkEventVariant::TcpConV6Close(ref mut event) = msg.event else {
-                return Err(-1);
-            };
-            parse_v6_sock(event, s)?;
-            let Some(direction) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
-                // There is no previous connection, so it is not an error
-                return Err(0);
-            };
-            let direction = *direction;
-            let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
-
-            if rules_egress.0.is_none() && rules_ingress.0.is_none() {
-                enrich_with_proc_info_and_rule_idx(msg, proc, None);
-                return Ok(0);
-            }
-
-            // Get ip_src
-            let ip_src = fill_ip_map!(NETMON_IPV6_SRC_MAP, &event.saddr, 16);
-
-            // Get ip_dst
-            let ip_dst = fill_ip_map!(NETMON_IPV6_DST_MAP, &event.daddr, 16);
-
-            // Get port_src
-            let mut port_src = PortKey {
-                rule_idx: 0,
-                port: event.sport,
-            };
-
-            // Get port_dst
-            let mut port_dst = PortKey {
-                rule_idx: 0,
-                port: event.dport,
-            };
-
-            if direction == Direction::Ingress as u8
-                && let Some(ref rule_array) = rules_ingress.0
-            {
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
-                    ip_src.data.rule_idx = idx as u8;
-                    ip_dst.data.rule_idx = idx as u8;
-                    port_src.rule_idx = idx as u16;
-                    port_dst.rule_idx = idx as u16;
-                    binary_name.rule_idx = idx as u8;
-                    binary_path.rule_idx = idx as u8;
-                    binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                        &NETMON_INGRESS_BINNAME_MAP,
-                        &NETMON_INGRESS_BINPATH_MAP,
-                        &NETMON_INGRESS_BINPREFIX_MAP,
-                        binary_name,
-                        binary_path,
-                        binary_prefix,
-                    ))?;
-                    if scope_filter.check_predicate(&rule.scope)? {
-                        let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
-                            &NETMON_INGRESS_SRC_IPV6_MAP,
-                            &NETMON_INGRESS_DST_IPV6_MAP,
-                            &NETMON_INGRESS_SRC_PORT_MAP,
-                            &NETMON_INGRESS_DST_PORT_MAP,
-                            ip_src,
-                            ip_dst,
-                            &port_src,
-                            &port_dst,
-                        ))?;
-                        if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                            return Ok(0);
-                        }
-                    }
-                }
-            } else if direction == Direction::Egress as u8
-                && let Some(ref rule_array) = rules_egress.0
-            {
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
-                    ip_src.data.rule_idx = idx as u8;
-                    ip_dst.data.rule_idx = idx as u8;
-                    port_src.rule_idx = idx as u16;
-                    port_dst.rule_idx = idx as u16;
-                    binary_name.rule_idx = idx as u8;
-                    binary_path.rule_idx = idx as u8;
-                    binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
-                        &NETMON_EGRESS_BINNAME_MAP,
-                        &NETMON_EGRESS_BINPATH_MAP,
-                        &NETMON_EGRESS_BINPREFIX_MAP,
-                        binary_name,
-                        binary_path,
-                        binary_prefix,
-                    ))?;
-                    if scope_filter.check_predicate(&rule.scope)? {
-                        let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
-                            &NETMON_EGRESS_SRC_IPV6_MAP,
-                            &NETMON_EGRESS_DST_IPV6_MAP,
-                            &NETMON_EGRESS_SRC_PORT_MAP,
-                            &NETMON_EGRESS_DST_PORT_MAP,
-                            ip_src,
-                            ip_dst,
-                            &port_src,
-                            &port_dst,
-                        ))?;
-                        if event_filter.check_predicate(&rule.event)? {
-                            enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                            return Ok(0);
-                        }
-                    }
-                }
-            }
-            //return Err(0);
-        }
-    }
-    Err(0)
 }
 
 #[fexit(function = "inet_csk_accept")]
@@ -1335,11 +1086,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 }
 
                 let Some(ref rule_array) = rules.0 else {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(
-                        &event.cookie,
-                        &(Direction::Ingress as u8),
-                        0,
-                    );
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, None);
                     return Ok(0);
                 };
@@ -1392,11 +1139,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
-                            let _ = NETMON_SOCK_COOKIE_MAP.insert(
-                                &event.cookie,
-                                &(Direction::Ingress as u8),
-                                0,
-                            );
+                            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(idx as u8), 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }
@@ -1416,11 +1159,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 }
 
                 let Some(ref rule_array) = rules.0 else {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(
-                        &event.cookie,
-                        &(Direction::Ingress as u8),
-                        0,
-                    );
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, None);
                     return Ok(0);
                 };
@@ -1471,11 +1210,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             &port_dst,
                         ))?;
                         if event_filter.check_predicate(&rule.event)? {
-                            let _ = NETMON_SOCK_COOKIE_MAP.insert(
-                                &event.cookie,
-                                &(Direction::Ingress as u8),
-                                0,
-                            );
+                            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &(idx as u8), 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             return Ok(0);
                         }

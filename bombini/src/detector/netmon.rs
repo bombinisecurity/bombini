@@ -272,12 +272,7 @@ impl Detector for NetMon {
             tcp_accept.attach()?;
         }
         if self.egress.is_some() || self.ingress.is_some() {
-            let tcp_close: &mut FExit =
-                self.ebpf.program_mut("tcp_close_v4").unwrap().try_into()?;
-            tcp_close.load("tcp_close", &btf)?;
-            tcp_close.attach()?;
-            let tcp_close: &mut FExit =
-                self.ebpf.program_mut("tcp_close_v6").unwrap().try_into()?;
+            let tcp_close: &mut FExit = self.ebpf.program_mut("tcp_close").unwrap().try_into()?;
             tcp_close.load("tcp_close", &btf)?;
             tcp_close.attach()?;
         }
