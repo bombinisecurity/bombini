@@ -4,3 +4,4 @@ pub mod filemon;
 pub mod kernelmon;
 pub mod procmon;
 pub mod rule;
+pub mod sysenummon;

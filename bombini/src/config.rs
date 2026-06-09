@@ -7,7 +7,9 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
     options::Options,
-    proto::config::{FileMonConfig, KernelMonConfig, NetMonConfig, ProcMonConfig},
+    proto::config::{
+        FileMonConfig, KernelMonConfig, NetMonConfig, ProcMonConfig, SysEnumMonConfig,
+    },
 };
 
 /// Unified Detector's config representation
@@ -19,6 +21,7 @@ pub enum DetectorConfig {
     NetMon(Arc<NetMonConfig>),
     KernelMon(Arc<KernelMonConfig>),
     IOUringMon,
+    SysEnumMon(Arc<SysEnumMonConfig>),
 }
 
 /// Configuration for agent and all detectors
@@ -70,6 +73,10 @@ impl Config {
                     DetectorConfig::KernelMon(Arc::new(config))
                 }
                 "io_uringmon" => DetectorConfig::IOUringMon,
+                "sysenummon" => {
+                    let config: SysEnumMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
+                    DetectorConfig::SysEnumMon(Arc::new(config))
+                }
                 _ => {
                     return Err(anyhow!("{} unknown detector", name));
                 }

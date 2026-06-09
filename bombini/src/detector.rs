@@ -11,6 +11,7 @@ pub mod io_uringmon;
 pub mod kernelmon;
 pub mod netmon;
 pub mod procmon;
+pub mod sysenummon;
 
 pub trait Detector {
     /// Minimal supported kernel version for detector to load
