@@ -476,3 +476,55 @@ bprm_check:
     );
     ma::assert_ge!(events.matches("\"filename\":\"xargs\"").count(), 1);
 }
+
+#[test]
+fn test_6_2_procmon_execve_sandbox() {
+    let config_contents = r#"
+sched_process_exec:
+  enabled: true
+  rules:
+  - rule: ExecveSandboxTestRule
+    scope: binary_name == "ls"
+    event: arg1 in ["-l", "-la"] AND arg6 == "-h"
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    // Ls should not be blocked
+    let ls1: std::process::ExitStatus = Command::new("ls")
+        .args(["-l"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start ls");
+
+    assert!(ls1.success());
+
+    // But this one should be
+    let ls2 = Command::new("ls")
+        .args(["-la", "-h"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .expect("can't start ls");
+
+    assert!(!ls2.success());
+
+    // Wait Events being processed
+    let events = bombini.wait_for_events("\"blocked\":true", 1).unwrap();
+    bombini.stop();
+
+    print_example_events!(&events);
+    assert_eq!(events.matches("\"type\":\"ProcessEvent\"").count(), 1);
+    assert_eq!(events.matches("\"type\":\"ExecveSandbox\"").count(), 1);
+    assert_eq!(
+        events.matches("\"rule\":\"ExecveSandboxTestRule\"").count(),
+        1
+    );
+}

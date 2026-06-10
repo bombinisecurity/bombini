@@ -7,7 +7,8 @@ use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME, ZERO_EVENT_MAP};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::dummy::DummyPredicate;
 use crate::rule::serializer::procmon::{
-    BprmCheckPredicate, CapPredicate, CredPredicate, GidPredicate, UidPredicate,
+    BprmCheckPredicate, CapPredicate, CredPredicate, ExecveSandboxPredicate, GidPredicate,
+    UidPredicate,
 };
 use aya::maps::{Array, HashMap, Map, MapData, MapError};
 use aya::programs::{BtfTracePoint, Lsm};
@@ -77,6 +78,7 @@ enum ProcMonHook {
     Userns,
     PtraceAccessCheck,
     BprmCheck,
+    ExecveSandbox,
 }
 
 impl ProcMonHook {
@@ -89,6 +91,7 @@ impl ProcMonHook {
             ProcMonHook::Userns => "PROCMON_USERNS",
             ProcMonHook::PtraceAccessCheck => "PROCMON_PTRACE_ACCESS_CHECK",
             ProcMonHook::BprmCheck => "PROCMON_BPRM_CHECK",
+            ProcMonHook::ExecveSandbox => "PROCMON_EXECVE_SANDBOX",
         }
     }
 
@@ -101,6 +104,7 @@ impl ProcMonHook {
             ProcMonHook::Userns => "userns_create",
             ProcMonHook::PtraceAccessCheck => "ptrace_access_check",
             ProcMonHook::BprmCheck => "bprm_check_security",
+            ProcMonHook::ExecveSandbox => "sched_process_exec",
         }
     }
 
@@ -113,6 +117,7 @@ impl ProcMonHook {
             ProcMonHook::Userns => "create_user_ns_capture",
             ProcMonHook::PtraceAccessCheck => "ptrace_access_check_capture",
             ProcMonHook::BprmCheck => "bprm_check_capture",
+            ProcMonHook::ExecveSandbox => "execve_sandbox_capture",
         }
     }
 }
@@ -225,6 +230,22 @@ impl ProcMon {
                     Some(sandbox.deny_list);
             }
         }
+        if let Some(execve_sandbox) = &config.sched_process_exec
+            && execve_sandbox.enabled
+        {
+            hooks.push(Box::new(HookData::<ExecveSandboxPredicate>::new(
+                ProcMonHook::ExecveSandbox,
+                &execve_sandbox.rules,
+            )?));
+            // Execve filter is used only for sandboxing, deny_list by default
+            if let Some(sandbox) = &execve_sandbox.sandbox {
+                detector_config.sandbox_mode[ProcessEventNumber::ExecveSandbox as usize] =
+                    Some(sandbox.deny_list);
+            } else {
+                detector_config.sandbox_mode[ProcessEventNumber::ExecveSandbox as usize] =
+                    Some(true);
+            }
+        }
 
         resize_all_procmon_filter_maps(hooks.as_slice(), ebpf_loader_ref)?;
 
@@ -321,13 +342,26 @@ impl Detector for ProcMon {
         program.attach()?;
 
         for hook in &self.hooks {
-            let program: &mut Lsm = self
-                .ebpf
-                .program_mut(hook.hook().program_name())
-                .unwrap()
-                .try_into()?;
-            program.load(hook.hook().hook_name(), &btf)?;
-            program.attach()?;
+            match hook.hook() {
+                ProcMonHook::ExecveSandbox => {
+                    let program: &mut BtfTracePoint = self
+                        .ebpf
+                        .program_mut(hook.hook().program_name())
+                        .unwrap()
+                        .try_into()?;
+                    program.load(hook.hook().hook_name(), &btf)?;
+                    program.attach()?;
+                }
+                _ => {
+                    let program: &mut Lsm = self
+                        .ebpf
+                        .program_mut(hook.hook().program_name())
+                        .unwrap()
+                        .try_into()?;
+                    program.load(hook.hook().hook_name(), &btf)?;
+                    program.attach()?;
+                }
+            }
         }
         Ok(())
     }

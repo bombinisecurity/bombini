@@ -23,11 +23,14 @@ pub struct ProcMonConfig {
     /// bprm_check hook config.
     #[prost(message, optional, tag = "7")]
     pub bprm_check: ::core::option::Option<HookConfig>,
+    /// sched_process_exec sandbox hook config.
+    #[prost(message, optional, tag = "8")]
+    pub sched_process_exec: ::core::option::Option<HookConfig>,
     /// Collect IMA hashes for executed binaries.
-    #[prost(bool, optional, tag = "8")]
+    #[prost(bool, optional, tag = "9")]
     pub ima_hash: ::core::option::Option<bool>,
     /// GC period for PROCMON_PROC_MAP default 30 sec.
-    #[prost(uint64, optional, tag = "9")]
+    #[prost(uint64, optional, tag = "10")]
     pub gc_period: ::core::option::Option<u64>,
 }
 /// Configuration file for FileMon detector.

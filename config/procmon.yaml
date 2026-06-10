@@ -11,3 +11,5 @@ ptrace_access_check:
   enabled: false
 bprm_check:
   enabled: false
+sched_process_exec:
+  enabled: false
