@@ -434,3 +434,45 @@ bprm_check:
         6
     );
 }
+
+#[test]
+fn test_6_2_procmon_bprm_check_parent_binary() {
+    let config_contents = r#"
+bprm_check:
+  enabled: true
+  rules:
+  - rule: ParentBinaryTestRule
+    scope: parent_binary_name == "xargs"
+    event: name == "bash"
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    let mut gtfo_proc = Command::new("sudo")
+        .args(["xargs", "-a", "/dev/null", "/bin/bash"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start sudo xargs");
+
+    let events = bombini
+        .wait_for_events("\"type\":\"BprmCheck\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
+    let _ = gtfo_proc.wait().unwrap();
+
+    print_example_events!(&events);
+    assert_eq!(events.matches("\"type\":\"BprmCheck\"").count(), 1);
+    assert_eq!(
+        events.matches("\"rule\":\"ParentBinaryTestRule\"").count(),
+        1
+    );
+    ma::assert_ge!(events.matches("\"filename\":\"xargs\"").count(), 1);
+}

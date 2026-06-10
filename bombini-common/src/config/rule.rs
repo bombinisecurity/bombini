@@ -35,6 +35,10 @@ pub enum Attributes {
     BinaryPath,
     BinaryPrefix,
     BinaryName,
+    // Parent binary attributes (procmon scope only)
+    ParentBinaryPath,
+    ParentBinaryPrefix,
+    ParentBinaryName,
     // Filemon attributes
     CreationFlags,
     AccessMode,

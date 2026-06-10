@@ -49,7 +49,7 @@ use bombini_detectors_ebpf::{
     event_capture,
     filter::{
         netmon::ip::{Ipv4Filter, Ipv6Filter},
-        scope::ScopeFilter,
+        scope::{ProcScopeFilter, ScopeFilter},
     },
     interpreter::{self, rule::IsEmpty},
     util,
@@ -210,6 +210,24 @@ macro_rules! fill_ip_map {
     }};
 }
 
+macro_rules! fill_parent_keys {
+    ($proc:expr) => {{
+        let ppid = $proc.ppid;
+        let parent = PROCMON_PROC_MAP.get(&ppid);
+        let Some(zero_ptr) = ZERO_PATH_MAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let (pname_src, ppath_src): (*const u8, *const u8) = match parent {
+            Some(p) => (p.filename.as_ptr(), p.binary_path.as_ptr()),
+            None => (zero_ptr as *const u8, zero_ptr as *const u8),
+        };
+        let parent_name = fill_name_map!(NETMON_PARENT_FILE_NAME_MAP, pname_src);
+        let parent_path = fill_path_map!(NETMON_PARENT_PATH_MAP, ppath_src);
+        let parent_prefix = fill_prefix_map!(NETMON_PARENT_PATH_PREFIX_MAP, ppath_src);
+        (parent_name, parent_path, parent_prefix)
+    }};
+}
+
 // Rules maps
 #[map]
 static NETMON_EGRESS_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
@@ -227,6 +245,17 @@ static NETMON_BINARY_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> =
 
 #[map]
 static NETMON_BINARY_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
+    PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static NETMON_PARENT_PATH_MAP: PerCpuArray<PathMapKey> = PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static NETMON_PARENT_FILE_NAME_MAP: PerCpuArray<FileNameMapKey> =
+    PerCpuArray::with_max_entries(1, 0);
+
+#[map]
+static NETMON_PARENT_PATH_PREFIX_MAP: PerCpuArray<Key<PathPrefixMapKey>> =
     PerCpuArray::with_max_entries(1, 0);
 
 #[map]
@@ -267,6 +296,17 @@ static NETMON_SOCKET_CREATE_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static NETMON_SOCKET_CREATE_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_PBINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_PBINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CREATE_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -348,6 +388,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
 
         for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
             family_key.rule_idx = idx as u32;
@@ -356,13 +397,22 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+            parent_name.rule_idx = idx as u8;
+            parent_path.rule_idx = idx as u8;
+            parent_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                 &NETMON_SOCKET_CREATE_BINNAME_MAP,
                 &NETMON_SOCKET_CREATE_BINPATH_MAP,
                 &NETMON_SOCKET_CREATE_BINPREFIX_MAP,
+                &NETMON_SOCKET_CREATE_PBINNAME_MAP,
+                &NETMON_SOCKET_CREATE_PBINPATH_MAP,
+                &NETMON_SOCKET_CREATE_PBINPREFIX_MAP,
                 binary_name,
                 binary_path,
                 binary_prefix,
+                parent_name,
+                parent_path,
+                parent_prefix,
             ))?;
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if scope_passed {
@@ -427,6 +477,18 @@ static NETMON_SOCKET_CONNECT_BINNAME_MAP: HashMap<FileNameMapKey, u8> =
 
 #[map]
 static NETMON_SOCKET_CONNECT_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_PBINPATH_MAP: HashMap<PathMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_PBINNAME_MAP: HashMap<FileNameMapKey, u8> =
+    HashMap::with_max_entries(1, 0);
+
+#[map]
+static NETMON_SOCKET_CONNECT_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
@@ -518,6 +580,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 // Get binary prefix
                 let binary_prefix =
                     fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+                let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
 
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_dst.data.rule_idx = idx as u8;
@@ -525,13 +588,22 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    parent_name.rule_idx = idx as u8;
+                    parent_path.rule_idx = idx as u8;
+                    parent_prefix.data.rule_idx = idx as u8;
+                    let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                         &NETMON_SOCKET_CONNECT_BINNAME_MAP,
                         &NETMON_SOCKET_CONNECT_BINPATH_MAP,
                         &NETMON_SOCKET_CONNECT_BINPREFIX_MAP,
+                        &NETMON_SOCKET_CONNECT_PBINNAME_MAP,
+                        &NETMON_SOCKET_CONNECT_PBINPATH_MAP,
+                        &NETMON_SOCKET_CONNECT_PBINPREFIX_MAP,
                         binary_name,
                         binary_path,
                         binary_prefix,
+                        parent_name,
+                        parent_path,
+                        parent_prefix,
                     ))?;
                     let scope_passed = scope_filter.check_predicate(&rule.scope)?;
                     if scope_passed {
@@ -609,6 +681,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 // Get binary prefix
                 let binary_prefix =
                     fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+                let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
 
                 for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
                     ip_dst.data.rule_idx = idx as u8;
@@ -616,13 +689,22 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     binary_name.rule_idx = idx as u8;
                     binary_path.rule_idx = idx as u8;
                     binary_prefix.data.rule_idx = idx as u8;
-                    let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                    parent_name.rule_idx = idx as u8;
+                    parent_path.rule_idx = idx as u8;
+                    parent_prefix.data.rule_idx = idx as u8;
+                    let mut scope_filter = interpreter::Interpreter::new(ProcScopeFilter::new(
                         &NETMON_SOCKET_CONNECT_BINNAME_MAP,
                         &NETMON_SOCKET_CONNECT_BINPATH_MAP,
                         &NETMON_SOCKET_CONNECT_BINPREFIX_MAP,
+                        &NETMON_SOCKET_CONNECT_PBINNAME_MAP,
+                        &NETMON_SOCKET_CONNECT_PBINPATH_MAP,
+                        &NETMON_SOCKET_CONNECT_PBINPREFIX_MAP,
                         binary_name,
                         binary_path,
                         binary_prefix,
+                        parent_name,
+                        parent_path,
+                        parent_prefix,
                     ))?;
                     let scope_passed = scope_filter.check_predicate(&rule.scope)?;
                     if scope_passed {
