@@ -18,10 +18,12 @@ message ProcMonConfig {
     HookConfig setgid = 6;
     // bprm_check hook config.
     HookConfig bprm_check = 7;
+    // sched_process_exec sandbox hook config.
+    HookConfig sched_process_exec = 8;
     // Collect IMA hashes for executed binaries.
-    optional bool ima_hash = 8;
+    optional bool ima_hash = 9;
     // GC period for PROCMON_PROC_MAP default 30 sec.
-    optional uint64 gc_period = 9;
+    optional uint64 gc_period = 10;
 }
 
 // Configuration file for FileMon detector.
