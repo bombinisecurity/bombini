@@ -2,21 +2,14 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::{BPF_ANY, bpf_dynptr},
-    helpers::{
-        bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_ima_inode_hash,
-        bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf,
-        bpf_probe_read_user_str_bytes,
-        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
-    },
-    macros::{btf_tracepoint, lsm, map},
-    maps::{
+    bindings::{BPF_ANY, bpf_dynptr}, bpf_printk, helpers::{
+        bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_ima_inode_hash, bpf_probe_read, bpf_probe_read_kernel, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user, bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes, r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write}
+    }, macros::{btf_tracepoint, lsm, map}, maps::{
         array::Array,
         hash_map::{HashMap, LruHashMap},
         lpm_trie::{Key, LpmTrie},
         per_cpu_array::PerCpuArray,
-    },
-    programs::{BtfTracePointContext, LsmContext},
+    }, programs::{BtfTracePointContext, LsmContext}
 };
 
 use bombini_common::{
@@ -341,6 +334,36 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
         bpf_probe_read_user_buf(arg_start as *const u8, &mut proc.args[..arg_size as usize])
             .map_err(|_| -1i32)?;
     }
+
+    /*let part = &proc.args[1..10 as usize];
+    if part.len() > 15 {
+        return Err(-1);
+    }*/
+
+    //let args_indices = [0u8; ]
+
+    let mut iter = proc.args.iter().take(MAX_ARGS_SIZE / 4)
+        .enumerate()
+        .filter_map(|(idx, &val)| {
+            if val == 0x00 {
+                Some(idx) // Keep the index if predicate matches
+            } else {
+                None // Discard if it doesn't match
+            }
+        })
+        .for_each(|el |         unsafe {bpf_printk!(b"%d %d %d len: %d", 0, 0, 0, el);});
+    /*let first = iter.next();
+    if let Some(first) = first {
+        let mut sum = 0;
+        for arg in iter {
+            sum +=1;
+            if sum >= 10 {
+                break;
+            }
+        }
+        unsafe {bpf_printk!(b"%d %d %d len: %d", 1, 1, 1, sum);}
+        unsafe {bpf_printk!(b"%d %d %d first len: %d", 1, 1, 1, first.len());}
+    }*/
 
     if let Some(cred_info) = PROCMON_CRED_SHARED_MAP.get_ptr(&pid_tgid) {
         unsafe {
