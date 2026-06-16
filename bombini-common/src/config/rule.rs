@@ -59,6 +59,7 @@ pub enum Attributes {
     EGID,
     ECAPS,
     PCAPS,
+    Arg,
     // Kernelmon attributes
     MapType,
     MapId,
@@ -165,6 +166,7 @@ pub type CreationFlagsKey = CapKey;
 pub type ProtModeKey = CapKey;
 pub type FlagsKey = CapKey;
 pub type SocketFlagsKey = CapKey;
+pub type ExecArgKey = CapKey;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]

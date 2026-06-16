@@ -60,6 +60,7 @@ impl AttributeMeta for Attributes {
             Self::SockFamily => Box::new(defs::SockFamilyAttribute::default()),
             Self::SockType => Box::new(defs::SockTypeAttribute::default()),
             Self::SockFlags => Box::new(defs::SockFlagsAttribute::default()),
+            Self::Arg => Box::new(defs::ArgAttribute::default()),
         }
     }
 
@@ -94,6 +95,7 @@ impl AttributeMeta for Attributes {
             Self::MapName | Self::ProgName => "name",
             Self::MapPrefix | Self::ProgPrefix => "prefix",
             Self::SockFamily => "family",
+            Self::Arg => "arg",
         }
     }
 }
