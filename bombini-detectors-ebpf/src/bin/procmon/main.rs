@@ -1,30 +1,20 @@
 #![no_std]
 #![no_main]
 
+use core::{error, ffi::c_void};
+
 use aya_ebpf::{
-    bindings::{BPF_ANY, bpf_dynptr},
-    helpers::{
-        bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_ima_inode_hash,
-        bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf,
-        bpf_probe_read_user_str_bytes,
-        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
-    },
-    macros::{btf_tracepoint, lsm, map},
-    maps::{
-        array::Array,
-        hash_map::{HashMap, LruHashMap},
-        lpm_trie::{Key, LpmTrie},
-        per_cpu_array::PerCpuArray,
-    },
-    programs::{BtfTracePointContext, LsmContext},
+    bindings::{BPF_ANY, bpf_dynptr}, bpf_printk, helpers::{
+        bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_ima_inode_hash, bpf_probe_read, bpf_probe_read_kernel, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user, bpf_probe_read_user_buf, bpf_probe_read_user_str_bytes, r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write, bpf_for_each_map_elem, bpf_loop, bpf_map_delete_elem, bpf_send_signal}
+    }, macros::{btf_tracepoint, lsm, map}, maps::{
+        PerCpuHashMap, array::Array, hash_map::{HashMap, LruHashMap}, lpm_trie::{Key, LpmTrie}, per_cpu_array::PerCpuArray
+    }, programs::{BtfTracePointContext, LsmContext}
 };
 
 use bombini_common::{
-    config::procmon::ProcMonKernelConfig,
-    config::rule::{CapKey, FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey},
+    config::{procmon::ProcMonKernelConfig, rule::{CapKey, ExecArgKey, FileNameMapKey, PathMapKey, PathPrefixMapKey, Rules, UIDKey}},
     constants::{
-        MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE,
-        PAGE_SIZE,
+        MAX_ARG_SIZE, MAX_ARGS_COUNT, MAX_ARGS_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, MAX_IMA_HASH_SIZE, PAGE_SIZE
     },
     event::{
         Event, GenericEvent, MSG_PROCESS, MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT,
@@ -37,17 +27,13 @@ use bombini_common::{
 };
 
 use bombini_detectors_ebpf::{
-    co_re::{self, core_read_kernel},
-    event_capture,
-    filter::{
+    co_re::{self, core_read_kernel}, event_capture, event_map::trace_error, filter::{
         procmon::{
             bprm::BprmCheckFilter,
-            cred::{CapFilter, CapValue, CredFilter, UidFilter},
+            cred::{CapFilter, CapValue, CredFilter, UidFilter}, exec::SchedProcessExecFilter,
         },
         scope::ScopeFilter,
-    },
-    interpreter::{self, rule::IsEmpty},
-    util,
+    }, interpreter::{self, rule::IsEmpty}, util
 };
 
 /// Extra info from bprm_committing_creds hook
@@ -366,6 +352,223 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     proc.cloned = false;
     util::copy_proc(proc, event_proc);
     Ok(0)
+}
+
+struct ArgsLoopContext<'a> {
+    error: u8,
+    args_str: &'a [u8; MAX_ARGS_SIZE],
+    start: &'a mut usize,
+    argc: &'a mut usize,
+}
+
+unsafe fn argument_loop_callback(i: u64, data: *mut c_void) -> i64 {
+    unsafe {
+        let ctx = data as *mut ArgsLoopContext;
+        let Some(ctx) = ctx.as_mut() else {
+            // <VERIFIER_ISSUE>
+            // Statement `(*ctx).error = 1;` is not allowed by BPF verifier.
+            // So, we put 1 directly into the context.
+            *(ctx as *mut u8) = 1;
+            return 1;
+        };
+        //unsafe {bpf_printk!(b"HERE %d %d %d %d", 0, 0, 0, i);}
+        let start = &mut ctx.start;
+        let args_str = ctx.args_str;
+        let argc = &mut ctx.argc;
+        let error = &mut ctx.error;
+        **argc = i as usize;
+        if **argc >= MAX_ARGS_COUNT || **start >= MAX_ARGS_SIZE {
+            return 1;
+        }
+
+        let Some(path_ptr) = PROCMON_EXECVE_SANDBOX_ARGS_HELPER_MAP.get_ptr_mut(0) else {
+            *error = 1;
+            return 1;
+        };
+        let path = path_ptr.as_mut();
+        let Some(path) = path else {
+            *error = 1;
+            return 1;
+        };
+        let mut tmp = bpf_dynptr { __opaque: [0, 0] };
+        let Some(zero_ptr) = ZERO_MAP.get_ptr_mut(0) else {
+            *error = 1;
+            return 1;
+        };
+        bpf_dynptr_from_mem(
+            path as *mut u8 as *mut _,
+            MAX_ARG_SIZE as u32,
+            0,
+            &mut tmp as *mut _,
+        );
+        bpf_dynptr_write(
+            &tmp as *const _,
+            0,
+            zero_ptr as *mut _,
+            MAX_ARG_SIZE as u32,
+            0,
+        );
+        let arg = &args_str[**start..];
+        let Ok(ret1) = bpf_probe_read_kernel_str_bytes(arg.as_ptr(),path) else {
+            *error = 1;
+            return 1;
+        };
+        let ret1 = ret1.len() as usize;
+
+        if ret1 == 0 {
+            return 1;
+        }
+
+        let ret2 = PROCMON_EXECVE_SANDBOX_PROCESS_ARGS_MAP.insert(path, &0, 0).is_err() as u32;
+        **argc += 1;
+        **start += ret1 + 1;
+        0
+    }
+}
+
+unsafe fn delete_arguments_callback(map: *mut c_void, key: *mut c_void, _: *mut c_void, _: *mut c_void) -> i64 {
+    unsafe {
+        bpf_map_delete_elem(map, key);
+    }
+    0
+}
+
+
+// Execve sandbox rules map
+#[map]
+static PROCMON_EXECVE_SANDBOX_RULE_MAP: Array<Rules> = Array::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_EXECVE_SANDBOX_ARG_MAP: HashMap<ExecArgKey, [[u8; MAX_ARG_SIZE]; MAX_ARGS_COUNT]> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_EXECVE_SANDBOX_BINPATH_MAP: HashMap<PathMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_EXECVE_SANDBOX_BINNAME_MAP: HashMap<FileNameMapKey, u8> = HashMap::with_max_entries(1, 0);
+
+#[map]
+static PROCMON_EXECVE_SANDBOX_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
+    LpmTrie::with_max_entries(1, 0);
+
+// Execve sandbox helper maps
+#[map]
+static PROCMON_EXECVE_SANDBOX_PROCESS_ARGS_MAP: PerCpuHashMap<[u8; MAX_ARG_SIZE], u8> = PerCpuHashMap::with_max_entries(64, 0);
+
+#[map]
+static PROCMON_EXECVE_SANDBOX_ARGS_HELPER_MAP: PerCpuArray<[u8; MAX_ARG_SIZE]> = PerCpuArray::with_max_entries(1, 0);
+
+#[btf_tracepoint(function = "sched_process_exec")]
+pub fn execve_sandbox_capture(ctx: BtfTracePointContext) -> u32 {
+    event_capture!(ctx, MSG_PROCESS, true, try_execve_sandbox)
+}
+
+fn try_execve_sandbox(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, i32> {
+    let Event::Process(ref mut msg) = generic_event.event else {
+        return Err(-1);
+    };
+
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let Some(proc) = proc else {
+        return Err(-1);
+    };
+
+    let Some(rules) = PROCMON_EXECVE_SANDBOX_RULE_MAP.get(0) else {
+        return Err(-1);
+    };
+
+    unsafe {
+        let p = &mut msg.event as *mut ProcessEventVariant as *mut u8;
+        *p = ProcessEventNumber::ExecveSandbox as u8;
+    }
+
+    // Check for execve sandbox rules
+    unsafe {
+        let Some(ref rule_array) = rules.0 else {
+            return Ok(0);
+        };
+
+        let Some(config_ptr) = PROCMON_CONFIG.get_ptr(0) else {
+            return Err(-1);
+        };
+        let config = config_ptr.as_ref();
+        let Some(config) = config else {
+            return Err(-1);
+        };
+
+        let Some(deny_list): Option<bool> = config.sandbox_mode[ProcessEventNumber::ExecveSandbox as usize] else {
+            return Err(-1);
+        };
+
+        // Clear argument map
+        bpf_for_each_map_elem(
+            &PROCMON_EXECVE_SANDBOX_PROCESS_ARGS_MAP as *const _ as *mut c_void,
+            delete_arguments_callback as *mut c_void,
+            core::ptr::null_mut(),
+            0,
+        );
+
+        let args_str = &proc.args;
+        let (mut start, mut argc) = (0, 0);
+        let mut lctx = ArgsLoopContext {
+            args_str,
+            start: &mut start,
+            argc: &mut argc,
+            error: 0,
+        };
+
+        let fn_ptr = argument_loop_callback as *mut fn(u64, *mut c_void) -> i64 as *mut c_void;
+        let ctx_ptr = &mut lctx as *mut ArgsLoopContext as *mut c_void;
+        bpf_loop(MAX_ARGS_COUNT as u32, fn_ptr, ctx_ptr, 0);
+        if lctx.error == 1 {
+            // Do not return error here, because we need to continue execution.
+            trace_error();
+        }
+
+        // Get binary name
+        let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
+
+        // Get binary path
+        let binary_path = fill_path_map!(PROCMON_BINARY_PATH_MAP, &proc.binary_path);
+
+        // Get binary prefix
+        let binary_prefix = fill_prefix_map!(PROCMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+
+        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+            binary_name.rule_idx = idx as u8;
+            binary_path.rule_idx = idx as u8;
+            binary_prefix.data.rule_idx = idx as u8;
+            let mut scope_filter = interpreter::Interpreter::new(ScopeFilter::new(
+                &PROCMON_EXECVE_SANDBOX_BINNAME_MAP,
+                &PROCMON_EXECVE_SANDBOX_BINPATH_MAP,
+                &PROCMON_EXECVE_SANDBOX_BINPREFIX_MAP,
+                binary_name,
+                binary_path,
+                binary_prefix,
+            ))?;
+            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            if scope_passed {
+                let mut args_filter = interpreter::Interpreter::new(SchedProcessExecFilter::new(
+                    &PROCMON_EXECVE_SANDBOX_ARG_MAP,
+                    &PROCMON_EXECVE_SANDBOX_PROCESS_ARGS_MAP,
+                    idx as u8,
+                ))?;
+                let args_passed = args_filter.check_predicate(&rule.event)?;
+                if args_passed == deny_list {
+                    let ret = bpf_send_signal(9);
+                    if ret != 0 {
+                        trace_error();
+                    } else {
+                        msg.blocked = true;
+                    }
+                    enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
+                    return Ok(0);
+                }
+            }
+        }
+    }
+    Err(0)
 }
 
 #[btf_tracepoint(function = "sched_process_exit")]

@@ -27,14 +27,18 @@ pub struct ProcessKey {
 pub struct ProcInfo {
     /// last exec or clone time
     pub start: u64,
+    /// internal previous clone or exec time
+    pub prev_start: u64,
+    /// Task Creds
+    pub creds: Cred,
+    /// Cgroup info
+    pub cgroup: Cgroup,
     /// PID
     pub pid: u32,
     /// TID
     pub tid: u32,
     /// Parent PID
     pub ppid: u32,
-    /// Task Creds
-    pub creds: Cred,
     /// login UID
     pub auid: u32,
     /// if this event from clone
@@ -45,14 +49,12 @@ pub struct ProcInfo {
     pub binary_path: [u8; MAX_FILE_PATH],
     /// command line arguments without argv[0]
     pub args: [u8; MAX_ARGS_SIZE],
-    /// Cgroup info
-    pub cgroup: Cgroup,
     /// IMA binary hash
     pub ima_hash: ImaHash,
+    /// if this process was blocked
+    pub blocked: bool,
     /// internal for gc clean up
     pub exited: bool,
-    /// internal previous clone or exec time
-    pub prev_start: u64,
 }
 
 #[cfg(feature = "user")]
@@ -150,6 +152,7 @@ impl ProcInfo {
             auid,
             cloned: false,
             exited: false,
+            blocked: false,
             filename,
             binary_path,
             args,
@@ -450,6 +453,9 @@ pub enum ProcessEventVariant {
     Setgid(ProcSetGid) = ProcessEventNumber::Setgid as u8,
     /// Bprm_check for binary exec
     BprmCheck(ProcBprmCheck) = ProcessEventNumber::BprmCheck as u8,
+    /// Execve enforcement for binary exec
+    /// Special case for sandboxing with tracepoint
+    ExecveSandbox = ProcessEventNumber::ExecveSandbox as u8,
 }
 
 #[repr(C)]
@@ -461,6 +467,7 @@ pub enum ProcessEventNumber {
     PtraceAccessCheck,
     Setgid,
     BprmCheck,
+    ExecveSandbox,
 
     TotalProcessEvents,
 }

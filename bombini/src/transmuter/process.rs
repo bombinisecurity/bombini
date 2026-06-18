@@ -627,6 +627,7 @@ pub enum ProcessEventType {
     CreateUserNs(ProcessCreateUserNs),
     PtraceAccessCheck(ProcessPtraceAccessCheck),
     BprmCheck(ProcessBprmCheck),
+    ExecveSandbox
 }
 
 impl<'a> ProcessEvent<'a> {
@@ -698,6 +699,14 @@ impl<'a> ProcessEvent<'a> {
                 blocked,
                 timestamp: transmute_ktime(ktime),
             },
+            ProcessEventVariant::ExecveSandbox => Self {
+                process_event: ProcessEventType::ExecveSandbox,
+                process,
+                parent,
+                rule,
+                blocked,
+                timestamp: transmute_ktime(ktime),
+            }
         }
     }
 }
@@ -710,6 +719,7 @@ pub struct ProcessEventTransmuter {
     create_user_ns_rule_names: Vec<String>,
     ptrace_access_check_rule_names: Vec<String>,
     bprm_check_rule_names: Vec<String>,
+    execve_sandbox_rule_names: Vec<String>,
 }
 
 impl ProcessEventTransmuter {
@@ -729,6 +739,7 @@ impl ProcessEventTransmuter {
             create_user_ns_rule_names: rule_names_from_hook_config(&cfg.create_user_ns),
             ptrace_access_check_rule_names: rule_names_from_hook_config(&cfg.ptrace_access_check),
             bprm_check_rule_names: rule_names_from_hook_config(&cfg.bprm_check),
+            execve_sandbox_rule_names: rule_names_from_hook_config(&cfg.sched_process_exec),
         }
     }
 
@@ -745,6 +756,7 @@ impl ProcessEventTransmuter {
             ProcessEventVariant::CreateUserNs => &self.create_user_ns_rule_names,
             ProcessEventVariant::PtraceAccessCheck(_) => &self.ptrace_access_check_rule_names,
             ProcessEventVariant::BprmCheck(_) => &self.bprm_check_rule_names,
+            ProcessEventVariant::ExecveSandbox => &self.execve_sandbox_rule_names,
         };
 
         rule_idx

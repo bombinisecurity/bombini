@@ -8,18 +8,16 @@ use aya::maps::LpmTrie;
 use aya::maps::hash_map::HashMap as EbpfHashMap;
 use aya::maps::lpm_trie::Key;
 use bombini_common::config::rule::{
-    AccessModeKey, AddressFamilyKey, BpfIdKey, BpfMapTypeKey, BpfNameKey, BpfPrefixKey,
-    BpfProgTypeKey, CapKey, CreationFlagsKey, FileNameMapKey, FlagsKey, ImodeKey, Ipv4MapKey,
-    Ipv6MapKey, PathMapKey, PathPrefixMapKey, PortKey, ProtModeKey, SocketFlagsKey, SocketTypeKey,
-    UIDKey,
+    AccessModeKey, AddressFamilyKey, BpfIdKey, BpfMapTypeKey, BpfNameKey, BpfPrefixKey, BpfProgTypeKey, CapKey, CreationFlagsKey, ExecArgKey, FileNameMapKey, FlagsKey, ImodeKey, Ipv4MapKey, Ipv6MapKey, PathMapKey, PathPrefixMapKey, PortKey, ProtModeKey, SocketFlagsKey, SocketTypeKey, UIDKey
 };
 use bombini_common::constants::{
-    MAX_BPFNAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE,
+    MAX_ARG_SIZE, MAX_ARGS_COUNT, MAX_BPFNAME_SIZE, MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE
 };
 use bombini_common::event::file::{AccessMode, CreationFlags, Imode, ProtMode, SharingType};
 use bombini_common::event::kernel::{BpfMapType, BpfProgType};
 use bombini_common::event::network::{AddressFamily, SocketFlags, SocketType};
 use bombini_common::event::process::Capabilities;
+use log::info;
 
 use crate::rule::{
     ast::Literal,
@@ -69,7 +67,6 @@ impl Attribute for PathAttribute {
 }
 
 #[derive(Default, Debug, Clone)]
-
 pub(crate) struct NameAttribute {
     pub map: HashMap<String, u8>,
 }
@@ -1563,5 +1560,70 @@ impl Attribute for SockFlagsAttribute {
             format!("{map_name_prefix}_FLAGS_MAP"),
             self.map.len() as u32,
         )
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct ArgAttribute {
+    pub map: HashMap<u8, Vec<String>>,
+}
+
+impl Attribute for ArgAttribute {
+    fn serialize(&mut self, values: &[Literal], in_idx: u8) -> Result<(), anyhow::Error> {
+        let values: Result<Vec<String>, anyhow::Error> = values
+            .iter()
+            .map(|lit| match lit {
+                Literal::String(s) => Ok(s.clone()),
+                Literal::Uint(i) => Err(anyhow::anyhow!(
+                    "expected String literal, found Uint: {}",
+                    i
+                )),
+            })
+            .collect();
+        let values = values?;
+        if values.len() > MAX_ARGS_COUNT {
+            bail!("Too many arguments for IN operation, max is {}", MAX_ARGS_COUNT);
+        }
+        if values.iter().any(|x| x.as_bytes().len() > MAX_ARG_SIZE) {
+            bail!("Argument too long, max is {}", MAX_ARG_SIZE);
+        }
+
+        if self.map.insert(in_idx, values).is_some() {
+            bail!("capabilities already set for index {}", in_idx);
+        }
+        Ok(())
+    }
+
+    fn store_attribute(
+        &self,
+        ebpf: &mut Ebpf,
+        rule_idx: u8,
+        map_name_prefix: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut arg_map: EbpfHashMap<_, ExecArgKey, [[u8; MAX_ARG_SIZE]; MAX_ARGS_COUNT]> = EbpfHashMap::try_from(
+            ebpf.map_mut(&format!("{}_ARG_MAP", map_name_prefix))
+                .unwrap(),
+        )?;
+        for (in_idx, value) in self.map.iter() {
+            let key = ExecArgKey {
+                rule_idx,
+                in_idx: *in_idx,
+            };
+
+            info!("storing arg for rule {} in_idx {}", rule_idx, in_idx);
+
+            let mut args = [[0u8; MAX_ARG_SIZE]; MAX_ARGS_COUNT];
+            args.iter_mut().zip(value.into_iter()).for_each(|(dst, src)| {
+                let bytes = src.as_bytes();
+                let len = bytes.len();
+                dst[..len].copy_from_slice(bytes);
+            });
+            let _ = arg_map.insert(key, args, 0);
+        }
+        Ok(())
+    }
+
+    fn get_attribute_map_size(&self, map_name_prefix: &str) -> (String, u32) {
+        (format!("{map_name_prefix}_ARG_MAP"), self.map.len() as u32)
     }
 }
