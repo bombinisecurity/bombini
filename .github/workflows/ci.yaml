@@ -168,9 +168,10 @@ jobs:
       - name: Configure lima VM
         if: steps.lima-ubuntu-kernel-v6_8.outputs.cache-hit != 'true'
         run: |
-          limactl start --plain --name=ubuntu-kernel-v6.8 --cpus=1 --memory=1 template:ubuntu-lts
+          limactl start --plain --name=ubuntu-kernel-v6.8 --cpus=1 --memory=1 template:ubuntu-24.04
           echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
 
+          ssh lima-ubuntu-kernel-v6-8 'sudo apt-get update && sudo apt-get install -y linux-image-6.8.0-117-generic'
           ssh lima-ubuntu-kernel-v6-8 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
           ssh lima-ubuntu-kernel-v6-8 sudo update-grub
           ssh lima-ubuntu-kernel-v6-8 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
@@ -239,12 +240,12 @@ jobs:
       - name: Configure lima VM
         if: steps.lima-ubuntu-kernel-v6_14.outputs.cache-hit != 'true'
         run: |
-          limactl start --plain --name=ubuntu-kernel-v6.14 --cpus=1 --memory=1 template:ubuntu-lts
+          limactl start --plain --name=ubuntu-kernel-v6.14 --cpus=1 --memory=1 template:ubuntu-24.04
           echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
 
+          ssh lima-ubuntu-kernel-v6-14 'sudo apt-get update && sudo apt-get install -y linux-image-6.14.0-37-generic'
           ssh lima-ubuntu-kernel-v6-14 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
           ssh lima-ubuntu-kernel-v6-14 sudo update-grub
-          ssh lima-ubuntu-kernel-v6-14 'sudo apt update && sudo apt install -y linux-generic-hwe-24.04'
           ssh lima-ubuntu-kernel-v6-14 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
 
           limactl stop ubuntu-kernel-v6.14
