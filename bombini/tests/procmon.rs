@@ -528,3 +528,95 @@ sched_process_exec:
         1
     );
 }
+
+#[test]
+fn test_6_2_procmon_bprm_macro() {
+    let config_contents = r#"
+macros:
+  - macro: xargs_proc
+    condition: binary_name == "xargs"
+  - macro: privileged_bash
+    condition: name == "bash" AND euid == 0 AND egid == 0 AND ecaps == "CAP_SYS_ADMIN"
+bprm_check:
+  enabled: true
+  rules:
+  - rule: BprmCheckMacroRule
+    scope: xargs_proc
+    event: privileged_bash
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    let mut gtfo_proc = Command::new("sudo")
+        .args(["xargs", "-a", "/dev/null", "/bin/bash"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start xargs");
+
+    let events = bombini
+        .wait_for_events("\"type\":\"BprmCheck\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
+    let _ = gtfo_proc.wait().unwrap();
+
+    print_example_events!(&events);
+    assert_eq!(events.matches("\"type\":\"BprmCheck\"").count(), 1);
+    assert_eq!(events.matches("\"rule\":\"BprmCheckMacroRule\"").count(), 1);
+    ma::assert_ge!(events.matches("\"filename\":\"xargs\"").count(), 6);
+    ma::assert_ge!(
+        events
+            .matches("\"args\":\"-a /dev/null /bin/bash\"")
+            .count(),
+        6
+    );
+}
+
+#[test]
+fn test_6_2_procmon_bprm_list() {
+    let config_contents = r#"
+lists:
+  - list: shells
+    items: ["sh", "bash", "dash", "zsh"]
+bprm_check:
+  enabled: true
+  rules:
+  - rule: BprmCheckListRule
+    scope: binary_name == "xargs"
+    event: name in [shells] AND euid == 0 AND egid == 0 AND ecaps == "CAP_SYS_ADMIN"
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    let mut gtfo_proc = Command::new("sudo")
+        .args(["xargs", "-a", "/dev/null", "/bin/bash"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start xargs");
+
+    let events = bombini
+        .wait_for_events("\"type\":\"BprmCheck\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
+    let _ = gtfo_proc.wait().unwrap();
+
+    print_example_events!(&events);
+    assert_eq!(events.matches("\"type\":\"BprmCheck\"").count(), 1);
+    assert_eq!(events.matches("\"rule\":\"BprmCheckListRule\"").count(), 1);
+    ma::assert_ge!(events.matches("\"filename\":\"xargs\"").count(), 6);
+}
