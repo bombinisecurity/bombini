@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "main"
+      - "repro-7_0"
 
 jobs:
   lint:
