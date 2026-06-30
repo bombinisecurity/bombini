@@ -62,7 +62,7 @@ impl CheckIn for SocketCreateFilter<'_> {
                     rule_idx: self.sflags.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(sflags) = self.sflags_map.get(&sflags_key) else {
+                let Some(sflags) = self.sflags_map.get(sflags_key) else {
                     return Ok(false);
                 };
                 Ok(*sflags & self.sflags.flags != SocketFlags::empty())

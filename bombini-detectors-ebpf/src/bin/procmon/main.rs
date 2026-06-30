@@ -7,7 +7,7 @@ use aya_ebpf::{
         bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_ima_inode_hash,
         bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf,
         bpf_probe_read_user_str_bytes,
-        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
+        generated::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
     macros::{btf_tracepoint, lsm, map},
     maps::{
@@ -307,7 +307,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
     let task = unsafe { co_re::task_struct::current() };
     let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
-    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&pid) else {
+    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(pid) else {
         return Err(-1);
     };
     let proc = unsafe { proc_ptr.as_mut() };
@@ -371,7 +371,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
             .map_err(|_| -1i32)?;
     }
 
-    if let Some(cred_info) = PROCMON_CRED_SHARED_MAP.get_ptr(&pid_tgid) {
+    if let Some(cred_info) = PROCMON_CRED_SHARED_MAP.get_ptr(pid_tgid) {
         unsafe {
             let Some(cred_info) = cred_info.as_ref() else {
                 return Err(-1);
@@ -389,7 +389,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
                 .map_err(|_| -1i32)?;
             }
         }
-        PROCMON_CRED_SHARED_MAP.remove(&pid_tgid).unwrap();
+        PROCMON_CRED_SHARED_MAP.remove(pid_tgid).unwrap();
     }
 
     proc.cloned = false;
@@ -415,7 +415,7 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
         return Err(0);
     }
 
-    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&tgid) else {
+    let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(tgid) else {
         return Err(-1);
     };
     let proc = unsafe { proc_ptr.as_mut() };
@@ -424,7 +424,7 @@ fn try_exit(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Res
         return Err(-1);
     };
 
-    if let Some(parent_proc) = PROCMON_PROC_MAP.get_ptr(&proc.ppid) {
+    if let Some(parent_proc) = PROCMON_PROC_MAP.get_ptr(proc.ppid) {
         unsafe {
             event_parent.pid = (*parent_proc).pid;
             event_parent.start = (*parent_proc).start;
@@ -513,7 +513,7 @@ fn try_committing_creds(ctx: LsmContext) -> Result<i32, i32> {
                 MAX_IMA_HASH_SIZE as u32,
             ) as i8;
         }
-        let _ = PROCMON_CRED_SHARED_MAP.insert(&pid_tgid, creds_info, BPF_ANY as u64);
+        let _ = PROCMON_CRED_SHARED_MAP.insert(pid_tgid, creds_info, BPF_ANY as u64);
     }
     Ok(0)
 }
@@ -524,7 +524,7 @@ pub fn fork_capture(ctx: BtfTracePointContext) -> u32 {
 }
 
 fn try_fork(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> Result<u32, i32> {
-    let task = unsafe { co_re::task_struct::from_ptr(ctx.arg(1)) };
+    let task = co_re::task_struct::from_ptr(ctx.arg(1));
     let tgid = unsafe { core_read_kernel!(task, tgid).ok_or(0i32)? as u32 };
     let pid = unsafe { core_read_kernel!(task, pid).ok_or(0i32)? as u32 };
 
@@ -580,7 +580,7 @@ fn execve_find_parent(task: co_re::task_struct) -> Option<*const ProcInfo> {
             let task = core_read_kernel!(parent, real_parent)?;
             parent = task;
             let pid = core_read_kernel!(parent, tgid)?;
-            if let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr(&(pid as u32)) {
+            if let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr(pid as u32) {
                 return Some(proc_ptr);
             }
         }
@@ -590,7 +590,7 @@ fn execve_find_parent(task: co_re::task_struct) -> Option<*const ProcInfo> {
 
 #[inline(always)]
 fn exec_map_get_init(pid: u32) -> Result<*mut ProcInfo, i32> {
-    if let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(&pid) {
+    if let Some(proc_ptr) = PROCMON_PROC_MAP.get_ptr_mut(pid) {
         return Ok(proc_ptr);
     }
 
@@ -602,10 +602,8 @@ fn exec_map_get_init(pid: u32) -> Result<*mut ProcInfo, i32> {
     unsafe {
         memzero!(proc_ptr, core::mem::size_of_val(proc));
     }
-    PROCMON_PROC_MAP
-        .insert(&pid, proc, BPF_ANY as u64)
-        .map_err(|x| x as i32)?;
-    PROCMON_PROC_MAP.get_ptr_mut(&pid).ok_or(-1i32)
+    PROCMON_PROC_MAP.insert(pid, proc, BPF_ANY as u64)?;
+    PROCMON_PROC_MAP.get_ptr_mut(pid).ok_or(-1i32)
 }
 
 // Setuid rules map
@@ -651,7 +649,7 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -813,7 +811,7 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -976,7 +974,7 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1131,7 +1129,7 @@ fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1256,7 +1254,7 @@ fn try_create_user_ns_capture(
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1416,7 +1414,7 @@ fn try_ptrace_access_check_capture(
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1533,7 +1531,7 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1707,13 +1705,13 @@ fn enrich_ptrace_access_check_info(
         let child = co_re::task_struct::from_ptr(ctx.arg(0));
         event.mode = PtraceMode::from_bits_truncate(ctx.arg(1));
         let pid_child = core_read_kernel!(child, pid).ok_or(-1i32)? as u32;
-        PROCMON_PROC_MAP.get(&pid_child)
+        PROCMON_PROC_MAP.get(pid_child)
     };
     let Some(proc_child) = proc_child else {
         return Err(-1);
     };
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;
     }
@@ -1727,7 +1725,7 @@ fn enrich_ptrace_access_check_info(
 fn enrich_with_proc_info_and_rule_idx(msg: &mut ProcessMsg, proc: &ProcInfo, rule_idx: Option<u8>) {
     msg.rule_idx = rule_idx;
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;
     }

@@ -4,7 +4,7 @@ use aya_ebpf::{
     bindings::bpf_dynptr,
     helpers::{
         bpf_ktime_get_boot_ns,
-        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
+        generated::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
     macros::map,
     maps::{Array, PerCpuArray, RingBuf},
