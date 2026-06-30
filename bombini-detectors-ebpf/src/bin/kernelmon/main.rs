@@ -5,7 +5,7 @@ use aya_ebpf::{
     bindings::{bpf_cmd::BPF_PROG_LOAD, bpf_dynptr},
     helpers::{
         bpf_get_current_pid_tgid, bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes,
-        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
+        generated::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
     macros::{lsm, map},
     maps::{Array, HashMap, LpmTrie, LruHashMap, PerCpuArray, lpm_trie::Key},
@@ -204,7 +204,7 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -399,7 +399,7 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -575,7 +575,7 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -760,7 +760,7 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -898,11 +898,10 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
 #[lsm(hook = "bpf")]
 pub fn bpf_prog_old_load_capture(ctx: LsmContext) -> i32 {
     // Using bpf hook only for
-    unsafe {
-        let cmd: u32 = ctx.arg(0);
-        if cmd != BPF_PROG_LOAD {
-            return 0;
-        }
+
+    let cmd: u32 = ctx.arg(0);
+    if cmd != BPF_PROG_LOAD {
+        return 0;
     }
 
     event_capture!(ctx, MSG_KERNEL, true, try_bpf_prog_old_load)
@@ -914,7 +913,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1057,7 +1056,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
 fn enrich_with_proc_info_and_rule_idx(msg: &mut KernelMsg, proc: &ProcInfo, rule_idx: Option<u8>) {
     msg.rule_idx = rule_idx;
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;
     }

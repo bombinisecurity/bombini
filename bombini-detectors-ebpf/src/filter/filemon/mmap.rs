@@ -91,7 +91,7 @@ impl CheckIn for MmapFileFilter<'_> {
                     rule_idx: self.prot_mode.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(prot_mode) = self.prot_mode_map.get(&prot_key) else {
+                let Some(prot_mode) = self.prot_mode_map.get(prot_key) else {
                     return Ok(false);
                 };
                 Ok(*prot_mode & self.prot_mode.prot_mode != ProtMode::empty())
@@ -101,7 +101,7 @@ impl CheckIn for MmapFileFilter<'_> {
                     rule_idx: self.flags.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(flags) = self.flags_map.get(&flags_key) else {
+                let Some(flags) = self.flags_map.get(flags_key) else {
                     return Ok(false);
                 };
                 // TODO: MAP_SHARED_VALIDATE will match MAP_SHARED and MAP_PRIVATE

@@ -92,7 +92,7 @@ impl CheckIn for FileOpenFilter<'_> {
                     rule_idx: self.creation_flags.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(flags) = self.creation_flags_map.get(&cr_value) else {
+                let Some(flags) = self.creation_flags_map.get(cr_value) else {
                     return Ok(false);
                 };
                 Ok(*flags & self.creation_flags.creation_flags != CreationFlags::empty())
