@@ -103,7 +103,7 @@ impl FileMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
 
         let mut hooks: Vec<Box<dyn FileMonRuleContainer>> = Vec::new();
         let mut detector_config = FileMonKernelConfig {
@@ -309,7 +309,7 @@ fn resize_all_filemon_maps<'a>(
                 .iter()
                 .filter(|(_, size)| **size > 1)
                 .for_each(|(name, size)| {
-                    loader.set_max_entries(name, *size);
+                    loader.map_max_entries(name, *size);
                 });
         }
     }
