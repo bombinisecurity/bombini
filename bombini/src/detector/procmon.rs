@@ -135,9 +135,9 @@ impl ProcMon {
     {
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader
-            .map_pin_path(maps_pin_path.as_ref())
-            .set_max_entries(EVENT_MAP_NAME, event_map_size)
-            .set_max_entries(PROCMON_PROC_MAP_NAME, proc_map_size);
+            .default_map_pin_directory(maps_pin_path.as_ref())
+            .map_max_entries(EVENT_MAP_NAME, event_map_size)
+            .map_max_entries(PROCMON_PROC_MAP_NAME, proc_map_size);
 
         let mut hooks: Vec<Box<dyn ProcMonRuleContainer>> = Vec::new();
         let mut detector_config = ProcMonKernelConfig {
@@ -377,7 +377,7 @@ fn resize_all_procmon_filter_maps<'a>(
             .iter()
             .filter(|(_, size)| **size > 1)
             .for_each(|(name, size)| {
-                loader.set_max_entries(name, *size);
+                loader.map_max_entries(name, *size);
             });
     }
     Ok(())
