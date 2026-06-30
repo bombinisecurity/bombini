@@ -99,7 +99,7 @@ impl CheckIn for BprmCheckFilter<'_> {
                     rule_idx: self.ecap.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(caps) = self.ecap_map.get(&ecap_key) else {
+                let Some(caps) = self.ecap_map.get(ecap_key) else {
                     return Ok(false);
                 };
                 Ok(*caps & self.ecap.caps != Capabilities::empty())
