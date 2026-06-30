@@ -93,7 +93,7 @@ impl CheckIn for CapFilter<'_> {
                     rule_idx: self.ecap.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(caps) = self.ecap_map.get(&ecap_key) else {
+                let Some(caps) = self.ecap_map.get(ecap_key) else {
                     return Ok(false);
                 };
                 Ok(*caps & self.ecap.caps != Capabilities::empty())
@@ -103,7 +103,7 @@ impl CheckIn for CapFilter<'_> {
                     rule_idx: self.pcap.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(caps) = self.pcap_map.get(&pcap_key) else {
+                let Some(caps) = self.pcap_map.get(pcap_key) else {
                     return Ok(false);
                 };
                 Ok(*caps & self.pcap.caps != Capabilities::empty())
@@ -147,7 +147,7 @@ impl CheckIn for CredFilter<'_> {
                     rule_idx: self.ecap.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(caps) = self.ecap_map.get(&ecap_key) else {
+                let Some(caps) = self.ecap_map.get(ecap_key) else {
                     return Ok(false);
                 };
                 Ok(*caps & self.ecap.caps != Capabilities::empty())

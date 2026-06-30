@@ -6,7 +6,7 @@ use aya_ebpf::{
     helpers::{
         bpf_d_path, bpf_get_current_pid_tgid, bpf_probe_read_kernel_buf,
         bpf_probe_read_kernel_str_bytes,
-        r#gen::{bpf_dynptr_from_mem, bpf_dynptr_write},
+        generated::{bpf_dynptr_from_mem, bpf_dynptr_write},
     },
     macros::{btf_tracepoint, lsm, map},
     maps::{
@@ -118,7 +118,7 @@ pub fn sysmon_process_exit(_ctx: BtfTracePointContext) -> u32 {
     let tgid = (pid_tgid >> 32) as u32;
     let pid = pid_tgid as u32;
     if pid == tgid {
-        let _ = SYSENUMMON_STATE.remove(&tgid);
+        let _ = SYSENUMMON_STATE.remove(tgid);
     }
     0
 }
@@ -138,11 +138,11 @@ fn try_bprm_check(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
         bpf_probe_read_kernel_str_bytes(d_name, name).map_err(|_| -1i32)?;
     }
 
-    let watch_id = unsafe { SYSENUMMON_NAME_MAP.get(name) }
+    let watch_id = unsafe { SYSENUMMON_NAME_MAP.get(*name) }
         .copied()
         .ok_or(0i32)?;
     let current_pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let ppid = unsafe { PROCMON_PROC_MAP.get(&current_pid) }
+    let ppid = unsafe { PROCMON_PROC_MAP.get(current_pid) }
         .ok_or(0i32)?
         .ppid;
 
@@ -191,12 +191,12 @@ fn try_file_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
     }
 
     let watch_id = unsafe { SYSENUMMON_PATH_MAP.get(path_key) }
-        .or_else(|| SYSENUMMON_PATH_PREFIX_MAP.get(prefix_key))
+        .or_else(|| SYSENUMMON_PATH_PREFIX_MAP.get(&mut *prefix_key))
         .copied()
         .ok_or(0i32)?;
 
     let current_pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let ppid = unsafe { PROCMON_PROC_MAP.get(&current_pid) }
+    let ppid = unsafe { PROCMON_PROC_MAP.get(current_pid) }
         .ok_or(0i32)?
         .ppid;
 
@@ -224,22 +224,20 @@ fn record_hit(event: &mut SysEnumMsg, ppid: u32, now: u64, watch_id: u8) -> Resu
         return Err(0);
     }
 
-    let Some(parent) = (unsafe { PROCMON_PROC_MAP.get(&ppid) }) else {
+    let Some(parent) = (unsafe { PROCMON_PROC_MAP.get(ppid) }) else {
         return Err(0);
     };
     let mut process = ProcessKey { pid: 0, start: 0 };
     util::process_key_init(&mut process, parent);
 
-    let state_ptr = if let Some(ptr) = SYSENUMMON_STATE.get_ptr_mut(&ppid) {
+    let state_ptr = if let Some(ptr) = SYSENUMMON_STATE.get_ptr_mut(ppid) {
         ptr
     } else {
         let tmpl_ptr = SYSENUMMON_STATE_HEAP.get_ptr_mut(0).ok_or(-1i32)?;
         unsafe { memzero!(tmpl_ptr, core::mem::size_of::<SysEnumMsg>()) };
         let tmpl = unsafe { &*tmpl_ptr };
-        SYSENUMMON_STATE
-            .insert(&ppid, tmpl, BPF_ANY as u64)
-            .map_err(|x| x as i32)?;
-        SYSENUMMON_STATE.get_ptr_mut(&ppid).ok_or(-1i32)?
+        SYSENUMMON_STATE.insert(ppid, tmpl, BPF_ANY as u64)?;
+        SYSENUMMON_STATE.get_ptr_mut(ppid).ok_or(-1i32)?
     };
     let state = unsafe { &mut *state_ptr };
 
@@ -304,7 +302,7 @@ fn record_hit(event: &mut SysEnumMsg, ppid: u32, now: u64, watch_id: u8) -> Resu
             let _ = bpf_probe_read_kernel_buf(state as *const SysEnumMsg as *const u8, event_dst);
         }
         // Drop the state after emitting.
-        let _ = SYSENUMMON_STATE.remove(&ppid);
+        let _ = SYSENUMMON_STATE.remove(ppid);
         return Ok(0);
     }
 

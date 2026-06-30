@@ -78,7 +78,7 @@ impl CheckIn for ChmodFilter<'_> {
                     rule_idx: self.imode.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(imode) = self.imode_map.get(&imode_key) else {
+                let Some(imode) = self.imode_map.get(imode_key) else {
                     return Ok(false);
                 };
                 Ok(*imode & self.imode.imode != Imode::empty())

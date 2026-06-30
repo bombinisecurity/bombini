@@ -73,7 +73,7 @@ impl NetMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
         let mut detector_config = NetMonKernelConfig {
             sandbox_mode: [None; NetworkEventNumber::TotalNetworkEvents as usize],
         };
@@ -138,7 +138,7 @@ impl NetMon {
                 .iter()
                 .filter(|(_, size)| **size > 1)
                 .for_each(|(name, size)| {
-                    ebpf_loader_ref.set_max_entries(name, *size);
+                    ebpf_loader_ref.map_max_entries(name, *size);
                 });
         }
 
@@ -148,7 +148,7 @@ impl NetMon {
                 .iter()
                 .filter(|(_, size)| **size > 1)
                 .for_each(|(name, size)| {
-                    ebpf_loader_ref.set_max_entries(name, *size);
+                    ebpf_loader_ref.map_max_entries(name, *size);
                 });
         }
 
@@ -158,7 +158,7 @@ impl NetMon {
                 .iter()
                 .filter(|(_, size)| **size > 1)
                 .for_each(|(name, size)| {
-                    ebpf_loader_ref.set_max_entries(name, *size);
+                    ebpf_loader_ref.map_max_entries(name, *size);
                 });
         }
 
@@ -168,7 +168,7 @@ impl NetMon {
                 .iter()
                 .filter(|(_, size)| **size > 1)
                 .for_each(|(name, size)| {
-                    ebpf_loader_ref.set_max_entries(name, *size);
+                    ebpf_loader_ref.map_max_entries(name, *size);
                 });
         }
 

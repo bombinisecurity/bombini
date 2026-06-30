@@ -19,7 +19,7 @@ impl IOUringMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
         Ok(IOUringMon { ebpf })
     }

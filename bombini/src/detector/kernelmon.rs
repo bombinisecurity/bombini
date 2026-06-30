@@ -134,7 +134,7 @@ impl KernelMon {
         P: AsRef<Path>,
     {
         let mut ebpf_loader = EbpfLoader::new();
-        let ebpf_loader_ref = ebpf_loader.map_pin_path(maps_pin_path.as_ref());
+        let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
 
         let mut hooks: Vec<Box<dyn KernelMonRuleContainer>> = Vec::new();
         let detector_config = KernelMonKernelConfig {
@@ -226,7 +226,7 @@ fn resize_all_kernelmon_filter_maps<'a>(
             .iter()
             .filter(|(_, size)| **size > 1)
             .for_each(|(name, size)| {
-                loader.set_max_entries(name, *size);
+                loader.map_max_entries(name, *size);
             });
     }
     Ok(())
