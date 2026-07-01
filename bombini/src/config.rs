@@ -55,21 +55,23 @@ impl Config {
         for name in names.iter().map(|e| e.as_str()) {
             config_path.push(name.to_owned() + ".yaml");
             let yaml_config = std::fs::read_to_string(&config_path)?;
+            let mut value: serde_yml::Value = serde_yml::from_str(yaml_config.as_ref())?;
+            crate::rule::macros::expand_config(&mut value)?;
             let config = match name {
                 "procmon" => {
-                    let config: ProcMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
+                    let config: ProcMonConfig = serde_yml::from_value(value)?;
                     DetectorConfig::ProcMon(Arc::new(config))
                 }
                 "filemon" => {
-                    let config: FileMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
+                    let config: FileMonConfig = serde_yml::from_value(value)?;
                     DetectorConfig::FileMon(Arc::new(config))
                 }
                 "netmon" => {
-                    let config: NetMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
+                    let config: NetMonConfig = serde_yml::from_value(value)?;
                     DetectorConfig::NetMon(Arc::new(config))
                 }
                 "kernelmon" => {
-                    let config: KernelMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
+                    let config: KernelMonConfig = serde_yml::from_value(value)?;
                     DetectorConfig::KernelMon(Arc::new(config))
                 }
                 "io_uringmon" => DetectorConfig::IOUringMon,

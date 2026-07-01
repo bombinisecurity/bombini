@@ -82,6 +82,100 @@ for example: `"2000::/3"` is a CIDR for IPv6. And last but not least, some attri
 for example, for `ecaps` attribute map, `["CAP_SYS_ADMIN", "CAP_SYS_PTRACE"]` will check if any of this flags (capabilities) are set.
 
 
+## Macros and Lists
+
+Bombini supports two top-level definitions, `lists` and `macros`, that are expanded into
+`scope` and `event` predicates before the predicates are parsed. Expansion is a textual
+substitution pass with two rules:
+
+* A name is substituted only when it occurs as a complete identifier. An identifier starts with
+  an ASCII letter and continues over ASCII alphanumerics and `_`. A list named `shell` does not
+  match inside `shell_binaries`.
+* Substitution does not descend into quoted string literals. In `comm == "shell"`, the token
+  `shell` is left as-is.
+
+Names outside `scope`/`event` predicates are not touched.
+
+### Lists
+
+A list is a named sequence of values, defined under the top-level `lists` key and referenced by
+name inside an `in (...)` operation:
+
+```yaml
+lists:
+  - list: shell_binaries
+    items: ["/bin/bash", "/bin/sh", "/bin/dash"]
+  - list: sensitive_files
+    items: ["passwd", "shadow", "sudoers"]
+
+file_open:
+  enabled: true
+  rules:
+    - rule: monitor_shell_access
+      scope: binary_path in (shell_binaries)
+      event: path_prefix == "/etc" AND name in (sensitive_files)
+```
+
+Each entry requires a `list` name (a valid identifier: an ASCII letter followed by ASCII
+alphanumerics or `_`) and a non-empty `items` array. Items are emitted with their YAML type
+preserved — strings are quoted, numbers are not:
+
+```yaml
+lists:
+  - list: privileged_uids
+    items: [0, 1000, 2000]
+
+socket_connect:
+  enabled: true
+  rules:
+    - rule: block_privileged
+      scope: uid in (privileged_uids)
+```
+
+`scope` above expands to `uid in (0, 1000, 2000)`.
+
+### Macros
+
+A macro is a named predicate, defined under the top-level `macros` key. Each entry requires a
+`macro` name (a valid identifier) and a non-empty `condition` string. A macro reference is
+replaced by its `condition` wrapped in parentheses:
+
+```yaml
+macros:
+  - macro: is_shell
+    condition: binary_name in ["bash", "sh", "dash"]
+
+procmon:
+  enabled: true
+  rules:
+    - rule: root_shell
+      scope: is_shell AND uid == 0
+```
+
+`scope` expands to `(binary_name in ["bash", "sh", "dash"]) AND uid == 0`. The parentheses fix
+the macro's precedence independent of the surrounding operators.
+
+### Order and depth
+
+Lists are substituted into macro conditions first, then predicates are processed by applying
+list substitution followed by macro substitution. Consequences:
+
+* A macro `condition` may reference lists:
+
+  ```yaml
+  lists:
+    - list: shells
+      items: ["bash", "sh", "dash"]
+  macros:
+    - macro: is_shell
+      condition: binary_name in (shells)
+  ```
+
+* Expansion is one level deep. A macro cannot reference another macro, and a list cannot
+  reference another list; such names pass through unsubstituted.
+* Names must be valid identifiers and unique within their kind. Redefining a list or macro is an
+  error.
+
 ## Technical Limitations
 
 1. Maximum rules per hook: 32
