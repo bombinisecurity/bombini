@@ -114,6 +114,7 @@ Configuration file for ProcMon detector
 | ptrace_access_check | [HookConfig](#config-HookConfig) |  | ptrace_attach hook config. |
 | setgid | [HookConfig](#config-HookConfig) |  | setgid hook config. |
 | bprm_check | [HookConfig](#config-HookConfig) |  | bprm_check hook config. |
+| sched_process_exec | [HookConfig](#config-HookConfig) |  | sched_process_exec sandbox hook config. |
 | ima_hash | [bool](#bool) | optional | Collect IMA hashes for executed binaries. |
 | gc_period | [uint64](#uint64) | optional | GC period for PROCMON_PROC_MAP default 30 sec. |
 

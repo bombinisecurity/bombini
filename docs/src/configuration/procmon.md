@@ -36,6 +36,8 @@ ProcMon helps to monitor privilege escalation during process execution. It uses 
 * security_ptrace_access_check (config name: ptrace_access_check)
 * security_bprm_check (config name: bprm_check)
 
+Also there is a tracepoint hook only for sandbox mode: sched_process_exec. It allows to block execs by sending SIGKILL to the process.
+
 To enable hook:
 
 ```yaml
@@ -56,6 +58,7 @@ The following list of hooks support event filtering by rules and sandbox mode:
 * security_capset
 * security_create_user_ns
 * security_bprm_check
+* sched_process_exec
 
 ### security_task_fix_setuid
 
@@ -148,3 +151,24 @@ bprm_check:
   - rule: TestBprmCheck
     event: path_prefix == "/tmp" AND name == "ls"
 ```
+
+### sched_process_exec
+
+`sched_process_exec` supports the following filtering attributes:
+
+* `arg0-arg31` - arguments of executed binary. The index at the end of the argument allows to distinguish between arguments. It is NOT the index of the argument in `argv` array.
+
+This hook is only available in sandbox mode, which is always enabled. It is used to block execs by sending SIGKILL to the process.
+
+**Example**
+
+```yaml
+sched_process_exec:
+  enabled: true
+  rules:
+  - rule: ExecveSandboxTestRule
+    scope: binary_name == "rm"
+    event: arg0 in ["-r", "-rf"] AND arg1 in ["/etc/passwd"]
+```
+
+In this example, we block all execs of `rm` binary if one of the arguments is `-r` or `-rf` and another is `/etc/passwd`.

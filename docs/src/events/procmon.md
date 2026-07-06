@@ -697,3 +697,59 @@ ProcessEvents represent a collection of events somehow related to privilege esca
   "type": "ProcessEvent"
 }
 ```
+
+### ExecveSandbox
+
+```json
+{
+  "blocked": true,
+  "parent": {
+    "args": "-q --show-output --test-threads 1 test_6_2_procmon_execve_sandbox",
+    "auid": 535357931,
+    "binary_path": "/home/lima.linux/bombini/target/release/deps/procmon-48b2b61de1b256a2",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "exec_id": "MTIzNjU6ODU5MTk4MDAwMDAwMA",
+    "filename": "procmon-48b2b61de1b256a2",
+    "gid": 0,
+    "parent_exec_id": "MTIyMDM6ODUzODIxMDAwMDAwMA",
+    "pid": 12365,
+    "ppid": 12203,
+    "secureexec": "",
+    "start_time": "2026-07-06T13:30:27.923Z",
+    "tid": 12365,
+    "uid": 0
+  },
+  "process": {
+    "args": "-la -h",
+    "auid": 535357931,
+    "binary_path": "/usr/bin/ls",
+    "cap_effective": "ANY_CAPS",
+    "cap_inheritable": "",
+    "cap_permitted": "ANY_CAPS",
+    "cloned": false,
+    "egid": 0,
+    "euid": 0,
+    "exec_id": "MTIzNzk6ODU5MzAyOTczMzIyMA",
+    "filename": "ls",
+    "gid": 0,
+    "parent_exec_id": "MTIzNjU6ODU5MTk4MDAwMDAwMA",
+    "pid": 12379,
+    "ppid": 12365,
+    "secureexec": "",
+    "start_time": "2026-07-06T13:30:28.972Z",
+    "tid": 12379,
+    "uid": 0
+  },
+  "process_event": {
+    "type": "ExecveSandbox"
+  },
+  "rule": "ExecveSandboxTestRule",
+  "timestamp": "2026-07-06T13:30:28.972Z",
+  "type": "ProcessEvent"
+}
+```
