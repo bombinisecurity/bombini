@@ -2341,6 +2341,18 @@ JSON schema for all events.
           "required": [
             "type"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ExecveSandbox"
+            }
+          },
+          "required": [
+            "type"
+          ]
         }
       ]
     },
