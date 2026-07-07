@@ -31,9 +31,9 @@ dependencies = [
 
 [[package]]
 name = "aya-ebpf"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5841e7ed360c5900332f9f102ad715b53266aeba7908adea5ca8450da975be61"
+checksum = "eace5970943931fea46a8cbdca208a8f6a9e0413d85a5a6c4e168f0b909570bc"
 dependencies = [
  "aya-build",
  "aya-ebpf-bindings",
