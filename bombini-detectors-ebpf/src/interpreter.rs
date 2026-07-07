@@ -37,7 +37,7 @@ impl<T: CheckIn> Interpreter<T> {
         // <VERIFIER_ISSUE>
         // No iterator here because verifier cannot prove that the loop is not infinite
         let mut idx = 0;
-        while idx < MAX_RULE_OPERATIONS {
+        while core::hint::black_box(idx < MAX_RULE_OPERATIONS) {
             let op = &predicate[idx];
             match op {
                 RuleOp::Fin => {

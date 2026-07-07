@@ -365,7 +365,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                 binary_prefix,
             ))?;
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
-            if scope_passed {
+            if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(SocketCreateFilter::new(
                     &NETMON_SOCKET_CREATE_ADDRESS_FAMILY_MAP,
                     &NETMON_SOCKET_CREATE_TYPE_MAP,
@@ -375,7 +375,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                     &socket_flags_key,
                 ))?;
                 let passed = event_filter.check_predicate(&rule.event)?;
-                if passed {
+                if core::hint::black_box(passed) {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         return Ok(0);
