@@ -9,8 +9,10 @@ use aya_ebpf::{
         bpf_d_path, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_ima_inode_hash,
         bpf_probe_read_kernel_buf, bpf_probe_read_kernel_str_bytes, bpf_probe_read_user_buf,
         bpf_probe_read_user_str_bytes,
-        generated::{bpf_dynptr_from_mem, bpf_dynptr_write, bpf_for_each_map_elem, bpf_loop,
-            bpf_map_delete_elem, bpf_send_signal},
+        generated::{
+            bpf_dynptr_from_mem, bpf_dynptr_write, bpf_for_each_map_elem, bpf_loop,
+            bpf_map_delete_elem, bpf_send_signal,
+        },
     },
     macros::{btf_tracepoint, lsm, map},
     maps::{

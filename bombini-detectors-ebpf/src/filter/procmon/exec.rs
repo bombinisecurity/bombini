@@ -40,7 +40,7 @@ impl CheckIn for SchedProcessExecFilter<'_> {
             in_idx: attribute_map_id,
         };
         unsafe {
-            let Some(user_args) = self.args_map.get(&arg_key) else {
+            let Some(user_args) = self.args_map.get(arg_key) else {
                 return Ok(false);
             };
             for arg in user_args {
