@@ -6,15 +6,12 @@ lists:
 
 macros:
   - macro: is_shell
-    condition: binary_name in (shells)
+    condition: parent_binary_name in shells
 
 file_open:
   enabled: true
   rules:
   - rule: ShellReadsSensitive
     scope: is_shell
-    event: path_prefix == "/etc" AND name in (sensitive_files)
+    event: path_prefix == "/etc" AND name in sensitive_files
 
-  - rule: RootShellAnyEtc
-    scope: is_shell AND uid == 0
-    event: path_prefix == "/etc"

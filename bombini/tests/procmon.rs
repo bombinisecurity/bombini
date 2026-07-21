@@ -590,7 +590,7 @@ bprm_check:
   rules:
   - rule: BprmCheckListRule
     scope: binary_name == "xargs"
-    event: name in [shells] AND euid == 0 AND egid == 0 AND ecaps == "CAP_SYS_ADMIN"
+    event: name in shells AND euid == 0 AND egid == 0 AND ecaps == "CAP_SYS_ADMIN"
 "#;
 
     let mut bombini = BombiniBuilder::new()
