@@ -112,8 +112,8 @@ file_open:
   enabled: true
   rules:
     - rule: monitor_shell_access
-      scope: binary_path in (shell_binaries)
-      event: path_prefix == "/etc" AND name in (sensitive_files)
+      scope: parent_binary_path in shell_binaries
+      event: path_prefix == "/etc" AND name in sensitive_files
 ```
 
 Each entry requires a `list` name (a valid identifier: an ASCII letter followed by ASCII
@@ -122,17 +122,17 @@ preserved — strings are quoted, numbers are not:
 
 ```yaml
 lists:
-  - list: privileged_uids
-    items: [0, 1000, 2000]
+  - list: port_list
+    items: [80, 443, 8443]
 
 socket_connect:
   enabled: true
   rules:
-    - rule: block_privileged
-      scope: uid in (privileged_uids)
+    - rule: HTTP(S) protocol
+      event: port_dst in port_list
 ```
 
-`scope` above expands to `uid in (0, 1000, 2000)`.
+`event` above expands to `port_dst in [80, 443, 8443]`.
 
 ### Macros
 
@@ -143,16 +143,16 @@ replaced by its `condition` wrapped in parentheses:
 ```yaml
 macros:
   - macro: is_shell
-    condition: binary_name in ["bash", "sh", "dash"]
+    condition: name == "bash" OR name == "dash" OR name == "sh"
 
-procmon:
+bprm_check:
   enabled: true
   rules:
     - rule: root_shell
-      scope: is_shell AND uid == 0
+      event: is_shell AND euid == 0
 ```
 
-`scope` expands to `(binary_name in ["bash", "sh", "dash"]) AND uid == 0`. The parentheses fix
+`event` expands to `(name in ["bash", "sh", "dash"]) AND euid == 0`. The parentheses fix
 the macro's precedence independent of the surrounding operators.
 
 ### Order and depth
@@ -168,12 +168,12 @@ list substitution followed by macro substitution. Consequences:
       items: ["bash", "sh", "dash"]
   macros:
     - macro: is_shell
-      condition: binary_name in (shells)
+      condition: binary_name in shells
   ```
 
 * Expansion is one level deep. A macro cannot reference another macro, and a list cannot
   reference another list; such names pass through unsubstituted.
-* Names must be valid identifiers and unique within their kind. Redefining a list or macro is an
+* Names must be valid identifiers and unique within macros and lists. Redefining a list or macro is an
   error.
 
 ## Technical Limitations

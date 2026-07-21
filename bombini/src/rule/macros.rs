@@ -21,8 +21,12 @@ pub fn expand_config(value: &mut Value) -> Result<()> {
         return Ok(());
     }
 
+    if let Some(common_name) = lists.keys().find(|k| macros.contains_key(*k)) {
+        bail!("lists and macros names must be unique. Found: {common_name}");
+    }
+
     for condition in macros.values_mut() {
-        *condition = substitute_lists(condition, &lists);
+        *condition = expand_str(condition, &lists);
     }
 
     expand_value(value, &lists, &macros);
@@ -58,7 +62,8 @@ fn parse_list_defs(lists_val: &Value) -> Result<HashMap<String, String>> {
                     .expect("a YAML scalar always serializes to a JSON literal")
             })
             .collect();
-        if defs.insert(name.to_string(), parts.join(", ")).is_some() {
+        let array = format!("[{}]", parts.join(", "));
+        if defs.insert(name.to_string(), array).is_some() {
             bail!("list `{name}` is defined more than once");
         }
     }
@@ -87,10 +92,9 @@ fn parse_macro_defs(macros_val: &Value) -> Result<HashMap<String, String>> {
         if condition.trim().is_empty() {
             bail!("macro `{name}` has an empty `condition`");
         }
-        if defs
-            .insert(name.to_string(), condition.to_string())
-            .is_some()
-        {
+
+        let condition = format!("({})", condition); // wrap in parens to avoid precedence issues
+        if defs.insert(name.to_string(), condition).is_some() {
             bail!("macro `{name}` is defined more than once");
         }
     }
@@ -135,22 +139,13 @@ fn replace_idents(input: &str, mut on_ident: impl FnMut(&str, &mut String)) -> S
     out
 }
 
-fn substitute_lists(input: &str, lists: &HashMap<String, String>) -> String {
-    if lists.is_empty() {
+fn expand_str(input: &str, macros: &HashMap<String, String>) -> String {
+    if macros.is_empty() {
         return input.to_string();
     }
-    replace_idents(input, |ident, out| match lists.get(ident) {
-        Some(items) => out.push_str(items),
-        None => out.push_str(ident),
-    })
-}
-
-fn expand_str(input: &str, macros: &HashMap<String, String>) -> String {
     replace_idents(input, |ident, out| match macros.get(ident) {
         Some(condition) => {
-            out.push('(');
             out.push_str(condition);
-            out.push(')');
         }
         None => out.push_str(ident),
     })
@@ -167,7 +162,7 @@ fn expand_value(
                 if matches!(key.as_str(), "scope" | "event")
                     && let Some(pred) = val.as_str()
                 {
-                    let pred = substitute_lists(pred, lists);
+                    let pred = expand_str(pred, lists);
                     let pred = expand_str(&pred, macros);
                     *val = Value::String(pred);
                     continue;
@@ -202,35 +197,32 @@ mod tests {
     }
 
     #[test]
-    fn substitute_lists_only_replaces_whole_idents() {
+    fn expand_str_only_replaces_whole_idents() {
         let defs = lists(&[("shell", "\"bash\", \"sh\"")]);
         // exact identifier is replaced
         assert_eq!(
-            substitute_lists("comm in (shell)", &defs),
-            "comm in (\"bash\", \"sh\")"
+            expand_str("comm in [shell]", &defs),
+            "comm in [\"bash\", \"sh\"]"
         );
         // identifiers that merely contain the name are left alone
         assert_eq!(
-            substitute_lists("comm == shell_binaries", &defs),
+            expand_str("comm == shell_binaries", &defs),
             "comm == shell_binaries"
         );
     }
 
     #[test]
-    fn substitute_lists_skips_string_literals() {
+    fn expand_str_skips_string_literals() {
         let defs = lists(&[("shell", "\"bash\"")]);
-        assert_eq!(
-            substitute_lists("comm == \"shell\"", &defs),
-            "comm == \"shell\""
-        );
+        assert_eq!(expand_str("comm == \"shell\"", &defs), "comm == \"shell\"");
     }
 
     #[test]
-    fn expand_str_wraps_macro_in_parens() {
-        let macros = lists(&[("is_shell", "comm in (\"bash\", \"sh\")")]);
+    fn expand_str_expand_macro() {
+        let macros = lists(&[("is_shell", "(comm in [\"bash\", \"sh\"])")]);
         assert_eq!(
             expand_str("is_shell and uid == 0", &macros),
-            "(comm in (\"bash\", \"sh\")) and uid == 0"
+            "(comm in [\"bash\", \"sh\"]) and uid == 0"
         );
         // unknown identifiers pass through untouched
         assert_eq!(expand_str("uid == 0", &macros), "uid == 0");
@@ -243,8 +235,8 @@ mod tests {
         )
         .unwrap();
         let defs = parse_list_defs(&val).unwrap();
-        assert_eq!(defs["ports"], "22, 80");
-        assert_eq!(defs["names"], "\"bash\", \"sh\"");
+        assert_eq!(defs["ports"], "[22, 80]");
+        assert_eq!(defs["names"], "[\"bash\", \"sh\"]");
     }
 
     #[test]
@@ -285,9 +277,9 @@ lists:
     items: [bash, sh]
 macros:
   - macro: is_shell
-    condition: comm in (shells)
-procmon:
-  scope: is_shell and uid == 0
+    condition: binary_name in shells
+bprm_check:
+  scope: is_shell or binary_name == "zsh"
 "#,
         )
         .unwrap();
@@ -299,13 +291,17 @@ procmon:
         assert!(!map.contains_key("lists"));
         assert!(!map.contains_key("macros"));
 
-        let scope = config["procmon"]["scope"].as_str().unwrap();
-        assert_eq!(scope, "(comm in (\"bash\", \"sh\")) and uid == 0");
+        let scope = config["bprm_check"]["scope"].as_str().unwrap();
+        assert_eq!(
+            scope,
+            "(binary_name in [\"bash\", \"sh\"]) or binary_name == \"zsh\""
+        );
     }
 
     #[test]
     fn expand_config_noop_without_defs() {
-        let mut config: Value = serde_yml::from_str("procmon:\n  scope: comm == \"ls\"\n").unwrap();
+        let mut config: Value =
+            serde_yml::from_str("bprm_check:\n  scope: binary_name == \"ls\"\n").unwrap();
         let before = config.clone();
         expand_config(&mut config).unwrap();
         assert_eq!(config, before);
