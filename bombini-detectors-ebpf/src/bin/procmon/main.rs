@@ -374,7 +374,7 @@ fn try_execve(_ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -> R
 
         (arg_start, arg_end)
     };
-    let arg_size = (arg_end - arg_start) & (MAX_ARGS_SIZE - 1) as u64;
+    let arg_size = (arg_end - arg_start).min(MAX_ARGS_SIZE as u64);
     unsafe {
         memzero!(proc.args.as_mut_ptr(), proc.args.len());
         bpf_probe_read_user_buf(arg_start as *const u8, &mut proc.args[..arg_size as usize])
