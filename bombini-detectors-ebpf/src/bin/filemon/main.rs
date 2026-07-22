@@ -696,8 +696,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
-        let len = len as usize & (MAX_FILE_PATH - 1);
-        if len == 0 || len as usize > MAX_FILE_PATH - MAX_FILENAME_SIZE - 1 {
+        if core::hint::black_box(len < 1) || len as usize > MAX_FILE_PATH - MAX_FILENAME_SIZE - 1 {
             return Err(-1);
         }
         let path_buf = path_ptr.as_mut();
@@ -892,8 +891,7 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
             path_ptr as *mut _,
             MAX_FILE_PATH as u32,
         );
-        let len = len as usize & (MAX_FILE_PATH - 1);
-        if len == 0 || len as usize > MAX_FILE_PATH - MAX_FILENAME_SIZE - 1 {
+        if core::hint::black_box(len < 1) || len as usize > MAX_FILE_PATH - MAX_FILENAME_SIZE - 1 {
             return Err(-1);
         }
         let path_buf = path_ptr.as_mut();
