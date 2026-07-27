@@ -28,7 +28,7 @@ lalrpop-util = {version = "0.23.1", features = ["lexer", "unicode"] }
 file-rotate = "0.8.0"
 prometheus-client = "0.25.0"
 axum = "0.8.9"
-base64 = "0.22.1"
+base64 = "0.23.0"
 
 [dev-dependencies]
 nix = { version = "0.31.3", features = ["signal"] }
