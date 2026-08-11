@@ -77,7 +77,51 @@ pub enum IOUringOp {
 
     /* this goes last, obviously */
     IORING_OP_LAST,
+
+    /// Opcode reported by a kernel this build does not know about.
+    ///
+    /// Not a kernel constant. io_uring rejects `opcode >= IORING_OP_LAST`
+    /// before the tracepoint fires, but against *its own* `IORING_OP_LAST`,
+    /// which may be larger than the one compiled in here. Kept at `u8::MAX`
+    /// so it can never collide with a future opcode.
+    UNKNOWN = u8::MAX,
 }
+
+// `from_raw` below relies on the discriminants being 0..IORING_OP_LAST with
+// no gaps.
+const _: () = {
+    assert!(IOUringOp::IORING_OP_NOP as u8 == 0);
+    assert!(IOUringOp::IORING_OP_OPENAT as u8 == 18);
+    assert!(IOUringOp::IORING_OP_STATX as u8 == 21);
+    assert!(IOUringOp::IORING_OP_LAST as u8 == 62);
+};
+
+impl IOUringOp {
+    /// Convert a raw `io_kiocb::opcode` into this enum.
+    ///
+    /// Opcodes this build has no variant for become [`IOUringOp::UNKNOWN`]
+    /// rather than an invalid discriminant.
+    #[inline(always)]
+    pub const fn from_raw(raw: u8) -> Self {
+        if raw >= Self::IORING_OP_LAST as u8 {
+            Self::UNKNOWN
+        } else {
+            // SAFETY: guarded above; discriminants 0..IORING_OP_LAST are
+            // contiguous and all declared, as asserted by the `const _` block.
+            unsafe { core::mem::transmute::<u8, Self>(raw) }
+        }
+    }
+}
+
+// Behaviour of the conversion above, checked at compile time so it cannot be
+// skipped (this crate is `no_std` and has no test harness).
+const _: () = {
+    assert!(IOUringOp::from_raw(0) as u8 == IOUringOp::IORING_OP_NOP as u8);
+    assert!(IOUringOp::from_raw(18) as u8 == IOUringOp::IORING_OP_OPENAT as u8);
+    assert!(IOUringOp::from_raw(61) as u8 == IOUringOp::IORING_OP_WRITEV_FIXED as u8);
+    assert!(IOUringOp::from_raw(62) as u8 == IOUringOp::UNKNOWN as u8);
+    assert!(IOUringOp::from_raw(u8::MAX) as u8 == IOUringOp::UNKNOWN as u8);
+};
 
 /// IOUring execution event
 #[derive(Clone, Debug)]

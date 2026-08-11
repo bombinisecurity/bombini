@@ -225,9 +225,7 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
         let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
         let flags: u32 = ctx.arg(1);
         event.id = core_read_kernel!(bpf_map, id).ok_or(-1i32)?;
-        event.map_type = core::mem::transmute::<u32, BpfMapType>(
-            core_read_kernel!(bpf_map, map_type).ok_or(-1i32)?,
-        );
+        event.map_type = BpfMapType::from_raw(core_read_kernel!(bpf_map, map_type).ok_or(-1i32)?);
         // Flags is either 1, 2 or 3.
         event.access_mode = AccessMode::from_bits_truncate(1 << ((flags & 3).max(1) - 1));
         bpf_probe_read_kernel_str_bytes(
@@ -418,9 +416,7 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
     unsafe {
         let bpf_map = co_re::bpf_map::from_ptr(ctx.arg(0));
-        event.map_type = core::mem::transmute::<u32, BpfMapType>(
-            core_read_kernel!(bpf_map, map_type).ok_or(-1i32)?,
-        );
+        event.map_type = BpfMapType::from_raw(core_read_kernel!(bpf_map, map_type).ok_or(-1i32)?);
         bpf_probe_read_kernel_str_bytes(
             core_read_kernel!(bpf_map, name).ok_or(-1i32)? as *const _,
             &mut event.name,
@@ -595,9 +591,8 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     unsafe {
         let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
         event.id = core_read_kernel!(bpf_prog, aux, id).ok_or(-1i32)?;
-        event.prog_type = core::mem::transmute::<u32, BpfProgType>(
-            core_read_kernel!(bpf_prog, prog_type).ok_or(-1i32)?,
-        );
+        event.prog_type =
+            BpfProgType::from_raw(core_read_kernel!(bpf_prog, prog_type).ok_or(-1i32)?);
         bpf_probe_read_kernel_str_bytes(
             core_read_kernel!(bpf_prog, aux, name).ok_or(-1i32)? as *const _,
             &mut event.name,
@@ -779,9 +774,8 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
 
     unsafe {
         let bpf_prog = co_re::bpf_prog::from_ptr(ctx.arg(0));
-        event.prog_type = core::mem::transmute::<u32, BpfProgType>(
-            core_read_kernel!(bpf_prog, prog_type).ok_or(-1i32)?,
-        );
+        event.prog_type =
+            BpfProgType::from_raw(core_read_kernel!(bpf_prog, prog_type).ok_or(-1i32)?);
         bpf_probe_read_kernel_str_bytes(
             core_read_kernel!(bpf_prog, aux, name).ok_or(-1i32)? as *const _,
             &mut event.name,
@@ -936,10 +930,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
             return Err(-1);
         }
         let prog_type = (*prog_attr).prog_type;
-        event.prog_type = core::mem::transmute::<u32, BpfProgType>(core::cmp::min(
-            prog_type,
-            BpfProgType::__MAX_BPF_PROG_TYPE as u32,
-        ));
+        event.prog_type = BpfProgType::from_raw(prog_type);
         bpf_probe_read_kernel_str_bytes(
             (*prog_attr).prog_name.as_ptr() as *const _,
             &mut event.name,
