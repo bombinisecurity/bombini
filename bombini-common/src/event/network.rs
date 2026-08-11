@@ -155,6 +155,42 @@ pub enum AddressFamily {
     AF_MCTP = 45,
 
     AF_MAX = 46,
+
+    /// Family reported by a kernel this build does not know about.
+    ///
+    /// Not a kernel constant. `security_socket_create` is reached with any
+    /// `family` in `0..NPROTO`, and `NPROTO == AF_MAX` *of the running
+    /// kernel* — which may be larger than the `AF_MAX` compiled in here.
+    /// Kept at `u32::MAX` so it can never collide with a future family.
+    UNKNOWN = u32::MAX,
+}
+
+// `from_raw` below relies on the discriminants being 0..=AF_MAX with no gaps.
+const _: () = {
+    assert!(AddressFamily::AF_UNSPEC as u32 == 0);
+    assert!(AddressFamily::AF_INET as u32 == 2);
+    assert!(AddressFamily::AF_INET6 as u32 == 10);
+    assert!(AddressFamily::AF_MCTP as u32 == 45);
+    assert!(AddressFamily::AF_MAX as u32 == 46);
+};
+
+impl AddressFamily {
+    /// Convert a raw address family into this enum.
+    ///
+    /// Families this build has no variant for become
+    /// [`AddressFamily::UNKNOWN`] rather than an invalid discriminant.
+    /// `AF_MAX` itself is a bound, not a family, so it maps to `UNKNOWN`
+    /// too.
+    #[inline(always)]
+    pub const fn from_raw(raw: u32) -> Self {
+        if raw >= Self::AF_MAX as u32 {
+            Self::UNKNOWN
+        } else {
+            // SAFETY: guarded above; discriminants 0..AF_MAX are contiguous
+            // and all declared, as asserted by the `const _` block.
+            unsafe { core::mem::transmute::<u32, Self>(raw) }
+        }
+    }
 }
 
 /// Should be the same as in the kernel
@@ -171,7 +207,61 @@ pub enum SocketType {
     SOCK_SEQPACKET = 5,
     SOCK_DCCP = 6,
     SOCK_PACKET = 10,
+
+    /// Socket type reported by the kernel that is not a named type.
+    ///
+    /// Not a kernel constant. `security_socket_create` is reached with any
+    /// `type` in `0..SOCK_MAX`, and 0, 7, 8 and 9 are inside that range
+    /// while not being socket types — `socket(AF_INET, 0, 0)` from any
+    /// unprivileged process gets there. Kept at `u32::MAX` so it can never
+    /// collide with a future type.
+    UNKNOWN = u32::MAX,
 }
+
+impl SocketType {
+    /// Convert a raw socket type into this enum.
+    ///
+    /// The named types are deliberately not contiguous (there is nothing at
+    /// 0 and nothing at 7..=9), so this is an explicit match rather than a
+    /// range check — clamping would still land on an undefined value.
+    #[inline(always)]
+    pub const fn from_raw(raw: u32) -> Self {
+        match raw {
+            1 => Self::SOCK_STREAM,
+            2 => Self::SOCK_DGRAM,
+            3 => Self::SOCK_RAW,
+            4 => Self::SOCK_RDM,
+            5 => Self::SOCK_SEQPACKET,
+            6 => Self::SOCK_DCCP,
+            10 => Self::SOCK_PACKET,
+            _ => Self::UNKNOWN,
+        }
+    }
+}
+
+// Behaviour of the two conversions above, checked at compile time so it
+// cannot be skipped (this crate is `no_std` and has no test harness).
+const _: () = {
+    // Named values survive the round trip.
+    assert!(SocketType::from_raw(1) as u32 == SocketType::SOCK_STREAM as u32);
+    assert!(SocketType::from_raw(10) as u32 == SocketType::SOCK_PACKET as u32);
+    // The holes inside `0..SOCK_MAX` that `socket(2)` can reach.
+    assert!(SocketType::from_raw(0) as u32 == SocketType::UNKNOWN as u32);
+    assert!(SocketType::from_raw(7) as u32 == SocketType::UNKNOWN as u32);
+    assert!(SocketType::from_raw(8) as u32 == SocketType::UNKNOWN as u32);
+    assert!(SocketType::from_raw(9) as u32 == SocketType::UNKNOWN as u32);
+    assert!(SocketType::from_raw(11) as u32 == SocketType::UNKNOWN as u32);
+    assert!(SocketType::from_raw(u32::MAX) as u32 == SocketType::UNKNOWN as u32);
+
+    assert!(AddressFamily::from_raw(0) as u32 == AddressFamily::AF_UNSPEC as u32);
+    assert!(AddressFamily::from_raw(2) as u32 == AddressFamily::AF_INET as u32);
+    assert!(AddressFamily::from_raw(10) as u32 == AddressFamily::AF_INET6 as u32);
+    assert!(AddressFamily::from_raw(45) as u32 == AddressFamily::AF_MCTP as u32);
+    // `AF_MAX` is a bound, not a family, and anything above it is unknown.
+    assert!(AddressFamily::from_raw(46) as u32 == AddressFamily::UNKNOWN as u32);
+    assert!(AddressFamily::from_raw(47) as u32 == AddressFamily::UNKNOWN as u32);
+    assert!(AddressFamily::from_raw(u32::MAX) as u32 == AddressFamily::UNKNOWN as u32);
+};
 
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

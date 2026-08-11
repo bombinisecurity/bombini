@@ -68,7 +68,7 @@ fn try_submit_req(ctx: BtfTracePointContext, generic_event: &mut GenericEvent) -
         let req = co_re::io_kiocb::from_ptr(ctx.arg(0));
         let opcode = core_read_kernel!(req, opcode).ok_or(-1i32)?;
         let cmd_ptr = core_read_kernel!(req, cmd).ok_or(-1i32)?;
-        event.opcode = core::mem::transmute::<u8, IOUringOp>(opcode);
+        event.opcode = IOUringOp::from_raw(opcode);
         match event.opcode {
             IOUringOp::IORING_OP_OPENAT | IOUringOp::IORING_OP_OPENAT2 => {
                 let open_data =

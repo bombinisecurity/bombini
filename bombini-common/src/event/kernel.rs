@@ -61,6 +61,42 @@ pub enum BpfMapType {
     BPF_MAP_TYPE_ARENA,
     BPF_MAP_TYPE_INSN_ARRAY,
     __MAX_BPF_MAP_TYPE,
+
+    /// Value reported by a kernel this build does not know about.
+    ///
+    /// Not a kernel constant: it exists so that reading an out-of-range
+    /// value never has to produce an invalid discriminant. Kept at
+    /// `u32::MAX` so it can never collide with a future kernel value.
+    UNKNOWN = u32::MAX,
+}
+
+// `from_raw` below relies on the discriminants being 0..__MAX_BPF_MAP_TYPE
+// with no gaps. If a new map type is inserted anywhere but right before
+// `__MAX_BPF_MAP_TYPE`, this trips and the conversion must be revisited.
+const _: () = {
+    assert!(BpfMapType::BPF_MAP_TYPE_UNSPEC as u32 == 0);
+    assert!(BpfMapType::BPF_MAP_TYPE_HASH as u32 == 1);
+    assert!(BpfMapType::BPF_MAP_TYPE_RINGBUF as u32 == 27);
+    assert!(BpfMapType::__MAX_BPF_MAP_TYPE as u32 == 35);
+};
+
+impl BpfMapType {
+    /// Convert a raw `bpf_map::map_type` into this enum.
+    ///
+    /// Values this build has no variant for become [`BpfMapType::UNKNOWN`]
+    /// rather than an invalid discriminant. The kernel bounds `map_type`,
+    /// but only against *its own* table: a kernel newer than this build
+    /// legitimately reports types past `__MAX_BPF_MAP_TYPE`.
+    #[inline(always)]
+    pub const fn from_raw(raw: u32) -> Self {
+        if raw >= Self::__MAX_BPF_MAP_TYPE as u32 {
+            Self::UNKNOWN
+        } else {
+            // SAFETY: guarded above; discriminants 0..__MAX_BPF_MAP_TYPE are
+            // contiguous and all declared, as asserted by the `const _` block.
+            unsafe { core::mem::transmute::<u32, Self>(raw) }
+        }
+    }
 }
 
 /// Should be the same as in the kernel
@@ -104,7 +140,62 @@ pub enum BpfProgType {
     BPF_PROG_TYPE_SYSCALL, /* a program that can execute syscalls */
     BPF_PROG_TYPE_NETFILTER,
     __MAX_BPF_PROG_TYPE,
+
+    /// Value reported by a kernel this build does not know about.
+    ///
+    /// Not a kernel constant: it exists so that reading an out-of-range
+    /// value never has to produce an invalid discriminant. Kept at
+    /// `u32::MAX` so it can never collide with a future kernel value.
+    UNKNOWN = u32::MAX,
 }
+
+// See the note on `BpfMapType`'s const block.
+const _: () = {
+    assert!(BpfProgType::BPF_PROG_TYPE_UNSPEC as u32 == 0);
+    assert!(BpfProgType::BPF_PROG_TYPE_KPROBE as u32 == 2);
+    assert!(BpfProgType::BPF_PROG_TYPE_LSM as u32 == 29);
+    assert!(BpfProgType::__MAX_BPF_PROG_TYPE as u32 == 33);
+};
+
+impl BpfProgType {
+    /// Convert a raw `bpf_prog::prog_type` (or a `bpf(2)` attribute) into
+    /// this enum.
+    ///
+    /// Values this build has no variant for become [`BpfProgType::UNKNOWN`]
+    /// rather than an invalid discriminant.
+    ///
+    /// Read off a `struct bpf_prog` the value is bounded, since
+    /// `find_prog_type()` runs before `security_bpf_prog_load()`. Read out of
+    /// `union bpf_attr` on the `bpf` hook it is not: `security_bpf()` is
+    /// called as soon as the attributes are copied in, before the command is
+    /// dispatched, so nothing has validated `prog_type` yet.
+    #[inline(always)]
+    pub const fn from_raw(raw: u32) -> Self {
+        if raw >= Self::__MAX_BPF_PROG_TYPE as u32 {
+            Self::UNKNOWN
+        } else {
+            // SAFETY: guarded above; discriminants 0..__MAX_BPF_PROG_TYPE are
+            // contiguous and all declared, as asserted by the `const _` block.
+            unsafe { core::mem::transmute::<u32, Self>(raw) }
+        }
+    }
+}
+
+// Behaviour of the two conversions above, checked at compile time so it
+// cannot be skipped (this crate is `no_std` and has no test harness).
+const _: () = {
+    assert!(BpfMapType::from_raw(0) as u32 == BpfMapType::BPF_MAP_TYPE_UNSPEC as u32);
+    assert!(BpfMapType::from_raw(1) as u32 == BpfMapType::BPF_MAP_TYPE_HASH as u32);
+    assert!(BpfMapType::from_raw(34) as u32 == BpfMapType::BPF_MAP_TYPE_INSN_ARRAY as u32);
+    assert!(BpfMapType::from_raw(35) as u32 == BpfMapType::UNKNOWN as u32);
+    assert!(BpfMapType::from_raw(u32::MAX) as u32 == BpfMapType::UNKNOWN as u32);
+
+    assert!(BpfProgType::from_raw(0) as u32 == BpfProgType::BPF_PROG_TYPE_UNSPEC as u32);
+    assert!(BpfProgType::from_raw(29) as u32 == BpfProgType::BPF_PROG_TYPE_LSM as u32);
+    assert!(BpfProgType::from_raw(32) as u32 == BpfProgType::BPF_PROG_TYPE_NETFILTER as u32);
+    assert!(BpfProgType::from_raw(33) as u32 == BpfProgType::UNKNOWN as u32);
+    assert!(BpfProgType::from_raw(u32::MAX) as u32 == BpfProgType::UNKNOWN as u32);
+};
 
 /// Bpf map event info
 #[derive(Clone, Debug)]

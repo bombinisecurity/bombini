@@ -301,9 +301,9 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
     };
 
     unsafe {
-        event.family = core::mem::transmute::<u32, AddressFamily>(ctx.arg(0));
+        event.family = AddressFamily::from_raw(ctx.arg(0));
         let raw_type: u32 = ctx.arg(1);
-        event.socket_type = core::mem::transmute::<u32, SocketType>(raw_type & SOCK_TYPE_MASK);
+        event.socket_type = SocketType::from_raw(raw_type & SOCK_TYPE_MASK);
         event.flags = SocketFlags::from_bits_retain(raw_type & !SOCK_TYPE_MASK);
         event.protocol = ctx.arg(2);
 
@@ -470,10 +470,8 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
             return Err(-1);
         };
         let family: u16 = *(ctx.arg::<*const u16>(1));
-        event.family = core::mem::transmute::<u32, AddressFamily>(family as u32);
-        event.socket_type = core::mem::transmute::<u32, SocketType>(
-            core_read_kernel!(socket, r#type).unwrap() as u32,
-        );
+        event.family = AddressFamily::from_raw(family as u32);
+        event.socket_type = SocketType::from_raw(core_read_kernel!(socket, r#type).unwrap() as u32);
         event.protocol = core_read_kernel!(sock, sk_protocol).unwrap() as u32;
 
         match event.family {
