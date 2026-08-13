@@ -16,11 +16,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
-
+      - uses: cargo-bins/cargo-binstall@main
       - name: Install musl toolchain and dependencies
         run: |
           sudo apt update && sudo apt install -y clang libbpf-dev
-          cargo install bpf-linker bindgen-cli
+          cargo binstall bpf-linker
+          cargo install bindgen-cli
           cargo xtask tarball --release --with-tag $VERSION
 
       - name: Upload release artifacts

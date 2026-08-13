@@ -3,7 +3,8 @@ FROM rust:1.95.0 AS bombini-builder
 RUN apt update && apt install -y  bpftool clang libbpf-dev
 WORKDIR /bombini
 COPY . ./
-RUN rustup show && cargo install bpf-linker bindgen-cli
+RUN rustup show && cargo install bindgen-cli
+RUN cargo install cargo-binstall --locked && cargo binstall bpf-linker
 RUN cargo xtask build --release
 RUN mkdir -p ./target/bpf-objs && \
     find ./target/bpfel-unknown-none/release -maxdepth 1 -exec file {} + | \
