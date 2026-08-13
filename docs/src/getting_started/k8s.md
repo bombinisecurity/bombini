@@ -3,7 +3,7 @@
 First pull `bombini` image:
 
 ```bash
-docker pull ghcr.io/bombinisecurity/bombini:v1.0.0
+docker pull ghcr.io/bombinisecurity/bombini:v1.1.0
 ```
 
 `bombini.yaml` manifest has bombini ConfigMap with all configuration setup. By default, only ProcMon
@@ -22,7 +22,7 @@ Events can be found in bombini k8s log.
 Pull `bombini` image:
 
 ```bash
-docker pull ghcr.io/bombinisecurity/bombini:v1.0.0
+docker pull ghcr.io/bombinisecurity/bombini:v1.1.0
 ```
 
 Install [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).

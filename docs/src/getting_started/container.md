@@ -3,7 +3,7 @@
 Download Bombini container image:
 
 ```bash
-docker pull ghcr.io/bombinisecurity/bombini:v1.0.0
+docker pull ghcr.io/bombinisecurity/bombini:v1.1.0
 ```
 
 ## Run
