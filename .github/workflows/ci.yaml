@@ -48,10 +48,12 @@ jobs:
         with:
           workspaces: /tmp/bombini-build
 
+      - uses: cargo-bins/cargo-binstall@main
       - name: Build bombini and tests with musl
         run: |
           cd /tmp/bombini-build
-          cargo install bpf-linker bindgen-cli
+          cargo binstall bpf-linker
+          cargo install bindgen-cli
           # Build main binary and tests with musl
           cargo xtask build --release
           cargo test --release --no-run --target x86_64-unknown-linux-musl
