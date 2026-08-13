@@ -3,7 +3,7 @@
 You can get a tarball with installation scripts for bombini systemd service:
 
 ```bash
-wget https://github.com/bombinisecurity/bombini/releases/download/v1.0.0/bombini-v1.0.0.tar.gz
+wget https://github.com/bombinisecurity/bombini/releases/download/v1.1.0/bombini-v1.1.0.tar.gz
 ```
 
 ## Install / Uninstall
