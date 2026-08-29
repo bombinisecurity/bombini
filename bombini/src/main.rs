@@ -4,6 +4,7 @@ use tokio::signal;
 
 mod config;
 mod detector;
+mod k8s;
 mod metrics;
 mod monitor;
 mod options;
