@@ -277,26 +277,34 @@ fn is_invalid_ima(ima: &ImaHash) -> bool {
     ima.algo <= 0
 }
 
+/// Minimal container id length. It could be truncated in ebpf.
+pub const CONTAINER_ID_LENGTH: usize = 31;
+
 fn container_id_from_cgroup(cgroup: &Cgroup) -> String {
-    let container = str_from_bytes(&cgroup.cgroup_name)
+    let cgroup_name = str_from_bytes(&cgroup.cgroup_name);
+    let container = cgroup_name
         .split(':')
         .next_back()
         .unwrap_or("")
         .split('-')
         .next_back()
-        .unwrap_or("")
-        .to_string();
+        .unwrap_or("");
 
     if container.ends_with(".service") {
         return String::new();
     }
 
-    // Minimal container id length. It could be truncated in ebpf.
-    if container.len() >= 31 {
-        container[..31].to_string()
-    } else {
-        String::new()
+    // Reject non hex leftovers: cgroup_name holds a full cgroup path
+    // for processes discovered via procfs.
+    let bytes = container.as_bytes();
+    if bytes.len() < CONTAINER_ID_LENGTH
+        || !bytes[..CONTAINER_ID_LENGTH]
+            .iter()
+            .all(u8::is_ascii_hexdigit)
+    {
+        return String::new();
     }
+    container[..CONTAINER_ID_LENGTH].to_string()
 }
 
 /// Generate base64 hash from process's PID and start time
@@ -818,6 +826,84 @@ impl Transmuter for ProcessEventTransmuter {
             }
         } else {
             Err(anyhow!("Unexpected event variant"))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bombini_common::constants::DOCKER_ID_LENGTH;
+
+    fn cgroup(name: &str) -> Cgroup {
+        let mut cgroup_name = [0u8; DOCKER_ID_LENGTH];
+        let bytes = name.as_bytes();
+        let len = bytes.len().min(DOCKER_ID_LENGTH);
+        cgroup_name[..len].copy_from_slice(&bytes[..len]);
+        Cgroup {
+            cgroup_id: 0,
+            cgroup_name,
+        }
+    }
+
+    const ID: &str = "b6b2eb0c1d3f4a5e8c7d9f0a1b2c3d4e5f60718293a4b5c6d7e8f9012345678a";
+
+    #[test]
+    fn container_id_from_ebpf_cgroup_name() {
+        // containerd/CRI-O/docker with systemd driver
+        for leaf in [
+            format!("cri-containerd-{ID}.scope"),
+            format!("crio-{ID}.scope"),
+            format!("docker-{ID}.scope"),
+        ] {
+            assert_eq!(
+                container_id_from_cgroup(&cgroup(&leaf)),
+                ID[..CONTAINER_ID_LENGTH]
+            );
+        }
+        // containerd systemd form: slice:prefix:name
+        assert_eq!(
+            container_id_from_cgroup(&cgroup(&format!(
+                "kubepods-besteffort.slice:cri-containerd:{ID}"
+            ))),
+            ID[..CONTAINER_ID_LENGTH]
+        );
+        // cgroupfs driver
+        assert_eq!(
+            container_id_from_cgroup(&cgroup(ID)),
+            ID[..CONTAINER_ID_LENGTH]
+        );
+    }
+
+    #[test]
+    fn container_id_is_empty_for_host() {
+        for name in [
+            "",
+            "sshd.service",
+            "session-3.scope",
+            "nvidia-persistenced.service",
+            "init.scope",
+            &ID[..16],
+        ] {
+            assert!(container_id_from_cgroup(&cgroup(name)).is_empty(), "{name}");
+        }
+    }
+
+    #[test]
+    fn container_id_is_empty_for_procfs_path() {
+        // ProcInfo::from_procfs puts a full cgroup path into cgroup_name
+        for name in [
+            format!("/kubepods/burstable/pod4a5b6c7d-8e9f-40a1-b2c3-d4e5f6071829/{ID}"),
+            format!(
+                "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod4a5b6c7d_8e9f_40a1_b2c3_d4e5f6071829.slice/cri-containerd-{ID}.scope"
+            ),
+            "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.gnome.Terminal.slice"
+                .to_string(),
+        ] {
+            assert!(
+                container_id_from_cgroup(&cgroup(&name)).is_empty(),
+                "{name}"
+            );
         }
     }
 }
