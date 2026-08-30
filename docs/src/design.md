@@ -24,6 +24,10 @@ flowchart TB
     G["Monitor"] -- read --> H["RingBuffer"]
     E -- manage --> I["Process cache"]
     C -- send --> H
+    A -- configure --> J["Pod watcher"]
+    J -- update --> K["Pod index"]
+    I -- lookup --> K
+    J -- watch pods --> L["kube-apiserver"]
 
     A@{ shape: docs}
     B@{ shape: processes}
@@ -32,6 +36,9 @@ flowchart TB
     E@{ shape: processes}
     H@{ shape: das}
     I@{ shape: cyl}
+    J@{ shape: processes}
+    K@{ shape: cyl}
+    L@{ shape: cyl}
 ```
 
 ### Detector
@@ -122,3 +129,17 @@ These events are provided by corresponding Transmuters. Also, they maintain a `P
 structures that are used in all event types. `ProcessClone` event creates an entry in ProcessCache. `ProcessExit` event marks
 entry as "exited" for cache garbage collection. `ProcessExec` event marks as "exited" Process cache entry, related to previous
 clone() or exec() calls and puts new Process entry in cache.
+
+## Kubernetes Pod Enrichment
+
+The pod watcher keeps a `PodIndex`, a container id to pod mapping built from the pod status of the
+node the agent runs on. `ProcessCache` looks a process up in it by the container id extracted in
+eBPF and stores the result in the `Process` structure, so pod information is emitted in every event
+type without touching the eBPF part.
+
+The index is read on the event hot path and written by the watcher only, so the mapping is published
+as a whole snapshot behind `ArcSwap`: a lookup is a lock free atomic load. A container id appears in
+the pod status only after the container has started, so processes that were not resolved are kept
+aside and re-resolved when the index changes. To avoid rescanning them on every kubelet status
+update, the index holds a generation counter that is bumped only when the set of container ids
+actually changes. Configuration is described in the [Kubernetes](configuration/k8s.md) chapter.

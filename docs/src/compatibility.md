@@ -25,3 +25,10 @@ BTF information must be provided by your Linux kernel. Check if btf file exists:
 ```
 ls -la /sys/kernel/btf/vmlinux
 ```
+
+## Kubernetes
+
+[Pod enrichment](configuration/k8s.md) supports Kubernetes **1.32** and newer.
+The shipped manifests use `flowcontrol.apiserver.k8s.io/v1`, available since 1.29,
+and the agent gets its initial pod list as a streaming watch list, which is enabled
+by default since 1.32.

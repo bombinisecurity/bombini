@@ -9,6 +9,10 @@ docker pull ghcr.io/bombinisecurity/bombini:v1.1.0
 `bombini.yaml` manifest has bombini ConfigMap with all configuration setup. By default, only ProcMon
 detector is loaded. To customize your Bombini setup, please, follow the [Configuration](../configuration/configuration.md) chapter.
 
+Besides the DaemonSet, the manifest creates a ServiceAccount with a ClusterRole allowing to watch pods,
+and a FlowSchema limiting the load the agents put on kube-apiserver. Events are enriched with pod
+metadata, see the [Kubernetes](../configuration/k8s.md) configuration chapter.
+
 To start bombini DaemonSet run:
 
 ```bash

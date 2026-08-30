@@ -49,6 +49,20 @@ log_file_compression: false
 # Prometheus metric server port. This option enables metric server
 metric_server_port: 9100
 
+# Enrich events with kubernetes pod metadata.
+# Requires the agent to be built with the k8s feature
+k8s_enabled: false
+
+# Node to watch pods on. Defaults to the NODE_NAME environment variable
+#k8s_node_name: node-1
+
+# Max delay before the initial pod list request in seconds
+k8s_startup_jitter_sec: 30
+
+# Pod labels to copy into events. All the others are dropped
+#k8s_pod_labels:
+#   - app.kubernetes.io/name
+
 # List of the detectors to load
 detectors:
    - procmon
@@ -86,9 +100,14 @@ Options:
       --log-file-compression           Enable compression for rotated files
       --event-socket <FILE>            Unix socket path to send events
       --metric-server-port <PORT>      Prometheus exporter port
+      --k8s-enabled                    Enrich events with kubernetes pod metadata
+      --k8s-node-name <NAME>           Node to watch pods on. Defaults to the NODE_NAME environment variable
+      --k8s-startup-jitter-sec <SEC>   Max delay before the initial pod list request in seconds
+      --k8s-pod-label <NAME>           Pod label to copy into events. Can be specified multiple times. Use "*" to copy all labels
   -h, --help                           Print help
   -V, --version                        Print version
 ```
 
 `--bpf-objs`, `--maps-pin-path`, `--event-map-size`, `--event-channel-size`, `detector` options can override corresponding config options.
 `--log-file`, `--event-socket` can override default stdout json serialized events output.
+`--k8s-*` options are described in the [Kubernetes](k8s.md) chapter.
