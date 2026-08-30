@@ -16,6 +16,9 @@ pub struct Options {
     /// Build and run the release target
     #[clap(long)]
     pub release: bool,
+    /// Comma separated list of userspace cargo features
+    #[clap(long, value_delimiter = ',')]
+    pub features: Vec<String>,
     /// The command used to wrap your application
     #[clap(short, long, default_value = "sudo -E")]
     pub runner: String,
@@ -30,6 +33,7 @@ pub fn run(opts: Options) -> Result<(), anyhow::Error> {
     build(BuildOptions {
         bpf_target: opts.bpf_target,
         release: opts.release,
+        features: opts.features.clone(),
     })
     .context("Error while building project")?;
 

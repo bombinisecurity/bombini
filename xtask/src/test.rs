@@ -18,6 +18,9 @@ pub struct Options {
     /// Build and run the release target
     #[clap(long)]
     pub release: bool,
+    /// Comma separated list of userspace cargo features
+    #[clap(long, value_delimiter = ',')]
+    pub features: Vec<String>,
     /// Just build do not run
     #[clap(long)]
     pub no_run: bool,
@@ -38,11 +41,14 @@ pub fn test(opts: Options) -> Result<(), anyhow::Error> {
     build(BuildOptions {
         bpf_target: opts.bpf_target,
         release: opts.release,
+        features: opts.features.clone(),
     })
     .context("Error while building project")?;
 
     // arguments to pass cargo test
     let mut run_args: Vec<_> = opts.test_args.iter().map(String::as_str).collect();
+
+    let features = format!("--features={}", opts.features.join(","));
 
     // configure args
     let mut args: Vec<_> = opts.runner.trim().split_terminator(' ').collect();
@@ -57,6 +63,9 @@ pub fn test(opts: Options) -> Result<(), anyhow::Error> {
     }
     if opts.example_events {
         args.push("--features=examples");
+    }
+    if !opts.features.is_empty() {
+        args.push(features.as_str());
     }
     args.push("--");
     if opts.example_events {
