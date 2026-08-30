@@ -18,7 +18,7 @@ mod file;
 mod io_uring;
 mod kernel;
 mod network;
-mod process;
+pub mod process;
 mod sysenum;
 
 use crate::{
