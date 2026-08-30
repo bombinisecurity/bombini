@@ -48,8 +48,14 @@ impl<T: BombiniMetricBound> BombiniMetric<T> {
 }
 
 pub type BombiniCounter = BombiniMetric<Counter>;
-#[allow(unused)]
 pub type BombiniGauge = BombiniMetric<Gauge>;
+
+#[cfg_attr(not(feature = "k8s"), allow(dead_code))]
+impl BombiniGauge {
+    pub fn set(&self, value: i64) {
+        self.prometheus_metric.metric.set(value);
+    }
+}
 
 impl BombiniCounter {
     pub fn set(&self, value: u64) {

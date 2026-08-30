@@ -52,11 +52,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut registry = Registry::new();
     registry.load_detectors(&config)?;
-    let monitor = Monitor::new();
+    let k8s = k8s::start(&config.options.k8s_opts).await?;
+    let monitor = Monitor::new(k8s.as_ref().map(|k8s| k8s.index.clone()));
 
     if let Some(port) = config.options.metric_opts.metric_server_port {
         let mut metric_server = metrics::BombiniMetricServer::new();
         metric_server.register_metrics(&monitor);
+        if let Some(k8s) = &k8s {
+            metric_server.register_metrics(k8s);
+        }
 
         metric_server.start_local_server(port).await?;
     }

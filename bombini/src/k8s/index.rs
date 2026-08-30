@@ -37,14 +37,6 @@ impl PodIndex {
         self.generation.load(Ordering::Acquire)
     }
 
-    pub fn len(&self) -> usize {
-        self.snapshot.load().len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     /// Publish a new snapshot. Generation is bumped only if the id set differs:
     /// kubelet patches pod status constantly and every bump forces a rescan of
     /// unresolved processes.
@@ -136,12 +128,11 @@ mod tests {
     #[test]
     fn k8s_index_lookup() {
         let index = PodIndex::new();
-        assert!(index.is_empty());
         assert!(index.lookup("a").is_none());
 
         index.replace(index_of(&["a", "b"]));
-        assert_eq!(index.len(), 2);
         assert_eq!(index.lookup("a").unwrap().container.id, "a");
+        assert_eq!(index.lookup("b").unwrap().container.id, "b");
         assert!(index.lookup("c").is_none());
 
         index.replace(index_of(&["c"]));
