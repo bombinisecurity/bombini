@@ -1,4 +1,73 @@
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bombini
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bombini
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bombini
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bombini
+subjects:
+  - kind: ServiceAccount
+    name: bombini
+    namespace: default
+---
+# Cap what the agents can take from kube-apiserver. Client side jitter and
+# backoff are politeness, this is the guarantee: a fleet wide restart cannot
+# starve other clients no matter how the agents behave.
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: bombini
+spec:
+  type: Limited
+  limited:
+    nominalConcurrencyShares: 5
+    limitResponse:
+      type: Queue
+      queuing:
+        queues: 32
+        handSize: 4
+        queueLengthLimit: 50
+---
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: bombini
+spec:
+  priorityLevelConfiguration:
+    name: bombini
+  matchingPrecedence: 1000
+  distinguisherMethod:
+    type: ByUser
+  rules:
+    - subjects:
+        - kind: ServiceAccount
+          serviceAccount:
+            name: bombini
+            namespace: default
+      resourceRules:
+        - verbs: ["get", "list", "watch"]
+          apiGroups: [""]
+          resources: ["pods"]
+          clusterScope: true
+          namespaces: ["*"]
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: bombini
@@ -42,6 +111,19 @@ data:
     # Prometheus metric server port. This option enables metric server
     metric_server_port: 9100
 
+    # Enrich events with kubernetes pod metadata.
+    # Requires the agent to be built with the k8s feature
+    k8s_enabled: true
+
+    # Max delay before the initial pod list request in seconds. Spreads the
+    # load on kube-apiserver when the whole fleet restarts at once
+    k8s_startup_jitter_sec: 30
+
+    # Pod labels to copy into events. All the others are dropped. Use "*" to
+    # copy all labels
+    #k8s_pod_labels:
+    #   - app.kubernetes.io/name
+
     # List of the detectors to load
     detectors:
       - procmon
@@ -50,7 +132,22 @@ data:
       #- kernelmon
       #- io_uringmon
       #- gtfobins
-  procmon.yaml: ""
+  procmon.yaml: |
+    gc_period: 5
+    setuid:
+      enabled: false
+    capset:
+      enabled: false
+    prctl:
+      enabled: false
+    create_user_ns:
+      enabled: false
+    ptrace_access_check:
+      enabled: false
+    bprm_check:
+      enabled: false
+    sched_process_exec:
+      enabled: false
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -69,6 +166,7 @@ spec:
         app: bombini
     spec:
       hostPID: true
+      serviceAccountName: bombini
       containers:
         - name: bombini
           image: bombini # Change it to bombini image location
@@ -76,6 +174,10 @@ spec:
           env:
             - name: RUST_LOG
               value: "info"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           securityContext:
             privileged: true
           volumeMounts:
