@@ -9,6 +9,7 @@
     - [Build](./getting_started/build.md)
 - [Configuration](./configuration/configuration.md)
     - [Rules](./configuration/rules.md)
+    - [Kubernetes](./configuration/k8s.md)
     - [ProcMon](./configuration/procmon.md)
         - [GTFOBins](./configuration/gtfobins.md)
     - [FileMon](./configuration/filemon.md)

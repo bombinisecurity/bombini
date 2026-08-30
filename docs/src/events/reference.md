@@ -96,6 +96,39 @@ JSON schema for all events.
         "gid"
       ]
     },
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
     "FileOpenInfo": {
       "type": "object",
       "properties": {
@@ -357,6 +390,48 @@ JSON schema for all events.
         "old_path"
       ]
     },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
+      ]
+    },
     "Process": {
       "description": "Process information",
       "type": "object",
@@ -437,6 +512,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -535,6 +621,39 @@ JSON schema for all events.
     "timestamp"
   ],
   "$defs": {
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
     "IOUringOpInfo": {
       "anyOf": [
         {
@@ -599,6 +718,48 @@ JSON schema for all events.
         {
           "type": "null"
         }
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
       ]
     },
     "Process": {
@@ -681,6 +842,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -905,6 +1077,39 @@ JSON schema for all events.
         "prog_type"
       ]
     },
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
     "KernelEventType": {
       "oneOf": [
         {
@@ -959,6 +1164,48 @@ JSON schema for all events.
             "type"
           ]
         }
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
       ]
     },
     "Process": {
@@ -1041,6 +1288,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -1146,6 +1404,39 @@ JSON schema for all events.
     "timestamp"
   ],
   "$defs": {
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
     "NetworkEventType": {
       "oneOf": [
         {
@@ -1213,6 +1504,48 @@ JSON schema for all events.
             "type"
           ]
         }
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
       ]
     },
     "Process": {
@@ -1295,6 +1628,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -1492,6 +1836,81 @@ JSON schema for all events.
     "timestamp"
   ],
   "$defs": {
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
+      ]
+    },
     "Process": {
       "description": "Process information",
       "type": "object",
@@ -1572,6 +1991,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -1655,6 +2085,81 @@ JSON schema for all events.
     "timestamp"
   ],
   "$defs": {
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
+      ]
+    },
     "Process": {
       "description": "Process information",
       "type": "object",
@@ -1735,6 +2240,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -1818,6 +2334,81 @@ JSON schema for all events.
     "timestamp"
   ],
   "$defs": {
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
+      ]
+    },
     "Process": {
       "description": "Process information",
       "type": "object",
@@ -1898,6 +2489,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -1998,6 +2600,81 @@ JSON schema for all events.
     "timestamp"
   ],
   "$defs": {
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
+      ]
+    },
     "PrctlCmdUser": {
       "description": "Enumeration of prctl supported commands",
       "oneOf": [
@@ -2162,6 +2839,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
@@ -2528,6 +3216,81 @@ JSON schema for all events.
         }
       ]
     },
+    "ContainerInfo": {
+      "description": "Container metadata from pod status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Truncated container id: the same form as Process::container_id",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "image_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ]
+    },
+    "PodInfo": {
+      "description": "Pod metadata for a single container",
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerInfo"
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "workload": {
+          "description": "Owner workload name: Deployment, DaemonSet, etc.",
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "uid",
+        "workload",
+        "workload_kind",
+        "container"
+      ]
+    },
     "Process": {
       "description": "Process information",
       "type": "object",
@@ -2608,6 +3371,17 @@ JSON schema for all events.
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pod": {
+          "description": "Kubernetes pod metadata",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PodInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "ppid": {
           "description": "Parent PID",
