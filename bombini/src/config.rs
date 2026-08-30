@@ -54,7 +54,11 @@ impl Config {
         let mut config_path = PathBuf::from(&self.options.config_dir);
         for name in names.iter().map(|e| e.as_str()) {
             config_path.push(name.to_owned() + ".yaml");
-            let yaml_config = std::fs::read_to_string(&config_path)?;
+            let mut yaml_config = std::fs::read_to_string(&config_path)?;
+            // Empty file means the detector is loaded with default settings
+            if yaml_config.trim().is_empty() {
+                yaml_config = "{}".to_string();
+            }
             let mut value: serde_yml::Value = serde_yml::from_str(yaml_config.as_ref())?;
             crate::rule::macros::expand_config(&mut value)?;
             let config = match name {
