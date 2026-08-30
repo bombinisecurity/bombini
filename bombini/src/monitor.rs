@@ -12,7 +12,7 @@ use std::{convert::TryFrom, path::PathBuf, sync::Arc};
 
 use bombini_common::event::GenericEvent;
 
-use crate::k8s::EnrichMetrics;
+use crate::k8s::{EnrichMetrics, index::PodIndex};
 use crate::metrics::BombiniCounter;
 use crate::transmitter::Transmitter;
 use crate::transmuter::TransmuterRegistry;
@@ -24,11 +24,13 @@ pub struct Monitor {
     events_exported_total: Arc<BombiniCounter>,
     userspace_events_lost: Arc<BombiniCounter>,
     enrich_metrics: Arc<EnrichMetrics>,
+    /// None if kubernetes enrichment is disabled
+    pod_index: Option<Arc<PodIndex>>,
     bpf_errors_monitor: bpf_errors::BpfErrorsMonitor,
 }
 
 impl Monitor {
-    pub fn new() -> Self {
+    pub fn new(pod_index: Option<Arc<PodIndex>>) -> Self {
         Self {
             events_exported_total: Arc::new(BombiniCounter::new(
                 "bombini_user_events_exported",
@@ -39,6 +41,7 @@ impl Monitor {
                 "Number of events lost in user space",
             )),
             enrich_metrics: Arc::new(EnrichMetrics::new()),
+            pod_index,
             bpf_errors_monitor: bpf_errors::BpfErrorsMonitor::new(),
         }
     }
@@ -61,7 +64,8 @@ impl Monitor {
         .unwrap();
         let mut last_gc = Instant::now();
         let gc_period: Duration = Duration::from_secs(config.options.gc_period.unwrap());
-        let mut transmuters = TransmuterRegistry::new(config, None, self.enrich_metrics.clone());
+        let mut transmuters =
+            TransmuterRegistry::new(config, self.pod_index.clone(), self.enrich_metrics.clone());
 
         // Start bpf errors monitor
         let maps_pin_path = PathBuf::from(config.options.maps_pin_path.as_ref().unwrap());

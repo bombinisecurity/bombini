@@ -82,6 +82,10 @@ pub struct Options {
     #[command(flatten)]
     #[serde(flatten)]
     pub metric_opts: MetricOptions,
+
+    #[command(flatten)]
+    #[serde(flatten)]
+    pub k8s_opts: K8sOptions,
 }
 
 #[derive(Default, Clone, Debug, Args, Deserialize)]
@@ -141,6 +145,33 @@ pub struct MetricOptions {
     pub metric_server_port: Option<u16>,
 }
 
+fn default_k8s_startup_jitter_sec() -> Option<u64> {
+    Some(30)
+}
+
+#[derive(Default, Clone, Debug, Args, Deserialize)]
+#[group(id = "k8s", required = false, multiple = true)]
+#[serde(default)]
+pub struct K8sOptions {
+    /// Enrich events with kubernetes pod metadata
+    #[arg(long)]
+    pub k8s_enabled: bool,
+
+    /// Node to watch pods on. Defaults to the NODE_NAME environment variable
+    #[arg(long, value_name = "NAME")]
+    pub k8s_node_name: Option<String>,
+
+    /// Max delay before the initial pod list request in seconds
+    #[arg(long, value_name = "SEC")]
+    #[serde(default = "default_k8s_startup_jitter_sec")]
+    pub k8s_startup_jitter_sec: Option<u64>,
+
+    /// Pod label to copy into events. Can be specified multiple times.
+    /// Use "*" to copy all labels
+    #[arg(long = "k8s-pod-label", value_name = "NAME")]
+    pub k8s_pod_labels: Option<Vec<String>>,
+}
+
 impl Options {
     /// Method returns path for event map pin
     pub fn event_pin_path(&self) -> PathBuf {
@@ -169,6 +200,7 @@ impl Options {
         self.gc_period = config.gc_period;
         self.transmit_opts = config.transmit_opts;
         self.metric_opts = config.metric_opts;
+        self.k8s_opts = config.k8s_opts;
 
         // Redefine config from file if command args are set
         if let Some(v) = args.bpf_objs.as_deref() {
@@ -195,6 +227,18 @@ impl Options {
         }
         if let Some(port) = args.metric_opts.metric_server_port {
             self.metric_opts.metric_server_port = Some(port);
+        }
+        if args.k8s_opts.k8s_enabled {
+            self.k8s_opts.k8s_enabled = true;
+        }
+        if let Some(v) = args.k8s_opts.k8s_node_name {
+            self.k8s_opts.k8s_node_name = Some(v);
+        }
+        if let Some(v) = args.k8s_opts.k8s_startup_jitter_sec {
+            self.k8s_opts.k8s_startup_jitter_sec = Some(v);
+        }
+        if let Some(v) = args.k8s_opts.k8s_pod_labels {
+            self.k8s_opts.k8s_pod_labels = Some(v);
         }
 
         // Serde doesn't support group validation, so we do it manually

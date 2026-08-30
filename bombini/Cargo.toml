@@ -30,6 +30,10 @@ prometheus-client = "0.25.0"
 axum = "0.8.9"
 base64 = "0.23.0"
 arc-swap = "1.9.2"
+futures-util = { version = "0.3.32", optional = true }
+# rustls with ring: the release build is statically linked against musl
+kube = { version = "4.2.0", default-features = false, features = ["client", "runtime", "rustls-tls", "ring"], optional = true }
+k8s-openapi = { version = "0.28.0", features = ["v1_32"], optional = true }
 
 [dev-dependencies]
 nix = { version = "0.31.3", features = ["signal"] }
@@ -44,6 +48,8 @@ which = "8.0.2"
 examples = []
 # Only for test to generate json event schema
 schema = ["schemars"]
+# Kubernetes pod metadata enrichment
+k8s = ["dep:kube", "dep:k8s-openapi", "dep:futures-util"]
 
 [[bin]]
 name = "bombini"
