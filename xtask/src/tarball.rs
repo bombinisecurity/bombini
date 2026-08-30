@@ -24,6 +24,9 @@ pub struct Options {
     /// Build and run the release target
     #[clap(long)]
     pub release: bool,
+    /// Comma separated list of userspace cargo features
+    #[clap(long, value_delimiter = ',')]
+    pub features: Vec<String>,
     /// Custom tag for the tarball filename (e.g., v1.0.0)
     #[clap(long)]
     pub with_tag: Option<String>,
@@ -35,6 +38,7 @@ pub fn tarball(opts: Options) -> Result<(), anyhow::Error> {
     build(BuildOptions {
         bpf_target: opts.bpf_target,
         release: opts.release,
+        features: opts.features.clone(),
     })
     .context("Error while building project")?;
 

@@ -13,14 +13,21 @@ pub struct Options {
     /// Build and run the release target
     #[clap(long)]
     pub release: bool,
+    /// Comma separated list of userspace cargo features
+    #[clap(long, value_delimiter = ',')]
+    pub features: Vec<String>,
 }
 
 /// Build the project
 fn build_project(opts: &Options) -> Result<(), anyhow::Error> {
+    let features = opts.features.join(",");
     let mut args = vec!["build"];
     if opts.release {
         let target = get_musl_target()?;
         args.extend(["--release", "--target", target]);
+    }
+    if !features.is_empty() {
+        args.extend(["--features", features.as_str()]);
     }
     let status = Command::new("cargo")
         .args(&args)

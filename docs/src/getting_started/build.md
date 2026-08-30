@@ -4,6 +4,7 @@ First, install build dependencies:
 
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 2. Install `clang` and `libbpf-dev`. Ubuntu: `apt install clang libbpf-dev`.
+   Building with `--features k8s` also needs `musl-tools`.
 3. Prepare environment for [Aya](https://aya-rs.dev/book/start/development/).
 
 Release build:
