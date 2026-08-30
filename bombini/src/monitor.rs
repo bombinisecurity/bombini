@@ -12,6 +12,7 @@ use std::{convert::TryFrom, path::PathBuf, sync::Arc};
 
 use bombini_common::event::GenericEvent;
 
+use crate::k8s::EnrichMetrics;
 use crate::metrics::BombiniCounter;
 use crate::transmitter::Transmitter;
 use crate::transmuter::TransmuterRegistry;
@@ -22,6 +23,7 @@ mod bpf_errors;
 pub struct Monitor {
     events_exported_total: Arc<BombiniCounter>,
     userspace_events_lost: Arc<BombiniCounter>,
+    enrich_metrics: Arc<EnrichMetrics>,
     bpf_errors_monitor: bpf_errors::BpfErrorsMonitor,
 }
 
@@ -36,6 +38,7 @@ impl Monitor {
                 "bombini_user_events_lost",
                 "Number of events lost in user space",
             )),
+            enrich_metrics: Arc::new(EnrichMetrics::new()),
             bpf_errors_monitor: bpf_errors::BpfErrorsMonitor::new(),
         }
     }
@@ -58,7 +61,7 @@ impl Monitor {
         .unwrap();
         let mut last_gc = Instant::now();
         let gc_period: Duration = Duration::from_secs(config.options.gc_period.unwrap());
-        let mut transmuters = TransmuterRegistry::new(config);
+        let mut transmuters = TransmuterRegistry::new(config, None, self.enrich_metrics.clone());
 
         // Start bpf errors monitor
         let maps_pin_path = PathBuf::from(config.options.maps_pin_path.as_ref().unwrap());
@@ -109,6 +112,7 @@ impl metrics::MetricRegister for Monitor {
     fn register_metrics(&self, registry: &mut metrics::BombiniMetricServer) {
         registry.register(&*self.events_exported_total);
         registry.register(&*self.userspace_events_lost);
+        registry.register_metrics(&*self.enrich_metrics);
         registry.register_metrics(&self.bpf_errors_monitor);
     }
 }

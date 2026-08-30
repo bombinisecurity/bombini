@@ -15,13 +15,10 @@ use bombini_common::event::{
 
 use serde::{Serialize, Serializer};
 
+use crate::k8s::podinfo::PodInfo;
 use crate::proto::config::{HookConfig, ProcMonConfig};
 
-use super::{
-    Transmuter,
-    cache::process::{CachedProcess, ProcessCache},
-    str_from_bytes, transmute_ktime,
-};
+use super::{Transmuter, cache::process::ProcessCache, str_from_bytes, transmute_ktime};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -108,6 +105,9 @@ pub struct Process {
     /// skip for host
     #[cfg_attr(feature = "schema", schemars(with = "Option<String>"))]
     pub container_id: String,
+    /// Kubernetes pod metadata
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pod: Option<Arc<PodInfo>>,
     /// IMA binary hash
     #[serde(skip_serializing_if = "is_invalid_ima")]
     #[serde(serialize_with = "serialize_ima")]
@@ -360,6 +360,7 @@ impl Process {
             binary_path: str_from_bytes(&proc.binary_path),
             args,
             container_id: container_id_from_cgroup(&proc.cgroup),
+            pod: None,
             binary_ima_hash: proc.ima_hash,
             exec_id: get_exec_id(&process_key),
             parent_exec_id: get_exec_id(parent_key),
@@ -404,16 +405,7 @@ impl Transmuter for ProcessExecTransmuter {
             }
 
             // Add new one after exec
-            let process = Arc::new(Process::new(event_proc, parent_key));
-            let key = ProcessKey {
-                pid: event_proc.pid,
-                start: event_proc.start,
-            };
-            let cached_process = CachedProcess {
-                process: process.clone(),
-                exited: false,
-            };
-            process_cache.insert(key, cached_process);
+            let process = process_cache.new_process(event_proc, parent_key);
             let parent = if let Some(cached_process) = process_cache.get(parent_key) {
                 Some(cached_process.process.clone())
             } else {
@@ -453,16 +445,7 @@ impl Transmuter for ProcessCloneTransmuter {
         process_cache: &mut ProcessCache,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if let Event::ProcessClone((event_proc, parent_key)) = event {
-            let process = Arc::new(Process::new(event_proc, parent_key));
-            let key = ProcessKey {
-                pid: event_proc.pid,
-                start: event_proc.start,
-            };
-            let cached_process = CachedProcess {
-                process: process.clone(),
-                exited: false,
-            };
-            process_cache.insert(key, cached_process);
+            let process = process_cache.new_process(event_proc, parent_key);
             let parent = if let Some(cached_process) = process_cache.get(parent_key) {
                 Some(cached_process.process.clone())
             } else {

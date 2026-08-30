@@ -9,8 +9,7 @@ use std::{sync::Arc, time::Duration};
 
 use bombini_common::event::{
     Event, GenericEvent, MSG_FILE, MSG_IOURING, MSG_KERNEL, MSG_NETWORK, MSG_PROCESS,
-    MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT, MSG_SYSENUM,
-    process::{ProcInfo, ProcessKey},
+    MSG_PROCESS_CLONE, MSG_PROCESS_EXEC, MSG_PROCESS_EXIT, MSG_SYSENUM, process::ProcInfo,
 };
 
 mod cache;
@@ -23,7 +22,8 @@ mod sysenum;
 
 use crate::{
     config::{Config, DetectorConfig},
-    transmuter::cache::process::{CachedProcess, ProcessCache},
+    k8s::{EnrichMetrics, index::PodIndex},
+    transmuter::cache::process::ProcessCache,
 };
 
 use file::FileEventTransmuter;
@@ -31,8 +31,7 @@ use io_uring::IOUringEventTransmuter;
 use kernel::KernelEventTransmuter;
 use network::NetworkEventTransmuter;
 use process::{
-    Process, ProcessCloneTransmuter, ProcessEventTransmuter, ProcessExecTransmuter,
-    ProcessExitTransmuter,
+    ProcessCloneTransmuter, ProcessEventTransmuter, ProcessExecTransmuter, ProcessExitTransmuter,
 };
 use sysenum::SysEnumMonEventTransmuter;
 
@@ -41,11 +40,17 @@ pub struct TransmuterRegistry {
     process_cache: ProcessCache,
 }
 impl TransmuterRegistry {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(
+        config: &Config,
+        pod_index: Option<Arc<PodIndex>>,
+        enrich_metrics: Arc<EnrichMetrics>,
+    ) -> Self {
         let mut registry = Self {
             handlers: std::array::from_fn(|_| None),
             process_cache: ProcessCache::with_capacity(
                 config.options.procmon_proc_map_size.unwrap() as usize,
+                pod_index,
+                enrich_metrics,
             ),
         };
 
@@ -57,15 +62,7 @@ impl TransmuterRegistry {
             .filter_map(|p| ProcInfo::from_procfs(&p))
             .for_each(|p| {
                 let parent_key = p.parent_key_from_procfs();
-                let process = CachedProcess {
-                    process: Arc::new(Process::new(&p, &parent_key)),
-                    exited: false,
-                };
-                let key = ProcessKey {
-                    pid: p.pid,
-                    start: p.start,
-                };
-                let _ = registry.process_cache.insert(key, process);
+                registry.process_cache.new_process(&p, &parent_key);
             });
 
         // Install transmuters according loaded detectors
@@ -108,6 +105,8 @@ impl TransmuterRegistry {
     }
 
     pub fn transmute(&mut self, generic_event: &GenericEvent) -> Result<Vec<u8>, anyhow::Error> {
+        // Cheap: an atomic load unless the pod index has changed
+        self.process_cache.resolve_pending();
         let event_type = generic_event.msg_code as usize;
         if let Some(handler) = self.handlers[event_type].as_ref() {
             handler.transmute(
@@ -124,7 +123,7 @@ impl TransmuterRegistry {
     }
 
     pub fn retain_caches(&mut self) {
-        self.process_cache.retain(|_, p| !p.exited);
+        self.process_cache.retain();
     }
 }
 
