@@ -134,3 +134,89 @@ impl Transmitter for USockTransmitter {
         Err(last_err.unwrap_or_else(|| anyhow::anyhow!("{} is not connected", self.path.display())))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tempfile::TempDir;
+    use tokio::io::AsyncReadExt;
+    use tokio::net::UnixListener;
+
+    const READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+    /// Bind a listener and connect a transmitter to it
+    async fn connected() -> (TempDir, PathBuf, UnixListener, USockTransmitter) {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("events.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let transmitter = USockTransmitter::new(&path).await.unwrap();
+        (dir, path, listener, transmitter)
+    }
+
+    /// A truncated record leaves the read waiting for the missing bytes forever
+    async fn read_record(peer: &mut UnixStream, len: usize) -> Vec<u8> {
+        let mut got = vec![0; len];
+        tokio::time::timeout(READ_TIMEOUT, peer.read_exact(&mut got))
+            .await
+            .expect("record is incomplete")
+            .unwrap();
+        got
+    }
+
+    #[tokio::test]
+    async fn transmit_delimits_every_record() {
+        let (_dir, _path, listener, mut transmitter) = connected().await;
+        let (mut peer, _) = listener.accept().await.unwrap();
+
+        transmitter.transmit(b"{\"a\":1}".to_vec()).await.unwrap();
+        transmitter.transmit(b"{\"b\":2}".to_vec()).await.unwrap();
+
+        let expected = b"{\"a\":1}\n{\"b\":2}\n";
+        assert_eq!(read_record(&mut peer, expected.len()).await, expected);
+    }
+
+    /// try_write reported a partial write as success and truncated the record
+    #[tokio::test]
+    async fn transmit_writes_record_larger_than_socket_buffer() {
+        let (_dir, _path, listener, mut transmitter) = connected().await;
+        let (mut peer, _) = listener.accept().await.unwrap();
+
+        let event = vec![b'x'; 1 << 20];
+        // The write blocks once the socket buffer is full, read it in parallel
+        let len = event.len();
+        let reader = tokio::spawn(async move { read_record(&mut peer, len + 1).await });
+
+        transmitter.transmit(event.clone()).await.unwrap();
+
+        let got = reader.await.unwrap();
+        assert_eq!(got[..len], event);
+        assert_eq!(got[len], EVENT_DELIMITER);
+    }
+
+    #[tokio::test]
+    async fn transmit_survives_peer_restart() {
+        let (_dir, _path, listener, mut transmitter) = connected().await;
+        let (peer, _) = listener.accept().await.unwrap();
+
+        // The collector drops the connection between two events
+        drop(peer);
+
+        transmitter.transmit(b"event".to_vec()).await.unwrap();
+
+        let (mut peer, _) = listener.accept().await.unwrap();
+        assert_eq!(read_record(&mut peer, 6).await, b"event\n");
+    }
+
+    #[tokio::test]
+    async fn transmit_fails_while_peer_is_gone() {
+        let (_dir, path, listener, mut transmitter) = connected().await;
+        let (peer, _) = listener.accept().await.unwrap();
+
+        drop(peer);
+        drop(listener);
+        std::fs::remove_file(&path).unwrap();
+
+        assert!(transmitter.transmit(b"event".to_vec()).await.is_err());
+    }
+}
