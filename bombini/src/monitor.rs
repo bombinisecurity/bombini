@@ -87,7 +87,11 @@ impl Monitor {
                 let mut guard = poll.readable_mut().await.unwrap();
                 let ring_buf = guard.get_inner_mut();
                 while let Some(item) = ring_buf.next() {
-                    tx.send(item.to_vec()).await.unwrap();
+                    // Send fails only when the consumer is gone: nobody left to send to
+                    if let Err(e) = tx.send(item.to_vec()).await {
+                        log::error!("Stopped reading events: {e}");
+                        return;
+                    }
                 }
                 guard.clear_ready();
             }
