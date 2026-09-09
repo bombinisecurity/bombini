@@ -100,7 +100,7 @@ async fn start_monitor(config: &Config, monitor: &Monitor) -> Result<(), anyhow:
         Ok(())
     } else {
         // default: send events to stdout
-        monitor.monitor(config, StdoutTransmitter).await;
+        monitor.monitor(config, StdoutTransmitter::new()).await;
         Ok(())
     }
 }
