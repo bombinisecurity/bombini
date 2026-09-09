@@ -45,6 +45,13 @@ impl Monitor {
             bpf_errors_monitor: bpf_errors::BpfErrorsMonitor::new(),
         }
     }
+
+    /// Counter of events lost in user space, for transmitters that drop events
+    /// outside the `transmit` call (e.g. the file log thread).
+    pub fn events_lost_counter(&self) -> Arc<BombiniCounter> {
+        self.userspace_events_lost.clone()
+    }
+
     /// Start monitoring the events.
     ///
     /// # Arguments

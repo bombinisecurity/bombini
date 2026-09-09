@@ -87,6 +87,7 @@ async fn start_monitor(config: &Config, monitor: &Monitor) -> Result<(), anyhow:
                 FileTransmitter::new(
                     config.options.transmit_opts.event_file.clone(),
                     config.options.event_channel_size.unwrap(),
+                    monitor.events_lost_counter(),
                 )
                 .await?,
             )

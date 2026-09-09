@@ -102,11 +102,17 @@ pub struct TransmitterOpts {
     pub event_socket: Option<String>,
 }
 
+/// Number of rotated event log files to keep by default
+const DEFAULT_LOG_FILE_ROTATIONS: usize = 5;
+
+/// Max size of a rotated event log file in megabytes by default
+const DEFAULT_LOG_FILE_SIZE_MB: usize = 10;
+
 fn default_log_file_rotations() -> Option<usize> {
-    Some(5)
+    Some(DEFAULT_LOG_FILE_ROTATIONS)
 }
 fn default_log_file_size() -> Option<usize> {
-    Some(10)
+    Some(DEFAULT_LOG_FILE_SIZE_MB)
 }
 fn default_log_file_compression() -> bool {
     false
@@ -134,6 +140,19 @@ pub struct FileLogOptions {
     #[arg(long, value_name = "VALUE")]
     #[serde(default = "default_log_file_compression")]
     pub log_file_compression: bool,
+}
+
+impl FileLogOptions {
+    /// Number of rotated files to keep
+    pub fn rotations(&self) -> usize {
+        self.log_file_rotations
+            .unwrap_or(DEFAULT_LOG_FILE_ROTATIONS)
+    }
+
+    /// Max size of a rotated file in megabytes
+    pub fn size_mb(&self) -> usize {
+        self.log_file_size.unwrap_or(DEFAULT_LOG_FILE_SIZE_MB)
+    }
 }
 
 #[derive(Default, Clone, Debug, Args, Deserialize)]
