@@ -5,7 +5,7 @@ use aya::maps::{Map, RingBuf};
 use tokio::{
     io::unix::AsyncFd,
     sync::mpsc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, MissedTickBehavior, interval_at},
 };
 
 use std::{convert::TryFrom, path::PathBuf, sync::Arc};
@@ -69,7 +69,6 @@ impl Monitor {
             aya::maps::MapData::from_pin(config.options.event_pin_path()).unwrap(),
         ))
         .unwrap();
-        let mut last_gc = Instant::now();
         let gc_period: Duration = Duration::from_secs(config.options.gc_period.unwrap());
         let mut transmuters =
             TransmuterRegistry::new(config, self.pod_index.clone(), self.enrich_metrics.clone());
@@ -99,24 +98,33 @@ impl Monitor {
         let events_exported_metric = self.events_exported_total.clone();
         let userspace_events_lost = self.userspace_events_lost.clone();
         tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
-                let transmuted = transmuters.transmute(event);
-                if let Ok(data) = transmuted {
-                    if let Err(e) = transmitter.transmit(data).await {
-                        log::warn!("Failed to transmit event: {}", e);
-                        userspace_events_lost.inc();
-                    } else {
-                        events_exported_metric.inc();
-                    }
-                } else {
-                    log::debug!("{}", transmuted.err().unwrap());
-                    userspace_events_lost.inc();
-                }
+            let mut gc_interval = interval_at(Instant::now() + gc_period, gc_period);
+            gc_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            loop {
+                tokio::select! {
+                    biased;
 
-                if last_gc.elapsed() >= gc_period {
-                    transmuters.retain_caches();
-                    last_gc = Instant::now();
+                    _ = gc_interval.tick() => {
+                        transmuters.retain_caches();
+                    }
+                    message = rx.recv() => {
+                        let Some(message) = message else {
+                            break;
+                        };
+                        let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
+                        let transmuted = transmuters.transmute(event);
+                        if let Ok(data) = transmuted {
+                            if let Err(e) = transmitter.transmit(data).await {
+                                log::warn!("Failed to transmit event: {}", e);
+                                userspace_events_lost.inc();
+                            } else {
+                                events_exported_metric.inc();
+                            }
+                        } else {
+                            log::debug!("{}", transmuted.err().unwrap());
+                            userspace_events_lost.inc();
+                        }
+                    }
                 }
             }
         });
