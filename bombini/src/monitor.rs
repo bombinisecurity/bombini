@@ -8,7 +8,12 @@ use tokio::{
     time::{Duration, Instant, MissedTickBehavior, interval_at},
 };
 
-use std::{convert::TryFrom, path::PathBuf, sync::Arc};
+use std::{
+    convert::TryFrom,
+    mem::{MaybeUninit, size_of},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use bombini_common::event::GenericEvent;
 
@@ -64,7 +69,9 @@ impl Monitor {
         config: &Config,
         mut transmitter: T,
     ) {
-        let (tx, mut rx) = mpsc::channel::<Vec<u8>>(config.options.event_channel_size.unwrap());
+        let (tx, mut rx) = mpsc::channel::<Box<MaybeUninit<GenericEvent>>>(
+            config.options.event_channel_size.unwrap(),
+        );
         let ring_buf = RingBuf::try_from(Map::RingBuf(
             aya::maps::MapData::from_pin(config.options.event_pin_path()).unwrap(),
         ))
@@ -86,8 +93,16 @@ impl Monitor {
                 let mut guard = poll.readable_mut().await.unwrap();
                 let ring_buf = guard.get_inner_mut();
                 while let Some(item) = ring_buf.next() {
-                    // Send fails only when the consumer is gone: nobody left to send to
-                    if let Err(e) = tx.send(item.to_vec()).await {
+                    // Allocating fresh memory for proper struct alignment
+                    let mut event = Box::new(MaybeUninit::<GenericEvent>::uninit());
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            item.as_ptr(),
+                            event.as_mut_ptr().cast::<u8>(),
+                            size_of::<GenericEvent>(),
+                        );
+                    }
+                    if let Err(e) = tx.send(event).await {
                         log::error!("Stopped reading events: {e}");
                         return;
                     }
@@ -111,7 +126,7 @@ impl Monitor {
                         let Some(message) = message else {
                             break;
                         };
-                        let event: &GenericEvent = unsafe { &*message.as_ptr().cast::<GenericEvent>() };
+                        let event = unsafe { message.assume_init_ref() };
                         let transmuted = transmuters.transmute(event);
                         if let Ok(data) = transmuted {
                             if let Err(e) = transmitter.transmit(data).await {
