@@ -4,7 +4,7 @@ use aya::maps::{Map, RingBuf};
 
 use tokio::{
     io::unix::AsyncFd,
-    sync::mpsc,
+    sync::mpsc::{self, error::TrySendError},
     time::{Duration, Instant, MissedTickBehavior, interval_at},
 };
 
@@ -87,6 +87,7 @@ impl Monitor {
             .await
             .unwrap();
 
+        let ring_buf_events_lost = self.userspace_events_lost.clone();
         tokio::spawn(async move {
             let mut poll = AsyncFd::new(ring_buf).unwrap();
             loop {
@@ -102,9 +103,15 @@ impl Monitor {
                             size_of::<GenericEvent>(),
                         );
                     }
-                    if let Err(e) = tx.send(event).await {
-                        log::error!("Stopped reading events: {e}");
-                        return;
+                    match tx.try_send(event) {
+                        Ok(()) => {}
+                        Err(TrySendError::Full(_)) => {
+                            ring_buf_events_lost.inc();
+                        }
+                        Err(TrySendError::Closed(_)) => {
+                            log::error!("Stopped reading events: channel closed");
+                            return;
+                        }
                     }
                 }
                 guard.clear_ready();
