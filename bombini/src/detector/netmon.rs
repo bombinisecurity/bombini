@@ -1,15 +1,15 @@
 //! Network monitor detector
 
-use aya::maps::{Array, MapError};
+use aya::maps::Array;
 use aya::programs::{FExit, Lsm};
-use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
+use aya::{Btf, Ebpf, EbpfLoader};
 use bombini_common::config::netmon::NetMonKernelConfig;
 use bombini_common::constants::MAX_FILE_PATH;
 use bombini_common::event::network::NetworkEventNumber;
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use crate::detector::Detector;
+use crate::detector::{Detector, DetectorError};
 use crate::proto::config::{NetMonConfig, Rule};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::netmon::{SocketConnectPredicate, SocketCreatePredicate};
@@ -185,7 +185,7 @@ impl NetMon {
 }
 
 impl Detector for NetMon {
-    fn map_initialize(&mut self) -> Result<(), EbpfError> {
+    fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, NetMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("NETMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, self.config, 0);
@@ -196,55 +196,37 @@ impl Detector for NetMon {
         if let Some(ref ingress) = self.ingress {
             ingress
                 .serialized_rules
-                .store_rules(&mut self.ebpf, ingress.hook.map_prefix())
-                .map_err(|e| MapError::InvalidName {
-                    name: e.to_string(),
-                })?;
+                .store_rules(&mut self.ebpf, ingress.hook.map_prefix())?;
         } else {
             // We need to create an empty map for the ingress rules
             SerializedRules::<TcpConnectionPredicate>::new()
-                .store_rules(&mut self.ebpf, NetMonHook::Ingress.map_prefix())
-                .map_err(|e| MapError::InvalidName {
-                    name: e.to_string(),
-                })?;
+                .store_rules(&mut self.ebpf, NetMonHook::Ingress.map_prefix())?;
         }
         if let Some(ref egress) = self.egress {
             egress
                 .serialized_rules
-                .store_rules(&mut self.ebpf, egress.hook.map_prefix())
-                .map_err(|e| MapError::InvalidName {
-                    name: e.to_string(),
-                })?;
+                .store_rules(&mut self.ebpf, egress.hook.map_prefix())?;
         } else {
             // We need to create an empty map for the egress rules
             SerializedRules::<TcpConnectionPredicate>::new()
-                .store_rules(&mut self.ebpf, NetMonHook::Egress.map_prefix())
-                .map_err(|e| MapError::InvalidName {
-                    name: e.to_string(),
-                })?;
+                .store_rules(&mut self.ebpf, NetMonHook::Egress.map_prefix())?;
         }
 
         if let Some(ref socket_create) = self.socket_create {
             socket_create
                 .serialized_rules
-                .store_rules(&mut self.ebpf, socket_create.hook.map_prefix())
-                .map_err(|e| MapError::InvalidName {
-                    name: e.to_string(),
-                })?;
+                .store_rules(&mut self.ebpf, socket_create.hook.map_prefix())?;
         }
         if let Some(ref socket_connect) = self.socket_connect {
             socket_connect
                 .serialized_rules
-                .store_rules(&mut self.ebpf, socket_connect.hook.map_prefix())
-                .map_err(|e| MapError::InvalidName {
-                    name: e.to_string(),
-                })?;
+                .store_rules(&mut self.ebpf, socket_connect.hook.map_prefix())?;
         }
 
         Ok(())
     }
 
-    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+    fn load_and_attach_programs(&mut self) -> Result<(), DetectorError> {
         let btf = Btf::from_sys_fs()?;
         if self.egress.is_some() {
             let tcp_v4_connect: &mut FExit = self

@@ -4,7 +4,7 @@ use aya::maps::array::Array;
 use aya::maps::hash_map::HashMap as EbpfHashMap;
 use aya::maps::lpm_trie::{Key, LpmTrie};
 use aya::programs::{BtfTracePoint, Lsm};
-use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
+use aya::{Btf, Ebpf, EbpfLoader};
 
 use bombini_common::config::sysenummon::SysEnumMonKernelConfig;
 use bombini_common::constants::{MAX_FILE_PATH, MAX_FILE_PREFIX, MAX_FILENAME_SIZE, PAGE_SIZE};
@@ -15,7 +15,7 @@ use procfs::sys::kernel::Version;
 
 use crate::proto::config::SysEnumMonConfig;
 
-use super::Detector;
+use super::{Detector, DetectorError};
 
 pub struct SysEnumMon {
     ebpf: Ebpf,
@@ -106,7 +106,7 @@ impl SysEnumMon {
 }
 
 impl Detector for SysEnumMon {
-    fn map_initialize(&mut self) -> Result<(), EbpfError> {
+    fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, SysEnumMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("SYSENUMMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, self.config, 0);
@@ -138,7 +138,7 @@ impl Detector for SysEnumMon {
         Ok(())
     }
 
-    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+    fn load_and_attach_programs(&mut self) -> Result<(), DetectorError> {
         let btf = Btf::from_sys_fs()?;
         let bprm: &mut Lsm = self
             .ebpf

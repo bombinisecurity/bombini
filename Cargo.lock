@@ -371,6 +371,7 @@ dependencies = [
  "serde_yml",
  "sha256",
  "tempfile",
+ "thiserror",
  "tokio",
  "which",
 ]

@@ -1,13 +1,13 @@
 use std::{path::Path, sync::Arc};
 
-use crate::detector::Detector;
+use crate::detector::{Detector, DetectorError};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::kernelmon::{
     BpfMapCreatePredicate, BpfMapPredicate, BpfProgLoadPredicate, BpfProgPredicate,
 };
-use aya::maps::{Array, MapError};
+use aya::maps::Array;
 use aya::programs::Lsm;
-use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
+use aya::{Btf, Ebpf, EbpfLoader};
 use bombini_common::config::kernelmon::KernelMonKernelConfig;
 use bombini_common::event::kernel::KernelEventNumber;
 use procfs::sys::kernel::Version;
@@ -186,21 +186,16 @@ impl KernelMon {
 }
 
 impl Detector for KernelMon {
-    fn map_initialize(&mut self) -> Result<(), EbpfError> {
-        // TODO: Change trait error type to anyhow::Error
+    fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, KernelMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("KERNELMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, self.config, 0);
 
-        init_all_kernelmon_filter_maps(&self.hooks, &mut self.ebpf).map_err(|e| {
-            MapError::InvalidName {
-                name: e.to_string(),
-            }
-        })?;
+        init_all_kernelmon_filter_maps(&self.hooks, &mut self.ebpf)?;
         Ok(())
     }
 
-    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+    fn load_and_attach_programs(&mut self) -> Result<(), DetectorError> {
         let btf = Btf::from_sys_fs()?;
         let kernel_ver = Version::current().expect("Cannot get kernel version");
         for hook in &self.hooks {
