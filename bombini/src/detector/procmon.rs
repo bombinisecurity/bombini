@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::{path::Path, sync::Arc};
 
-use crate::detector::Detector;
+use crate::detector::{Detector, DetectorError};
 use crate::options::{EVENT_MAP_NAME, PROCMON_PROC_MAP_NAME, ZERO_EVENT_MAP};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::dummy::DummyPredicate;
@@ -10,9 +10,9 @@ use crate::rule::serializer::procmon::{
     BprmCheckPredicate, CapPredicate, CredPredicate, ExecveSandboxPredicate, GidPredicate,
     UidPredicate,
 };
-use aya::maps::{Array, HashMap, Map, MapData, MapError};
+use aya::maps::{Array, HashMap, Map, MapData};
 use aya::programs::{BtfTracePoint, Lsm};
-use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
+use aya::{Btf, Ebpf, EbpfLoader};
 use bombini_common::config::procmon::ProcMonKernelConfig;
 use bombini_common::constants::{MAX_EVENT_SIZE, PAGE_SIZE};
 use bombini_common::event::process::{ProcInfo, ProcessEventNumber};
@@ -294,8 +294,7 @@ fn start_proc_map_gc<P: AsRef<Path>>(
 }
 
 impl Detector for ProcMon {
-    fn map_initialize(&mut self) -> Result<(), EbpfError> {
-        // TODO: Change trait error type to anyhow::Error
+    fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, ProcMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, self.config, 0);
@@ -311,15 +310,11 @@ impl Detector for ProcMon {
                 let _ = proc_map.insert(p.pid, p, 0);
             });
 
-        init_all_procmon_filter_maps(&self.hooks, &mut self.ebpf).map_err(|e| {
-            MapError::InvalidName {
-                name: e.to_string(),
-            }
-        })?;
+        init_all_procmon_filter_maps(&self.hooks, &mut self.ebpf)?;
         Ok(())
     }
 
-    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+    fn load_and_attach_programs(&mut self) -> Result<(), DetectorError> {
         let btf = Btf::from_sys_fs()?;
         let exec: &mut BtfTracePoint = self
             .ebpf

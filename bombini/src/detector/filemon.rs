@@ -1,15 +1,15 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use crate::detector::{Detector, Version};
+use crate::detector::{Detector, DetectorError, Version};
 use crate::rule::serializer::PredicateSerializer;
 use crate::rule::serializer::filemon::{
     FileIoctlPredicate, FileOpenPredicate, MmapFilePredicate, PathChmodPredicate,
     PathChownPredicate, PathSymlinkPredicate, PathTruncatePredicate, PathUnlinkPredicate,
     SbMountPredicate,
 };
-use aya::maps::{Array, MapError};
+use aya::maps::Array;
 use aya::programs::Lsm;
-use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
+use aya::{Btf, Ebpf, EbpfLoader};
 use bombini_common::{
     config::filemon::FileMonKernelConfig, constants::MAX_FILE_PATH, event::file::FileEventNumber,
 };
@@ -243,18 +243,15 @@ impl FileMon {
 }
 
 impl Detector for FileMon {
-    fn map_initialize(&mut self) -> Result<(), EbpfError> {
-        // TODO: Change trait error type to anyhow::Error
+    fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, FileMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
         let _ = config_map.set(0, self.config, 0);
-        init_all_filemon_maps(&self.hooks, &mut self.ebpf).map_err(|e| MapError::InvalidName {
-            name: e.to_string(),
-        })?;
+        init_all_filemon_maps(&self.hooks, &mut self.ebpf)?;
         Ok(())
     }
 
-    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+    fn load_and_attach_programs(&mut self) -> Result<(), DetectorError> {
         let btf = Btf::from_sys_fs()?;
         let kernel_ver = Version::current().expect("Cannot get kernel version");
         let ver_6_8 = Version::new(6, 8, 0);

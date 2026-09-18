@@ -1,17 +1,18 @@
 //! Detector provides interface to load and configure eBPF detectors
 
-use aya::EbpfError;
-
 use procfs::sys::kernel::Version;
 
 use anyhow::anyhow;
 
+pub mod error;
 pub mod filemon;
 pub mod io_uringmon;
 pub mod kernelmon;
 pub mod netmon;
 pub mod procmon;
 pub mod sysenummon;
+
+pub use error::DetectorError;
 
 pub trait Detector {
     /// Minimal supported kernel version for detector to load
@@ -20,12 +21,12 @@ pub trait Detector {
     }
 
     /// Initialize config maps for detector
-    fn map_initialize(&mut self) -> Result<(), EbpfError> {
+    fn map_initialize(&mut self) -> Result<(), DetectorError> {
         Ok(())
     }
 
     /// Load and attach eBPF programs
-    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError>;
+    fn load_and_attach_programs(&mut self) -> Result<(), DetectorError>;
 
     /// Load Detector: load and attach all bpf programs and initialize all maps.
     fn load(&mut self) -> Result<(), anyhow::Error> {
