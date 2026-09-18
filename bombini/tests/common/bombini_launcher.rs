@@ -319,6 +319,18 @@ impl BombiniCommand {
         let _ = self.bombini.process.wait();
     }
 
+    pub fn kill_ungracefully(&mut self) {
+        if self.bombini.exited {
+            return;
+        }
+        self.bombini.exited = true;
+        let _ = signal::kill(
+            Pid::from_raw(self.bombini.process.id() as i32),
+            Signal::SIGKILL,
+        );
+        let _ = self.bombini.process.wait();
+    }
+
     #[allow(unused)]
     pub fn get_working_dir(&self) -> PathBuf {
         self.paths.temp_dir.path().to_path_buf()

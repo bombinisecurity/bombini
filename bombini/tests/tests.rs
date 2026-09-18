@@ -52,6 +52,28 @@ fn test_6_2_detectors_load() {
 }
 
 #[test]
+fn test_6_2_stale_pin_directory_recovers() {
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("sysenummon", None)
+        .bombini_start_timeout(7)
+        .launch()
+        .unwrap();
+
+    bombini.kill_ungracefully();
+
+    let bombini = BombiniBuilder::new()
+        .detector("procmon", None)
+        .detector("sysenummon", None)
+        .bombini_start_timeout(7)
+        .launch()
+        .unwrap();
+
+    let log = fs::read_to_string(bombini.get_working_dir().join("bombini.log")).unwrap();
+    assert!(log.contains("is stale"));
+}
+
+#[test]
 fn test_6_2_gtfobins() {
     let gtfobins_config_file =
         PathBuf::from(BOMBINI_TESTDATA_CONFIG_DIR).join("procmon-gtfobins.yaml");

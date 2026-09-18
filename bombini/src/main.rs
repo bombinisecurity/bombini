@@ -1,6 +1,10 @@
 use log::info;
+use nix::fcntl::{Flock, FlockArg};
 use scopeguard::defer;
 use tokio::signal;
+
+use std::fs::File;
+use std::path::PathBuf;
 
 mod config;
 mod detector;
@@ -38,17 +42,33 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut config = Config::new(options);
     config.parse_configs()?;
 
-    if std::fs::exists(config.options.maps_pin_path.as_ref().unwrap()).unwrap() {
-        anyhow::bail!(
-            "Map pin directory {} exists. Remove it to start.",
-            config.options.maps_pin_path.as_ref().unwrap()
-        );
+    // bpffs does not support ordinary files (only mkdir and BPF_OBJ_PIN), but
+    // flock on the pin directory itself works fine and needs no extra file.
+    let maps_pin_path = PathBuf::from(config.options.maps_pin_path.as_ref().unwrap());
+    if std::fs::exists(&maps_pin_path)? {
+        match Flock::lock(File::open(&maps_pin_path)?, FlockArg::LockExclusiveNonblock) {
+            Ok(_lock) => {
+                info!(
+                    "Map pin directory {} is stale (owner is gone), cleaning up",
+                    maps_pin_path.display()
+                );
+                std::fs::remove_dir_all(&maps_pin_path)?;
+            }
+            Err((_, e)) => {
+                anyhow::bail!(
+                    "Map pin directory {} exists and is in use ({e}). Another instance may be running.",
+                    maps_pin_path.display()
+                );
+            }
+        }
     }
-
-    let _ = std::fs::create_dir(config.options.maps_pin_path.as_ref().unwrap());
+    std::fs::create_dir(&maps_pin_path)?;
     defer! {
-        let _ = std::fs::remove_dir_all(config.options.maps_pin_path.as_ref().unwrap());
+        let _ = std::fs::remove_dir_all(&maps_pin_path);
     }
+    let _pin_dir_lock =
+        Flock::lock(File::open(&maps_pin_path)?, FlockArg::LockExclusiveNonblock)
+            .map_err(|(_, e)| anyhow::anyhow!("Failed to lock {}: {e}", maps_pin_path.display()))?;
 
     let mut registry = Registry::new();
     registry.load_detectors(&config)?;
