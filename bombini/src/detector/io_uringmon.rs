@@ -1,13 +1,13 @@
 //! IOUring detector
 
 use aya::programs::BtfTracePoint;
-use aya::{Btf, Ebpf, EbpfError, EbpfLoader};
+use aya::{Btf, Ebpf, EbpfLoader};
 
 use procfs::sys::kernel::Version;
 
 use std::path::Path;
 
-use super::Detector;
+use super::{Detector, DetectorError};
 
 pub struct IOUringMon {
     ebpf: Ebpf,
@@ -26,11 +26,11 @@ impl IOUringMon {
 }
 
 impl Detector for IOUringMon {
-    fn map_initialize(&mut self) -> Result<(), EbpfError> {
+    fn map_initialize(&mut self) -> Result<(), DetectorError> {
         Ok(())
     }
 
-    fn load_and_attach_programs(&mut self) -> Result<(), EbpfError> {
+    fn load_and_attach_programs(&mut self) -> Result<(), DetectorError> {
         let btf = Btf::from_sys_fs()?;
         let submit: &mut BtfTracePoint = self
             .ebpf
