@@ -169,7 +169,7 @@ spec:
       serviceAccountName: bombini
       containers:
         - name: bombini
-          image: bombini # Change it to bombini image location
+          image: ghcr.io/bombinisecurity/bombini:v1.1.0
           imagePullPolicy: IfNotPresent
           env:
             - name: RUST_LOG
