@@ -11,14 +11,14 @@ wget https://github.com/bombinisecurity/bombini/releases/download/v1.1.0/bombini
 Unpack bombini tarball:
 
 ```bash
-tar -xvf ./target/bombini.tar.gz -C ./target
+tar -xvf bombini-v1.1.0.tar.gz
 ```
 
-If you need config customization then update detector configs in `target/bombini/usr/local/lib/bombini/config`.
+If you need config customization then update detector configs in `bombini/usr/local/lib/bombini/config`.
 Then run install script:
 
 ```bash
-sudo ./target/bombini/install.sh
+sudo ./bombini/install.sh
 ```
 
 Check events:
@@ -30,5 +30,5 @@ tail -f /var/log/bombini/bombini.log
 Uninstall with uninstall.sh:
 
 ```bash
-sudo ./target/bombini/uninstall.sh
+sudo ./bombini/uninstall.sh
 ```
