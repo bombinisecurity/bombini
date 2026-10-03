@@ -25,7 +25,7 @@ docker run --pid=host --rm -it --privileged -v <your-config-dir>:/usr/local/lib/
 You can save event logs to the file:
 
 ```bash
-docker run --pid=host --rm -it --privileged -v /tmp/bombini:/log -v /sys/fs/bpf:/sys/fs/bpf ghcr.io/bombinisecurity/bombini:v1.1.0 --event-log /log/bombini.log
+docker run --pid=host --rm -it --privileged -v /tmp/bombini:/log -v /sys/fs/bpf:/sys/fs/bpf ghcr.io/bombinisecurity/bombini:v1.1.0 --log-file /log/bombini.log
 ```
 
 Or send them via unix socket. Bombini connects to the socket as a client, so start a listener first:
