@@ -1,0 +1,10 @@
+# Quickstart config: events are printed to stdout as JSON lines.
+# Mount this directory to /usr/local/lib/bombini/config in the container.
+---
+bpf_objs: /usr/local/lib/bombini/bpf
+maps_pin_path: /sys/fs/bpf/bombini
+
+detectors:
+  - procmon
+  - filemon
+  - netmon

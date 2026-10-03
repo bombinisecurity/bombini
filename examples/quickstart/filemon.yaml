@@ -1,0 +1,6 @@
+# Detect reads of password hashes
+file_open:
+  enabled: true
+  rules:
+    - rule: ShadowRead
+      event: path == "/etc/shadow"
