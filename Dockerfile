@@ -22,5 +22,8 @@ COPY --from=bombini-builder /bombini/config /usr/local/lib/bombini/config
 
 ENTRYPOINT [ "/usr/local/bin/bombini" ]
 
+# Links the ghcr.io package to the repository
+LABEL org.opencontainers.image.source="https://github.com/bombinisecurity/bombini"
+
 # How to run
-LABEL description="docker run --pid=host --rm -it --privileged --env 'RUST_LOG=info' -v <your-config-dir>:/usr/local/lib/bombini/config:ro  -v /sys/fs/bpf:/sys/fs/bpf bombini"
+LABEL description="docker run --pid=host --rm -it --privileged --env 'RUST_LOG=info' -v <your-config-dir>:/usr/local/lib/bombini/config:ro -v /sys/fs/bpf:/sys/fs/bpf ghcr.io/bombinisecurity/bombini:<version>"
