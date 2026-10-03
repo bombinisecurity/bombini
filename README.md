@@ -29,14 +29,14 @@ docker pull ghcr.io/bombinisecurity/bombini:v1.1.0
 You can easily run Bombini with this command:
 
 ```bash
-docker run --pid=host --rm -it --privileged -v /sys/fs/bpf:/sys/fs/bpf bombini
+docker run --pid=host --rm -it --privileged -v /sys/fs/bpf:/sys/fs/bpf ghcr.io/bombinisecurity/bombini:v1.1.0
 ```
 By default Bombini sends event to stdout in JSON format and starts only `ProcMon` detector intercepting
 process execs and exits. To customize your Bombini setup, please, follow the configuration [guide](docs/src/configuration/README.md)
 and mount config directory to the container:
 
 ```bash
-docker run --pid=host --rm -it --privileged -v <your-config-dir>:/usr/local/lib/bombini/config:ro  -v /sys/fs/bpf:/sys/fs/bpf bombini
+docker run --pid=host --rm -it --privileged -v <your-config-dir>:/usr/local/lib/bombini/config:ro  -v /sys/fs/bpf:/sys/fs/bpf ghcr.io/bombinisecurity/bombini:v1.1.0
 ```
 
 ## Build
