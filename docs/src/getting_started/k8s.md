@@ -45,7 +45,7 @@ kind create cluster --config ./kind-config.yaml --name bombini-test-cluster
 Load bombini image in kind cluster:
 
 ```bash
-kind load docker-image bombini:latest --name bombini-test-cluster
+kind load docker-image ghcr.io/bombinisecurity/bombini:v1.1.0 --name bombini-test-cluster
 ```
 
 Start bombini:
