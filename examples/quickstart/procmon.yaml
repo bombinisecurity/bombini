@@ -1,0 +1,16 @@
+# Detect privilege escalation to root
+setuid:
+  enabled: true
+  rules:
+    - rule: SetUidToRoot
+      event: euid == 0
+
+# Block binaries executed from /tmp right in the kernel
+bprm_check:
+  enabled: true
+  sandbox:
+    enabled: true
+    deny_list: true
+  rules:
+    - rule: DenyExecFromTmp
+      event: path_prefix == "/tmp"

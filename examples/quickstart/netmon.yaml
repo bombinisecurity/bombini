@@ -1,0 +1,6 @@
+# Detect access to the cloud metadata service: a common way to steal credentials
+egress:
+  enabled: true
+  rules:
+    - rule: CloudMetadataAccess
+      event: ipv4_dst == "169.254.169.254" AND port_dst == 80
