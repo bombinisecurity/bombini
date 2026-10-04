@@ -4,6 +4,8 @@ FROM rust:1.95.0 AS bombini-builder
 RUN apt update && apt install -y  bpftool clang libbpf-dev musl-tools
 WORKDIR /bombini
 COPY . ./
+# The image prints events to stdout, the default config writes them to a file
+RUN sed -i 's/^log_file:/#log_file:/' ./install/config/config.yaml
 RUN rustup show && cargo install bindgen-cli
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash \
 && cargo binstall -y bpf-linker
