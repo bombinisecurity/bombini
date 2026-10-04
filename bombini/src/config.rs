@@ -24,6 +24,20 @@ pub enum DetectorConfig {
     SysEnumMon(Arc<SysEnumMonConfig>),
 }
 
+impl DetectorConfig {
+    /// Checks that detector rules compile without loading eBPF programs
+    #[cfg(test)]
+    pub fn check_rules(&self) -> Result<(), anyhow::Error> {
+        match self {
+            DetectorConfig::ProcMon(config) => crate::detector::procmon::check_rules(config),
+            DetectorConfig::FileMon(config) => crate::detector::filemon::check_rules(config),
+            DetectorConfig::NetMon(config) => crate::detector::netmon::check_rules(config),
+            DetectorConfig::KernelMon(config) => crate::detector::kernelmon::check_rules(config),
+            DetectorConfig::IOUringMon | DetectorConfig::SysEnumMon(_) => Ok(()),
+        }
+    }
+}
+
 /// Configuration for agent and all detectors
 #[derive(Debug, Default)]
 pub struct Config {
@@ -92,5 +106,84 @@ impl Config {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::path::Path;
+
+    use tempfile::TempDir;
+
+    fn repo_path(path: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(path)
+    }
+
+    /// Parse detector configs from the directory and compile their rules
+    fn check_config_dir(dir: &Path, detectors: Vec<String>) -> Result<(), anyhow::Error> {
+        let options = Options {
+            config_dir: dir.to_string_lossy().into_owned(),
+            detectors: Some(detectors),
+            ..Default::default()
+        };
+        let mut config = Config::new(options);
+        config.parse_configs()?;
+        for (name, detector_config) in &config.detector_configs {
+            detector_config
+                .check_rules()
+                .map_err(|e| anyhow!("{name}: {e:#}"))?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn example_rules_compile() {
+        // Each example is a single detector config named <detector>-<topic>.yaml
+        for entry in std::fs::read_dir(repo_path("examples")).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|ext| ext != "yaml") {
+                continue;
+            }
+            let file_name = path.file_name().unwrap().to_string_lossy();
+            let detector = file_name.split('-').next().unwrap();
+            let dir = TempDir::new().unwrap();
+            std::fs::copy(&path, dir.path().join(format!("{detector}.yaml"))).unwrap();
+            // procmon is always loaded, an empty config means defaults
+            if detector != "procmon" {
+                std::fs::write(dir.path().join("procmon.yaml"), "").unwrap();
+            }
+            check_config_dir(dir.path(), vec![detector.to_string()])
+                .unwrap_or_else(|e| panic!("{file_name}: {e:#}"));
+        }
+    }
+
+    #[test]
+    fn config_dir_rules_compile() {
+        for dir in ["install/config", "examples/quickstart"] {
+            let dir = repo_path(dir);
+            let config_yaml = std::fs::read_to_string(dir.join("config.yaml")).unwrap();
+            let options: Options = serde_yml::from_str(&config_yaml)
+                .unwrap_or_else(|e| panic!("{}/config.yaml: {e}", dir.display()));
+            // Check every detector config in the directory, not only the enabled ones
+            let detectors: Vec<String> = std::fs::read_dir(&dir)
+                .unwrap()
+                .filter_map(|entry| {
+                    let path = entry.unwrap().path();
+                    let stem = path.file_stem()?.to_string_lossy().into_owned();
+                    (path.extension()? == "yaml" && stem != "config").then_some(stem)
+                })
+                .collect();
+            for name in options.detectors.unwrap_or_default() {
+                assert!(
+                    detectors.contains(&name),
+                    "{}: {name}.yaml is missing",
+                    dir.display()
+                );
+            }
+            check_config_dir(&dir, detectors)
+                .unwrap_or_else(|e| panic!("{}: {e:#}", dir.display()));
+        }
     }
 }

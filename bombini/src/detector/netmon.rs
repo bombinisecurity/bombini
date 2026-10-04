@@ -74,62 +74,13 @@ impl NetMon {
     {
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
-        let mut detector_config = NetMonKernelConfig {
-            sandbox_mode: [None; NetworkEventNumber::TotalNetworkEvents as usize],
-        };
-
-        let ingress = if let Some(ingress_cfg) = &config.ingress
-            && ingress_cfg.enabled
-        {
-            Some(Box::new(ConnectionControlData::new(
-                NetMonHook::Ingress,
-                &ingress_cfg.rules,
-            )?))
-        } else {
-            None
-        };
-        let egress = if let Some(egress_cfg) = &config.egress
-            && egress_cfg.enabled
-        {
-            Some(Box::new(ConnectionControlData::new(
-                NetMonHook::Egress,
-                &egress_cfg.rules,
-            )?))
-        } else {
-            None
-        };
-        let socket_create = if let Some(socket_create_cfg) = &config.socket_create
-            && socket_create_cfg.enabled
-        {
-            if let Some(sandbox) = &socket_create_cfg.sandbox
-                && sandbox.enabled
-            {
-                detector_config.sandbox_mode[NetworkEventNumber::SocketCreate as usize] =
-                    Some(sandbox.deny_list);
-            }
-            Some(Box::new(ConnectionControlData::new(
-                NetMonHook::SocketCreate,
-                &socket_create_cfg.rules,
-            )?))
-        } else {
-            None
-        };
-        let socket_connect = if let Some(socket_connect_cfg) = &config.socket_connect
-            && socket_connect_cfg.enabled
-        {
-            if let Some(sandbox) = &socket_connect_cfg.sandbox
-                && sandbox.enabled
-            {
-                detector_config.sandbox_mode[NetworkEventNumber::SocketConnect as usize] =
-                    Some(sandbox.deny_list);
-            }
-            Some(Box::new(ConnectionControlData::new(
-                NetMonHook::SocketConnect,
-                &socket_connect_cfg.rules,
-            )?))
-        } else {
-            None
-        };
+        let NetMonHooks {
+            config: detector_config,
+            ingress,
+            egress,
+            socket_create,
+            socket_connect,
+        } = build_hooks(&config)?;
 
         // Resize maps
         if let Some(ref ingress) = ingress {
@@ -182,6 +133,88 @@ impl NetMon {
             socket_connect,
         })
     }
+}
+
+/// Serialized rules of enabled hooks and the kernel config
+struct NetMonHooks {
+    config: NetMonKernelConfig,
+    ingress: Option<Box<ConnectionControlData<TcpConnectionPredicate>>>,
+    egress: Option<Box<ConnectionControlData<TcpConnectionPredicate>>>,
+    socket_create: Option<Box<ConnectionControlData<SocketCreatePredicate>>>,
+    socket_connect: Option<Box<ConnectionControlData<SocketConnectPredicate>>>,
+}
+
+/// Checks that the rules of all enabled hooks compile without loading eBPF programs
+#[cfg(test)]
+pub fn check_rules(config: &NetMonConfig) -> Result<(), anyhow::Error> {
+    build_hooks(config).map(|_| ())
+}
+
+/// Serializes the rules of enabled hooks and builds the kernel config
+fn build_hooks(config: &NetMonConfig) -> Result<NetMonHooks, anyhow::Error> {
+    let mut detector_config = NetMonKernelConfig {
+        sandbox_mode: [None; NetworkEventNumber::TotalNetworkEvents as usize],
+    };
+
+    let ingress = if let Some(ingress_cfg) = &config.ingress
+        && ingress_cfg.enabled
+    {
+        Some(Box::new(ConnectionControlData::new(
+            NetMonHook::Ingress,
+            &ingress_cfg.rules,
+        )?))
+    } else {
+        None
+    };
+    let egress = if let Some(egress_cfg) = &config.egress
+        && egress_cfg.enabled
+    {
+        Some(Box::new(ConnectionControlData::new(
+            NetMonHook::Egress,
+            &egress_cfg.rules,
+        )?))
+    } else {
+        None
+    };
+    let socket_create = if let Some(socket_create_cfg) = &config.socket_create
+        && socket_create_cfg.enabled
+    {
+        if let Some(sandbox) = &socket_create_cfg.sandbox
+            && sandbox.enabled
+        {
+            detector_config.sandbox_mode[NetworkEventNumber::SocketCreate as usize] =
+                Some(sandbox.deny_list);
+        }
+        Some(Box::new(ConnectionControlData::new(
+            NetMonHook::SocketCreate,
+            &socket_create_cfg.rules,
+        )?))
+    } else {
+        None
+    };
+    let socket_connect = if let Some(socket_connect_cfg) = &config.socket_connect
+        && socket_connect_cfg.enabled
+    {
+        if let Some(sandbox) = &socket_connect_cfg.sandbox
+            && sandbox.enabled
+        {
+            detector_config.sandbox_mode[NetworkEventNumber::SocketConnect as usize] =
+                Some(sandbox.deny_list);
+        }
+        Some(Box::new(ConnectionControlData::new(
+            NetMonHook::SocketConnect,
+            &socket_connect_cfg.rules,
+        )?))
+    } else {
+        None
+    };
+    Ok(NetMonHooks {
+        config: detector_config,
+        ingress,
+        egress,
+        socket_create,
+        socket_connect,
+    })
 }
 
 impl Detector for NetMon {
