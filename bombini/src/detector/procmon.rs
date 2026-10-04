@@ -139,113 +139,7 @@ impl ProcMon {
             .map_max_entries(EVENT_MAP_NAME, event_map_size)
             .map_max_entries(PROCMON_PROC_MAP_NAME, proc_map_size);
 
-        let mut hooks: Vec<Box<dyn ProcMonRuleContainer>> = Vec::new();
-        let mut detector_config = ProcMonKernelConfig {
-            ima_hash: config.ima_hash.unwrap_or_default(),
-            sandbox_mode: [None; ProcessEventNumber::TotalProcessEvents as usize],
-        };
-        if let Some(setuid) = &config.setuid
-            && setuid.enabled
-        {
-            hooks.push(Box::new(HookData::<UidPredicate>::new(
-                ProcMonHook::Setuid,
-                &setuid.rules,
-            )?));
-            if let Some(sandbox) = &setuid.sandbox
-                && sandbox.enabled
-            {
-                detector_config.sandbox_mode[ProcessEventNumber::Setuid as usize] =
-                    Some(sandbox.deny_list);
-            }
-        }
-        if let Some(setgid) = &config.setgid
-            && setgid.enabled
-        {
-            hooks.push(Box::new(HookData::<GidPredicate>::new(
-                ProcMonHook::Setgid,
-                &setgid.rules,
-            )?));
-            if let Some(sandbox) = &setgid.sandbox
-                && sandbox.enabled
-            {
-                detector_config.sandbox_mode[ProcessEventNumber::Setgid as usize] =
-                    Some(sandbox.deny_list);
-            }
-        }
-        if let Some(setcaps) = &config.capset
-            && setcaps.enabled
-        {
-            hooks.push(Box::new(HookData::<CapPredicate>::new(
-                ProcMonHook::SetCaps,
-                &setcaps.rules,
-            )?));
-            if let Some(sandbox) = &setcaps.sandbox
-                && sandbox.enabled
-            {
-                detector_config.sandbox_mode[ProcessEventNumber::Setcaps as usize] =
-                    Some(sandbox.deny_list);
-            }
-        }
-        if let Some(prctl) = &config.prctl
-            && prctl.enabled
-        {
-            hooks.push(Box::new(HookData::<DummyPredicate>::new(
-                ProcMonHook::Prctl,
-                &prctl.rules,
-            )?));
-        }
-        if let Some(userns) = &config.create_user_ns
-            && userns.enabled
-        {
-            hooks.push(Box::new(HookData::<CredPredicate>::new(
-                ProcMonHook::Userns,
-                &userns.rules,
-            )?));
-            if let Some(sandbox) = &userns.sandbox
-                && sandbox.enabled
-            {
-                detector_config.sandbox_mode[ProcessEventNumber::CreateUserNs as usize] =
-                    Some(sandbox.deny_list);
-            }
-        }
-        if let Some(ptrace_access_check) = &config.ptrace_access_check
-            && ptrace_access_check.enabled
-        {
-            hooks.push(Box::new(HookData::<DummyPredicate>::new(
-                ProcMonHook::PtraceAccessCheck,
-                &ptrace_access_check.rules,
-            )?));
-        }
-        if let Some(bprm_check) = &config.bprm_check
-            && bprm_check.enabled
-        {
-            hooks.push(Box::new(HookData::<BprmCheckPredicate>::new(
-                ProcMonHook::BprmCheck,
-                &bprm_check.rules,
-            )?));
-            if let Some(sandbox) = &bprm_check.sandbox
-                && sandbox.enabled
-            {
-                detector_config.sandbox_mode[ProcessEventNumber::BprmCheck as usize] =
-                    Some(sandbox.deny_list);
-            }
-        }
-        if let Some(execve_sandbox) = &config.sched_process_exec
-            && execve_sandbox.enabled
-        {
-            hooks.push(Box::new(HookData::<ExecveSandboxPredicate>::new(
-                ProcMonHook::ExecveSandbox,
-                &execve_sandbox.rules,
-            )?));
-            // Execve filter is used only for sandboxing, deny_list by default
-            if let Some(sandbox) = &execve_sandbox.sandbox {
-                detector_config.sandbox_mode[ProcessEventNumber::ExecveSandbox as usize] =
-                    Some(sandbox.deny_list);
-            } else {
-                detector_config.sandbox_mode[ProcessEventNumber::ExecveSandbox as usize] =
-                    Some(true);
-            }
-        }
+        let (hooks, detector_config) = build_hooks(&config)?;
 
         resize_all_procmon_filter_maps(hooks.as_slice(), ebpf_loader_ref)?;
 
@@ -291,6 +185,125 @@ fn start_proc_map_gc<P: AsRef<Path>>(
         }
     });
     Ok(())
+}
+
+/// Checks that the rules of all enabled hooks compile without loading eBPF programs
+#[cfg(test)]
+pub fn check_rules(config: &ProcMonConfig) -> Result<(), anyhow::Error> {
+    build_hooks(config).map(|_| ())
+}
+
+/// Serializes the rules of enabled hooks and builds the kernel config
+fn build_hooks(
+    config: &ProcMonConfig,
+) -> Result<(Vec<Box<dyn ProcMonRuleContainer>>, ProcMonKernelConfig), anyhow::Error> {
+    let mut hooks: Vec<Box<dyn ProcMonRuleContainer>> = Vec::new();
+    let mut detector_config = ProcMonKernelConfig {
+        ima_hash: config.ima_hash.unwrap_or_default(),
+        sandbox_mode: [None; ProcessEventNumber::TotalProcessEvents as usize],
+    };
+    if let Some(setuid) = &config.setuid
+        && setuid.enabled
+    {
+        hooks.push(Box::new(HookData::<UidPredicate>::new(
+            ProcMonHook::Setuid,
+            &setuid.rules,
+        )?));
+        if let Some(sandbox) = &setuid.sandbox
+            && sandbox.enabled
+        {
+            detector_config.sandbox_mode[ProcessEventNumber::Setuid as usize] =
+                Some(sandbox.deny_list);
+        }
+    }
+    if let Some(setgid) = &config.setgid
+        && setgid.enabled
+    {
+        hooks.push(Box::new(HookData::<GidPredicate>::new(
+            ProcMonHook::Setgid,
+            &setgid.rules,
+        )?));
+        if let Some(sandbox) = &setgid.sandbox
+            && sandbox.enabled
+        {
+            detector_config.sandbox_mode[ProcessEventNumber::Setgid as usize] =
+                Some(sandbox.deny_list);
+        }
+    }
+    if let Some(setcaps) = &config.capset
+        && setcaps.enabled
+    {
+        hooks.push(Box::new(HookData::<CapPredicate>::new(
+            ProcMonHook::SetCaps,
+            &setcaps.rules,
+        )?));
+        if let Some(sandbox) = &setcaps.sandbox
+            && sandbox.enabled
+        {
+            detector_config.sandbox_mode[ProcessEventNumber::Setcaps as usize] =
+                Some(sandbox.deny_list);
+        }
+    }
+    if let Some(prctl) = &config.prctl
+        && prctl.enabled
+    {
+        hooks.push(Box::new(HookData::<DummyPredicate>::new(
+            ProcMonHook::Prctl,
+            &prctl.rules,
+        )?));
+    }
+    if let Some(userns) = &config.create_user_ns
+        && userns.enabled
+    {
+        hooks.push(Box::new(HookData::<CredPredicate>::new(
+            ProcMonHook::Userns,
+            &userns.rules,
+        )?));
+        if let Some(sandbox) = &userns.sandbox
+            && sandbox.enabled
+        {
+            detector_config.sandbox_mode[ProcessEventNumber::CreateUserNs as usize] =
+                Some(sandbox.deny_list);
+        }
+    }
+    if let Some(ptrace_access_check) = &config.ptrace_access_check
+        && ptrace_access_check.enabled
+    {
+        hooks.push(Box::new(HookData::<DummyPredicate>::new(
+            ProcMonHook::PtraceAccessCheck,
+            &ptrace_access_check.rules,
+        )?));
+    }
+    if let Some(bprm_check) = &config.bprm_check
+        && bprm_check.enabled
+    {
+        hooks.push(Box::new(HookData::<BprmCheckPredicate>::new(
+            ProcMonHook::BprmCheck,
+            &bprm_check.rules,
+        )?));
+        if let Some(sandbox) = &bprm_check.sandbox
+            && sandbox.enabled
+        {
+            detector_config.sandbox_mode[ProcessEventNumber::BprmCheck as usize] =
+                Some(sandbox.deny_list);
+        }
+    }
+    if let Some(execve_sandbox) = &config.sched_process_exec
+        && execve_sandbox.enabled
+    {
+        hooks.push(Box::new(HookData::<ExecveSandboxPredicate>::new(
+            ProcMonHook::ExecveSandbox,
+            &execve_sandbox.rules,
+        )?));
+        // Execve filter is used only for sandboxing, deny_list by default
+        if let Some(sandbox) = &execve_sandbox.sandbox {
+            detector_config.sandbox_mode[ProcessEventNumber::ExecveSandbox as usize] =
+                Some(sandbox.deny_list);
+        } else {
+            detector_config.sandbox_mode[ProcessEventNumber::ExecveSandbox as usize] = Some(true);
+        }
+    }
+    Ok((hooks, detector_config))
 }
 
 impl Detector for ProcMon {

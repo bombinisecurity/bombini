@@ -136,42 +136,7 @@ impl KernelMon {
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
 
-        let mut hooks: Vec<Box<dyn KernelMonRuleContainer>> = Vec::new();
-        let detector_config = KernelMonKernelConfig {
-            sandbox_mode: [None; KernelEventNumber::TotalKernelEvents as usize],
-        };
-        if let Some(bpf_map) = &config.bpf_map
-            && bpf_map.enabled
-        {
-            hooks.push(Box::new(HookData::<BpfMapPredicate>::new(
-                KernelMonHook::BpfMapAccess,
-                &bpf_map.rules,
-            )?));
-        }
-        if let Some(bpf_map_create) = &config.bpf_map_create
-            && bpf_map_create.enabled
-        {
-            hooks.push(Box::new(HookData::<BpfMapCreatePredicate>::new(
-                KernelMonHook::BpfMapCreate,
-                &bpf_map_create.rules,
-            )?));
-        }
-        if let Some(bpf_prog) = &config.bpf_prog
-            && bpf_prog.enabled
-        {
-            hooks.push(Box::new(HookData::<BpfProgPredicate>::new(
-                KernelMonHook::BpfProgAccess,
-                &bpf_prog.rules,
-            )?));
-        }
-        if let Some(bpf_prog_load) = &config.bpf_prog_load
-            && bpf_prog_load.enabled
-        {
-            hooks.push(Box::new(HookData::<BpfProgLoadPredicate>::new(
-                KernelMonHook::BpfProgLoad,
-                &bpf_prog_load.rules,
-            )?));
-        }
+        let (hooks, detector_config) = build_hooks(&config)?;
 
         resize_all_kernelmon_filter_maps(hooks.as_slice(), ebpf_loader_ref)?;
 
@@ -183,6 +148,55 @@ impl KernelMon {
             hooks,
         })
     }
+}
+
+/// Checks that the rules of all enabled hooks compile without loading eBPF programs
+#[cfg(test)]
+pub fn check_rules(config: &KernelMonConfig) -> Result<(), anyhow::Error> {
+    build_hooks(config).map(|_| ())
+}
+
+/// Serializes the rules of enabled hooks and builds the kernel config
+fn build_hooks(
+    config: &KernelMonConfig,
+) -> Result<(Vec<Box<dyn KernelMonRuleContainer>>, KernelMonKernelConfig), anyhow::Error> {
+    let mut hooks: Vec<Box<dyn KernelMonRuleContainer>> = Vec::new();
+    let detector_config = KernelMonKernelConfig {
+        sandbox_mode: [None; KernelEventNumber::TotalKernelEvents as usize],
+    };
+    if let Some(bpf_map) = &config.bpf_map
+        && bpf_map.enabled
+    {
+        hooks.push(Box::new(HookData::<BpfMapPredicate>::new(
+            KernelMonHook::BpfMapAccess,
+            &bpf_map.rules,
+        )?));
+    }
+    if let Some(bpf_map_create) = &config.bpf_map_create
+        && bpf_map_create.enabled
+    {
+        hooks.push(Box::new(HookData::<BpfMapCreatePredicate>::new(
+            KernelMonHook::BpfMapCreate,
+            &bpf_map_create.rules,
+        )?));
+    }
+    if let Some(bpf_prog) = &config.bpf_prog
+        && bpf_prog.enabled
+    {
+        hooks.push(Box::new(HookData::<BpfProgPredicate>::new(
+            KernelMonHook::BpfProgAccess,
+            &bpf_prog.rules,
+        )?));
+    }
+    if let Some(bpf_prog_load) = &config.bpf_prog_load
+        && bpf_prog_load.enabled
+    {
+        hooks.push(Box::new(HookData::<BpfProgLoadPredicate>::new(
+            KernelMonHook::BpfProgLoad,
+            &bpf_prog_load.rules,
+        )?));
+    }
+    Ok((hooks, detector_config))
 }
 
 impl Detector for KernelMon {
