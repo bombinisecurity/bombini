@@ -73,7 +73,7 @@ pub fn tarball(opts: Options) -> Result<(), anyhow::Error> {
     } else {
         target_dir.push("debug");
     }
-    for entry in fs::read_dir(project_root.as_path().join("config"))? {
+    for entry in fs::read_dir(project_root.as_path().join("install").join("config"))? {
         let config_path = entry?.path();
         fs::copy(
             &config_path,
