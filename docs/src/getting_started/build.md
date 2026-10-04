@@ -16,13 +16,13 @@ cargo xtask build --release
 ## Run
 
 ```bash
-sudo ./target/release/bombini --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config
+sudo ./target/release/bombini --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./install/config
 ```
 
 Or using cargo:
 
 ```bash
-cargo xtask run --release -- --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./config
+cargo xtask run --release -- --bpf-objs ./target/bpfel-unknown-none/release --config-dir ./install/config
 ```
 
 By default Bombini starts only `ProcMon` detector intercepting process execs and exits. To customize your Bombini setup, please, follow the [Configuration](../configuration/configuration.md).

@@ -18,7 +18,7 @@ RUN mkdir -p ./target/bpf-objs && \
 FROM gcr.io/distroless/cc-debian12
 COPY --from=bombini-builder /bombini/target/x86_64-unknown-linux-musl/release/bombini /usr/local/bin/
 COPY --from=bombini-builder /bombini/target/bpf-objs /usr/local/lib/bombini/bpf
-COPY --from=bombini-builder /bombini/config /usr/local/lib/bombini/config
+COPY --from=bombini-builder /bombini/install/config /usr/local/lib/bombini/config
 
 ENTRYPOINT [ "/usr/local/bin/bombini" ]
 
