@@ -223,7 +223,18 @@ path_unlink:
     ma::assert_ge!(events.matches("\"type\":\"FileEvent\"").count(), 1);
     ma::assert_ge!(events.matches("\"type\":\"PathUnlink\"").count(), 1);
     ma::assert_ge!(events.matches("\"rule\":\"UnlinkTestRule\"").count(), 1);
-    ma::assert_ge!(events.matches("\"filename\":\"rm\"").count(), 1);
+    // rm can be a symlink to another binary, e.g. gnurm on Ubuntu 26.04
+    let rm_binary = which::which("rm")
+        .expect("rm not found in PATH")
+        .canonicalize()
+        .expect("can't resolve rm path");
+    let rm_name = rm_binary.file_name().unwrap().to_str().unwrap();
+    ma::assert_ge!(
+        events
+            .matches(&format!("\"filename\":\"{rm_name}\""))
+            .count(),
+        1
+    );
     assert_eq!(events.matches(tmp_file_path.to_str().unwrap()).count(), 4); // FileEvent + ProcInfo
 }
 
