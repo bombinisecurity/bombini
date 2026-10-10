@@ -26,7 +26,6 @@ pub enum DetectorConfig {
 
 impl DetectorConfig {
     /// Checks that detector rules compile without loading eBPF programs
-    #[cfg(test)]
     pub fn check_rules(&self) -> Result<(), anyhow::Error> {
         match self {
             DetectorConfig::ProcMon(config) => crate::detector::procmon::check_rules(config),
@@ -68,45 +67,41 @@ impl Config {
         let mut config_path = PathBuf::from(&self.options.config_dir);
         for name in names.iter().map(|e| e.as_str()) {
             config_path.push(name.to_owned() + ".yaml");
-            let mut yaml_config = std::fs::read_to_string(&config_path)?;
-            // Empty file means the detector is loaded with default settings
-            if yaml_config.trim().is_empty() {
-                yaml_config = "{}".to_string();
-            }
-            let mut value: serde_yml::Value = serde_yml::from_str(yaml_config.as_ref())?;
-            crate::rule::macros::expand_config(&mut value)?;
-            let config = match name {
-                "procmon" => {
-                    let config: ProcMonConfig = serde_yml::from_value(value)?;
-                    DetectorConfig::ProcMon(Arc::new(config))
-                }
-                "filemon" => {
-                    let config: FileMonConfig = serde_yml::from_value(value)?;
-                    DetectorConfig::FileMon(Arc::new(config))
-                }
-                "netmon" => {
-                    let config: NetMonConfig = serde_yml::from_value(value)?;
-                    DetectorConfig::NetMon(Arc::new(config))
-                }
-                "kernelmon" => {
-                    let config: KernelMonConfig = serde_yml::from_value(value)?;
-                    DetectorConfig::KernelMon(Arc::new(config))
-                }
-                "io_uringmon" => DetectorConfig::IOUringMon,
-                "sysenummon" => {
-                    let config: SysEnumMonConfig = serde_yml::from_str(yaml_config.as_ref())?;
-                    DetectorConfig::SysEnumMon(Arc::new(config))
-                }
-                _ => {
-                    return Err(anyhow!("{} unknown detector", name));
-                }
-            };
+            let yaml_config = std::fs::read_to_string(&config_path)?;
+            let config = parse_detector_config(name, &yaml_config)?;
             self.detector_configs.insert(name.to_string(), config);
             config_path.pop();
         }
 
         Ok(())
     }
+}
+
+/// Parse YAML config of the detector with the given name
+pub fn parse_detector_config(
+    name: &str,
+    yaml_config: &str,
+) -> Result<DetectorConfig, anyhow::Error> {
+    // Empty file means the detector is loaded with default settings
+    let yaml_config = if yaml_config.trim().is_empty() {
+        "{}"
+    } else {
+        yaml_config
+    };
+    let mut value: serde_yml::Value = serde_yml::from_str(yaml_config)?;
+    crate::rule::macros::expand_config(&mut value)?;
+    let config = match name {
+        "procmon" => DetectorConfig::ProcMon(Arc::new(serde_yml::from_value(value)?)),
+        "filemon" => DetectorConfig::FileMon(Arc::new(serde_yml::from_value(value)?)),
+        "netmon" => DetectorConfig::NetMon(Arc::new(serde_yml::from_value(value)?)),
+        "kernelmon" => DetectorConfig::KernelMon(Arc::new(serde_yml::from_value(value)?)),
+        "io_uringmon" => DetectorConfig::IOUringMon,
+        "sysenummon" => DetectorConfig::SysEnumMon(Arc::new(serde_yml::from_str(yaml_config)?)),
+        _ => {
+            return Err(anyhow!("{} unknown detector", name));
+        }
+    };
+    Ok(config)
 }
 
 #[cfg(test)]
