@@ -39,7 +39,8 @@ fn default_gc_period() -> Option<u64> {
 pub struct Options {
     /// Validate detector configs and rules, then exit. Without PATH, checks
     /// the detectors enabled in --config-dir. PATH is a config dir or a single
-    /// <detector>.yaml file: the detector name is taken from the file name
+    /// <detector>.yaml file: only detector configs are read, config.yaml is not
+    /// needed. The detector name is taken from the file name
     #[arg(
         short = 't',
         long,

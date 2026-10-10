@@ -284,6 +284,15 @@ file_open:
       event: NOT path in ["/var", "/tmp"]
 ```
 
+## Checking Rules
+
+Rules can be compiled without starting the agent, see
+[Validating Configs](configuration.md#validating-configs):
+
+```bash
+bombini --validate examples/filemon-macros.yaml
+```
+
 ## Sandbox Mode
 
 Bombini supports sandboxing for ProcMon, FileMon and NetMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy. In allow-list mode, `event` restrictions are tied to the `scope` of the event. If there is no `scope` restriction, the `event` restriction is applied to the entire host.
