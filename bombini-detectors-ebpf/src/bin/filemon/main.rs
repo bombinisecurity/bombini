@@ -1501,7 +1501,13 @@ fn is_null_pointer<T>(addr: *const T) -> bool {
     // Check if the address is null. I don't know why, but checking
     // the null pointer with `is_null()` or explicitly comparing address to `0`
     // leads to a wrong behavior of ebpf program despite of correct ebpf bytecode.
-    addr.addr() < 2
+    //
+    // Since kernel 7.0 the file argument of mmap_file is trusted_ptr_or_null,
+    // and the verifier prohibits pointer arithmetic on it until it is
+    // null-checked. Comparing with `2` is not recognized as a null check, so
+    // an explicit one is required too. black_box keeps LLVM from merging both
+    // checks into a single `< 2` comparison.
+    addr.is_null() || core::hint::black_box(addr).addr() < 2
 }
 
 #[lsm(hook = "mmap_file")]
