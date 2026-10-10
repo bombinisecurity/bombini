@@ -86,6 +86,7 @@ Ebpf-based agent for observability and security monitoring
 Usage: bombini [OPTIONS]
 
 Options:
+  -t, --validate [<PATH>]              Validate detector configs and rules, then exit. Without PATH, checks the detectors enabled in --config-dir. PATH is a config dir or a single <detector>.yaml file: the detector name is taken from the file name
       --bpf-objs <FILE>                Directory with bpf detector object files
       --maps-pin-path <FILE>           Path to pin bpf maps
       --event-map-size <VALUE>         Event map size (ring buffer size in bytes)
@@ -111,3 +112,33 @@ Options:
 `--bpf-objs`, `--maps-pin-path`, `--event-map-size`, `--event-channel-size`, `detector` options can override corresponding config options.
 `--log-file`, `--event-socket` can override default stdout json serialized events output.
 `--k8s-*` options are described in the [Kubernetes](k8s.md) chapter.
+
+## Validating Configs
+
+`bombini --validate` (`-t`) parses detector configs, expands macros and compiles
+rules the same way the agent does on start, then exits. It runs in user space
+only: root privileges and eBPF support are not required, so it can be used on a
+developer machine or in CI.
+
+```bash
+# Detectors enabled in config.yaml of the default config dir (procmon is always checked)
+bombini --validate
+# Another config dir, `-D` overrides the detector list
+bombini -t --config-dir ./config -D filemon
+# All <detector>.yaml files of a dir, config.yaml is not needed
+bombini -t ./config
+# A single file, the detector name is the part of the file name before the first `-`
+bombini -t examples/filemon-macros.yaml
+```
+
+Each checked file is reported on its own line. Errors go to stderr and the exit
+code is `1` if any file is invalid.
+
+```
+config/procmon.yaml: ok
+config/filemon.yaml: filemon: rule "bad" at 1:8: Unrecognized EOF found at 7
+```
+
+**NOTE**: with a `PATH`, `--config-dir` and `-D` are rejected. Options that matter
+only for a running agent (`--bpf-objs`, `--log-file*`, `--event-socket`,
+`--metric-server-port`, `--k8s-*` and so on) cannot be combined with `--validate`.
