@@ -151,7 +151,6 @@ impl KernelMon {
 }
 
 /// Checks that the rules of all enabled hooks compile without loading eBPF programs
-#[cfg(test)]
 pub fn check_rules(config: &KernelMonConfig) -> Result<(), anyhow::Error> {
     build_hooks(config).map(|_| ())
 }
