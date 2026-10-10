@@ -37,6 +37,33 @@ fn default_gc_period() -> Option<u64> {
 #[command(name = "bombini", version)]
 #[command(about = "Ebpf-based agent for observability and security monitoring", long_about = None)]
 pub struct Options {
+    /// Validate detector configs and rules, then exit. Without PATH, checks
+    /// the detectors enabled in --config-dir. PATH is a config dir or a single
+    /// <detector>.yaml file: the detector name is taken from the file name
+    #[arg(
+        short = 't',
+        long,
+        value_name = "PATH",
+        num_args = 0..=1,
+        conflicts_with_all = [
+            "bpf_objs",
+            "maps_pin_path",
+            "event_map_size",
+            "event_channel_size",
+            "procmon_proc_map_size",
+            "gc_period",
+            "log_file",
+            "log_file_rotations",
+            "log_file_size",
+            "log_file_compression",
+            "event_socket",
+            "metric",
+            "k8s",
+        ],
+    )]
+    #[serde(skip)]
+    pub validate: Option<Option<String>>,
+
     /// Directory with bpf detector object files
     #[arg(long, value_name = "FILE")]
     pub bpf_objs: Option<String>,
