@@ -154,18 +154,18 @@ where
 {
     pub fn serialize_rule(&mut self, rule: &Rule) -> Result<(), anyhow::Error> {
         if !rule.scope.is_empty() {
-            let Ok(ast) = predicate_parser::ExprParser::new().parse(&rule.scope) else {
-                return Err(anyhow::anyhow!("failed to parse ast for: {}", rule.scope));
-            };
+            let ast = predicate_parser::ExprParser::new()
+                .parse(&rule.scope)
+                .map_err(|e| parse_error("scope", &rule.name, &rule.scope, e))?;
             let ast = ast.optimize_ast()?;
             let mut converter = RpnConverter::new();
             converter.convert_expr(&mut self.scope_predicate, &ast)?;
         }
 
         if !rule.event.is_empty() {
-            let Ok(ast) = predicate_parser::ExprParser::new().parse(&rule.event) else {
-                return Err(anyhow::anyhow!("failed to parse ast for: {}", rule.event));
-            };
+            let ast = predicate_parser::ExprParser::new()
+                .parse(&rule.event)
+                .map_err(|e| parse_error("event", &rule.name, &rule.event, e))?;
             let ast = ast.optimize_ast()?;
             let mut converter = RpnConverter::new();
             converter.convert_expr(&mut self.event_predicate, &ast)?;
@@ -173,6 +173,35 @@ where
 
         Ok(())
     }
+}
+
+/// Format a LALRPOP parse error with the rule name and the error position
+fn parse_error<E: std::fmt::Display>(
+    kind: &str,
+    rule_name: &str,
+    source: &str,
+    error: E,
+) -> anyhow::Error {
+    // LALRPOP errors carry a byte offset: translate it to a line and column
+    let text = error.to_string();
+    let offset = text
+        .rsplit_once(" at ")
+        .and_then(|(_, at)| at.split_whitespace().next())
+        .and_then(|pos| pos.parse::<usize>().ok())
+        .unwrap_or(0);
+    let mut line = 1;
+    let mut column = 1;
+    for byte in source.as_bytes().iter().take(offset) {
+        if *byte == b'\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    anyhow::anyhow!(
+        "failed to parse {kind} predicate of the rule {rule_name:?} at {line}:{column}: {text}"
+    )
 }
 
 #[derive(Debug)]
@@ -626,7 +655,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("failed to parse ast")
+                .contains("failed to parse scope predicate")
         );
     }
 

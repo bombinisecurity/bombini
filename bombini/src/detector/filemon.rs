@@ -120,7 +120,6 @@ impl FileMon {
 }
 
 /// Checks that the rules of all enabled hooks compile without loading eBPF programs
-#[cfg(test)]
 pub fn check_rules(config: &FileMonConfig) -> Result<(), anyhow::Error> {
     build_hooks(config).map(|_| ())
 }

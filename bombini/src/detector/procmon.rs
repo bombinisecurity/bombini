@@ -188,7 +188,6 @@ fn start_proc_map_gc<P: AsRef<Path>>(
 }
 
 /// Checks that the rules of all enabled hooks compile without loading eBPF programs
-#[cfg(test)]
 pub fn check_rules(config: &ProcMonConfig) -> Result<(), anyhow::Error> {
     build_hooks(config).map(|_| ())
 }

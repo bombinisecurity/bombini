@@ -1,3 +1,4 @@
+use clap::CommandFactory;
 use log::info;
 use nix::fcntl::{Flock, FlockArg};
 use scopeguard::defer;
@@ -17,6 +18,7 @@ mod registry;
 mod rule;
 mod transmitter;
 mod transmuter;
+mod validate;
 
 use rule::ast;
 
@@ -30,6 +32,12 @@ use transmitter::unix_sock::USockTransmitter;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    // `bombini --validate` works in user space only: no root, no eBPF
+    let matches = Options::command().get_matches();
+    if matches.contains_id("validate") {
+        return validate::run(&matches);
+    }
+
     let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())
         .expect("Failed to set up SIGINT handler");
     let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
