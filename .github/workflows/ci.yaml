@@ -291,3 +291,76 @@ jobs:
           name: bombini-logs-ubuntu-kernel-v6_14
           path: /tmp/bombini-test-*
           retention-days: 3
+
+  test-ubuntu-kernel-7_0:
+    runs-on: ubuntu-24.04
+    needs: build-bombini
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lima-vm/lima-actions/setup@v1
+        id: lima-actions-setup
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bombini-musl-build
+          path: /tmp/bombini-build
+
+      - uses: actions/cache@v4
+        id: lima-ubuntu-kernel-v7_0
+        with:
+          path: ~/.lima/ubuntu-kernel-v7.0
+          key: lima-vm-setup-${{ runner.os }}-ubuntu-kernel-v7_0-${{ hashFiles('.github/workflows/ci.yaml') }}
+
+      - name: Configure lima VM
+        if: steps.lima-ubuntu-kernel-v7_0.outputs.cache-hit != 'true'
+        run: |
+          limactl start --plain --name=ubuntu-kernel-v7.0 --cpus=1 --memory=1 template:ubuntu-26.04
+          echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
+
+          ssh lima-ubuntu-kernel-v7-0 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
+          ssh lima-ubuntu-kernel-v7-0 sudo update-grub
+          ssh lima-ubuntu-kernel-v7-0 'curl -L https://github.com/bpftrace/bpftrace/releases/download/v0.24.0/bpftrace -o bpftrace && chmod +x bpftrace && sudo mv bpftrace /usr/local/bin/bpftrace'
+
+          limactl stop ubuntu-kernel-v7.0
+
+      - name: Run tests on kernel 7.0
+        run: |
+          limactl start ubuntu-kernel-v7.0
+
+          # Transfer pre-built artifacts
+          rsync -a -e ssh /tmp/bombini-build lima-ubuntu-kernel-v7-0:/tmp/
+
+          ssh lima-ubuntu-kernel-v7-0 'uname -a'
+          # Ubuntu 26.04 ships kernel 7.0 by default
+          ssh lima-ubuntu-kernel-v7-0 'uname -r | grep -q "^7\.0\."'
+          ssh lima-ubuntu-kernel-v7-0 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/bombini"
+          ssh lima-ubuntu-kernel-v7-0 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-*"
+          ssh lima-ubuntu-kernel-v7-0 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-*"
+          ssh lima-ubuntu-kernel-v7-0 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-*"
+          ssh lima-ubuntu-kernel-v7-0 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-*"
+          ssh lima-ubuntu-kernel-v7-0 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-*"
+          ssh lima-ubuntu-kernel-v7-0 "chmod +x /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-*"
+
+          # Run tests
+          ssh lima-ubuntu-kernel-v7-0 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/tests-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_ test_7_0_"
+          ssh lima-ubuntu-kernel-v7-0 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/filemon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_ test_7_0_"
+          ssh lima-ubuntu-kernel-v7-0 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/kernelmon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_ test_7_0_"
+          ssh lima-ubuntu-kernel-v7-0 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/netmon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_ test_7_0_"
+          ssh lima-ubuntu-kernel-v7-0 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/procmon-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_ test_7_0_"
+          ssh lima-ubuntu-kernel-v7-0 "sudo /tmp/bombini-build/target/x86_64-unknown-linux-musl/release/deps/sandbox-* --test-threads 1 test_6_2_ test_6_8_ test_6_14_ test_7_0_"
+
+          limactl stop ubuntu-kernel-v7.0
+
+      - name: Get Bombini logs from lima VM
+        if: failure()
+        run: |
+          rsync -a -e ssh 'lima-ubuntu-kernel-v7-0:/tmp/bombini-test-*' /tmp
+
+      - name: Upload Bombini logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bombini-logs-ubuntu-kernel-v7_0
+          path: /tmp/bombini-test-*
+          retention-days: 3
