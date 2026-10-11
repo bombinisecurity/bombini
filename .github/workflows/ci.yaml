@@ -315,7 +315,9 @@ jobs:
       - name: Configure lima VM
         if: steps.lima-ubuntu-kernel-v7_0.outputs.cache-hit != 'true'
         run: |
-          limactl start --plain --name=ubuntu-kernel-v7.0 --cpus=1 --memory=1 template:ubuntu-26.04
+          # The 7.0 verifier needs ~250 MiB of kernel memory for kernelmon and
+          # about half of the 1 GiB VM is a CMA region it cannot use
+          limactl start --plain --name=ubuntu-kernel-v7.0 --cpus=1 --memory=4 template:ubuntu-26.04
           echo "Include ~/.lima/*/ssh.config"  > ~/.ssh/config
 
           ssh lima-ubuntu-kernel-v7-0 'sudo sed -i '\''s/^\(GRUB_CMDLINE_LINUX=\)"[^"]*"/\1"lsm=bpf,integrity ima_policy=tcb"/'\'' /etc/default/grub'
