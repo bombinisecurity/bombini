@@ -2,8 +2,8 @@ use core::ffi::c_void;
 
 use aya_ebpf::helpers::generated::bpf_loop;
 use bombini_common::{
-    config::rule::{Predicate, RuleOp},
-    constants::MAX_RULE_OPERATIONS,
+    config::rule::{Predicate, Rule, RuleOp},
+    constants::{MAX_RULE_OPERATIONS, MAX_RULES_COUNT},
 };
 
 use crate::interpreter::rule::IsEmpty;
@@ -59,6 +59,63 @@ impl<T: CheckIn> Interpreter<T> {
             return Err(ctx.error);
         }
         ctx.stack.pop()
+    }
+}
+
+/// Calls `f` for every rule until the first empty one or until `f` returns
+/// `Ok(true)` (stop) or an error.
+///
+/// <VERIFIER_ISSUE>
+/// An open-coded rule loop is walked by the verifier for every rule index
+/// and each iteration re-verifies the predicate bpf_loop callbacks, so on
+/// kernel 7.0 hooks hit the 1M instructions limit (kernelmon bpf_map).
+/// bpf_loop verifies the rule body once as a separate callback.
+#[inline(always)]
+pub fn for_each_rule<F>(rules: &[Rule; MAX_RULES_COUNT], f: F) -> Result<(), i32>
+where
+    F: FnMut(usize, &Rule) -> Result<bool, i32>,
+{
+    let mut ctx = RuleLoopContext { rules, f, error: 0 };
+    unsafe {
+        bpf_loop(
+            MAX_RULES_COUNT as u32,
+            rule_callback::<F> as *mut fn(u64, *mut c_void) -> i64 as *mut c_void,
+            &mut ctx as *mut RuleLoopContext<F> as *mut c_void,
+            0,
+        );
+    }
+    if ctx.error != 0 {
+        return Err(ctx.error);
+    }
+    Ok(())
+}
+
+struct RuleLoopContext<'a, F> {
+    rules: &'a [Rule; MAX_RULES_COUNT],
+    f: F,
+    error: i32,
+}
+
+unsafe fn rule_callback<F>(idx: u64, data: *mut c_void) -> i64
+where
+    F: FnMut(usize, &Rule) -> Result<bool, i32>,
+{
+    let ctx = unsafe { &mut *(data as *mut RuleLoopContext<F>) };
+    let idx = idx as usize;
+    if idx >= MAX_RULES_COUNT {
+        return 1;
+    }
+    let rule = &ctx.rules[idx];
+    if rule.is_empty() {
+        return 1;
+    }
+    match (ctx.f)(idx, rule) {
+        Ok(false) => 0,
+        Ok(true) => 1,
+        Err(e) => {
+            ctx.error = if e == 0 { -1 } else { e };
+            1
+        }
     }
 }
 
