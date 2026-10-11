@@ -124,7 +124,7 @@ setuid:
   enabled: true
   rules:
   - rule: ProcMonSetuid
-    scope: binary_prefix == "/usr/bin"
+    scope: binary_name == "sudo"
     event: euid == 0
 "#;
 
@@ -166,7 +166,7 @@ setgid:
   enabled: true
   rules:
   - rule: ProcMonSetgid
-    scope: binary_prefix == "/usr/bin"
+    scope: binary_name == "sudo"
     event: egid == 0
 "#;
 
