@@ -56,8 +56,7 @@ use bombini_detectors_ebpf::{
         },
         scope::ParentScopeFilter,
     },
-    interpreter::{self, rule::IsEmpty},
-    util,
+    interpreter, util,
 };
 
 /// Extra info from bprm_committing_creds hook
@@ -622,7 +621,8 @@ fn try_execve_sandbox(
 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<u32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -659,12 +659,14 @@ fn try_execve_sandbox(
                         msg.blocked = true;
                     }
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    result = Ok(0);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 #[btf_tracepoint(function = "sched_process_exit")]
@@ -910,7 +912,10 @@ static PROCMON_SETUID_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "task_fix_setuid")]
 pub fn setuid_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_setuid_capture)
+    let exit_code = event_capture!(ctx, MSG_PROCESS, true, try_setuid_capture);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -979,7 +984,8 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             proc_uid.rule_idx = idx as u32;
             proc_euid.rule_idx = idx as u32;
             binary_name.rule_idx = idx as u8;
@@ -1014,28 +1020,33 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Setgid rules map
@@ -1072,7 +1083,10 @@ static PROCMON_SETGID_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "task_fix_setgid")]
 pub fn setgid_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_setgid_capture)
+    let exit_code = event_capture!(ctx, MSG_PROCESS, true, try_setgid_capture);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1141,7 +1155,8 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             proc_gid.rule_idx = idx as u32;
             proc_egid.rule_idx = idx as u32;
             binary_name.rule_idx = idx as u8;
@@ -1176,29 +1191,33 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 // Capset rules map
@@ -1235,7 +1254,10 @@ static PROCMON_CAPSET_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "capset")]
 pub fn capset_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_capset_capture)
+    let exit_code = event_capture!(ctx, MSG_PROCESS, true, try_capset_capture);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1303,7 +1325,8 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             proc_ecap.rule_idx = idx as u8;
             proc_pcap.rule_idx = idx as u8;
             binary_name.rule_idx = idx as u8;
@@ -1338,29 +1361,33 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 // Prctl rules map
@@ -1390,7 +1417,10 @@ static PROCMON_PRCTL_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "task_prctl")]
 pub fn prctl_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_prctl_capture)
+    let exit_code = event_capture!(ctx, MSG_PROCESS, true, try_prctl_capture);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1447,7 +1477,8 @@ fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -1470,12 +1501,13 @@ fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
                 enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                return Ok(0);
+                result = Ok(0);
+                return Ok(true);
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 // Userns rules map
@@ -1512,7 +1544,10 @@ static PROCMON_USERNS_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "create_user_ns")]
 pub fn create_user_ns_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_create_user_ns_capture)
+    let exit_code = event_capture!(ctx, MSG_PROCESS, true, try_create_user_ns_capture);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_create_user_ns_capture(
@@ -1581,7 +1616,8 @@ fn try_create_user_ns_capture(
 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             proc_ecap.rule_idx = idx as u8;
             proc_euid.rule_idx = idx as u32;
             binary_name.rule_idx = idx as u8;
@@ -1616,28 +1652,33 @@ fn try_create_user_ns_capture(
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Ptrace access check rules map
@@ -1672,7 +1713,10 @@ static PROCMON_PTRACE_ACCESS_CHECK_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8>
 
 #[lsm(hook = "ptrace_access_check")]
 pub fn ptrace_access_check_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_ptrace_access_check_capture)
+    let exit_code = event_capture!(ctx, MSG_PROCESS, true, try_ptrace_access_check_capture);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_ptrace_access_check_capture(
@@ -1714,7 +1758,8 @@ fn try_ptrace_access_check_capture(
 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             binary_name.rule_idx = idx as u8;
             binary_path.rule_idx = idx as u8;
             binary_prefix.data.rule_idx = idx as u8;
@@ -1736,11 +1781,13 @@ fn try_ptrace_access_check_capture(
                 parent_prefix,
             ))?;
             if scope_filter.check_predicate(&rule.scope)? {
-                return enrich_ptrace_access_check_info(msg, proc, &ctx);
+                result = enrich_ptrace_access_check_info(msg, proc, &ctx);
+                return Ok(true);
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Bprm_check rules map
@@ -1790,9 +1837,24 @@ static PROCMON_BPRM_CHECK_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
     LpmTrie::with_max_entries(1, 0);
 // Filter maps end
 
+// Bprm_check filter keys heap
+#[repr(C)]
+struct BprmCheckKeys {
+    euid: UIDKey,
+    egid: UIDKey,
+    ecap: CapValue,
+}
+
+#[map]
+static PROCMON_BPRM_CHECK_KEYS_HEAP: PerCpuArray<BprmCheckKeys> =
+    PerCpuArray::with_max_entries(1, 0);
+
 #[lsm(hook = "bprm_check")]
 pub fn bprm_check_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_PROCESS, true, try_bprm_check_capture)
+    let exit_code = event_capture!(ctx, MSG_PROCESS, true, try_bprm_check_capture);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1866,20 +1928,28 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
 
         let cred = core_read_kernel!(binrpm, cred).ok_or(-1i32)?;
 
-        let proc_euid = UIDKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = PROCMON_BPRM_CHECK_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.euid = UIDKey {
             rule_idx: 0,
             value: cred.euid(),
         };
-
-        let proc_egid = UIDKey {
+        keys.egid = UIDKey {
             rule_idx: 0,
             value: cred.egid(),
         };
-
-        let proc_ecap = CapValue {
+        keys.ecap = CapValue {
             rule_idx: 0,
             caps: Capabilities::from_bits_retain(cred.cap_effective()),
         };
+        let proc_euid = &keys.euid;
+        let proc_egid = &keys.egid;
+        let proc_ecap = &keys.ecap;
 
         // Get binary name
         let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -1893,7 +1963,8 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
         // Get parent binary scope keys
         let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
 
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -1903,21 +1974,27 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &PROCMON_BPRM_CHECK_BINNAME_MAP,
-                &PROCMON_BPRM_CHECK_BINPATH_MAP,
-                &PROCMON_BPRM_CHECK_BINPREFIX_MAP,
-                &PROCMON_BPRM_CHECK_PBINNAME_MAP,
-                &PROCMON_BPRM_CHECK_PBINPATH_MAP,
-                &PROCMON_BPRM_CHECK_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &PROCMON_BPRM_CHECK_BINNAME_MAP,
+                    &PROCMON_BPRM_CHECK_BINPATH_MAP,
+                    &PROCMON_BPRM_CHECK_BINPREFIX_MAP,
+                    &PROCMON_BPRM_CHECK_PBINNAME_MAP,
+                    &PROCMON_BPRM_CHECK_PBINPATH_MAP,
+                    &PROCMON_BPRM_CHECK_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(BprmCheckFilter::new(
                     &PROCMON_BPRM_CHECK_NAME_MAP,
@@ -1929,36 +2006,41 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                     file_name,
                     file_path,
                     file_prefix,
-                    &proc_euid,
-                    &proc_egid,
-                    &proc_ecap,
+                    proc_euid,
+                    proc_egid,
+                    proc_ecap,
                 ))?;
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 #[inline(always)]
