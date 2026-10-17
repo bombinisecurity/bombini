@@ -42,8 +42,7 @@ use bombini_detectors_ebpf::{
         },
         scope::ParentScopeFilter,
     },
-    interpreter::{self, rule::IsEmpty},
-    util,
+    interpreter, util,
 };
 
 use bombini_detectors_ebpf::filter::filemon::{
@@ -182,7 +181,31 @@ macro_rules! fill_parent_keys {
     }};
 }
 
+macro_rules! get_key {
+    ($map:ident) => {{
+        let Some(key) = $map.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        &mut *key
+    }};
+}
+
 // Attribute helper maps
+// Filter keys heap
+#[repr(C)]
+struct FilemonKeys {
+    access_mode: AccessModeKey,
+    creation_flags: CreationFlagsValue,
+    imode: ImodeValue,
+    owner_uid: UIDKey,
+    owner_gid: UIDKey,
+    prot_mode: ProtModeValue,
+    mmap_flags: MmapFlagsValue,
+}
+
+#[map]
+static FILEMON_KEYS_HEAP: PerCpuArray<FilemonKeys> = PerCpuArray::with_max_entries(1, 0);
+
 #[map]
 static FILEMON_PATH_MAP: PerCpuArray<PathMapKey> = PerCpuArray::with_max_entries(1, 0);
 
@@ -262,7 +285,10 @@ static FILEMON_FILE_OPEN_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "file_open")]
 pub fn file_open_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_open)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_open);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -324,34 +350,58 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
         // Get filtering attributes
         // Get file name
         let d_name = core_read_kernel!(fp, f_path, dentry, d_name, name).ok_or(-1i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
+        let _ = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, &event.path);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
-        let mut access_mode = AccessModeKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = FILEMON_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.access_mode = AccessModeKey {
             access_mode: event.access_mode,
             rule_idx: 0,
         };
 
-        let mut creation_flags = CreationFlagsValue {
+        keys.creation_flags = CreationFlagsValue {
             creation_flags: event.creation_flags,
             rule_idx: 0,
         };
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let _ = fill_parent_keys!(proc);
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
+            let keys = get_key!(FILEMON_KEYS_HEAP);
+            let access_mode = &mut keys.access_mode;
+            let creation_flags = &mut keys.creation_flags;
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -363,21 +413,27 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_FILE_OPEN_BINNAME_MAP,
-                &FILEMON_FILE_OPEN_BINPATH_MAP,
-                &FILEMON_FILE_OPEN_BINPREFIX_MAP,
-                &FILEMON_FILE_OPEN_PBINNAME_MAP,
-                &FILEMON_FILE_OPEN_PBINPATH_MAP,
-                &FILEMON_FILE_OPEN_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_FILE_OPEN_BINNAME_MAP,
+                    &FILEMON_FILE_OPEN_BINPATH_MAP,
+                    &FILEMON_FILE_OPEN_BINPREFIX_MAP,
+                    &FILEMON_FILE_OPEN_PBINNAME_MAP,
+                    &FILEMON_FILE_OPEN_PBINPATH_MAP,
+                    &FILEMON_FILE_OPEN_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(FileOpenFilter::new(
                     &FILEMON_FILE_OPEN_NAME_MAP,
@@ -388,35 +444,40 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                     file_name,
                     file_path,
                     file_prefix,
-                    &access_mode,
-                    &creation_flags,
+                    access_mode,
+                    creation_flags,
                 ))?;
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_file_open_event(msg, proc, fp, Some(idx as u8))?;
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 #[inline(always)]
@@ -483,7 +544,10 @@ static FILEMON_PATH_TRUNCATE_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "path_truncate")]
 pub fn path_truncate_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_truncate)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_truncate);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -541,24 +605,38 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
         // Get filtering attributes
         // Get file name
         let d_name = core_read_kernel!(p, dentry, d_name, name).ok_or(-1i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
+        let _ = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, event);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, event);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, event);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, event);
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let _ = fill_parent_keys!(proc);
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -568,21 +646,27 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_PATH_TRUNCATE_BINNAME_MAP,
-                &FILEMON_PATH_TRUNCATE_BINPATH_MAP,
-                &FILEMON_PATH_TRUNCATE_BINPREFIX_MAP,
-                &FILEMON_PATH_TRUNCATE_PBINNAME_MAP,
-                &FILEMON_PATH_TRUNCATE_PBINPATH_MAP,
-                &FILEMON_PATH_TRUNCATE_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_PATH_TRUNCATE_BINNAME_MAP,
+                    &FILEMON_PATH_TRUNCATE_BINPATH_MAP,
+                    &FILEMON_PATH_TRUNCATE_BINPREFIX_MAP,
+                    &FILEMON_PATH_TRUNCATE_PBINNAME_MAP,
+                    &FILEMON_PATH_TRUNCATE_PBINPATH_MAP,
+                    &FILEMON_PATH_TRUNCATE_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_TRUNCATE_NAME_MAP,
@@ -596,28 +680,33 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Path unlink rules maps
@@ -660,7 +749,10 @@ static FILEMON_PATH_UNLINK_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "path_unlink")]
 pub fn path_unlink_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_unlink)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_unlink);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -735,25 +827,39 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
 
         // Get filtering attributes
         // Get file name
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
+        let _ = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, event);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, event);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, event);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, event);
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let _ = fill_parent_keys!(proc);
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -763,21 +869,27 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_PATH_UNLINK_BINNAME_MAP,
-                &FILEMON_PATH_UNLINK_BINPATH_MAP,
-                &FILEMON_PATH_UNLINK_BINPREFIX_MAP,
-                &FILEMON_PATH_UNLINK_PBINNAME_MAP,
-                &FILEMON_PATH_UNLINK_PBINPATH_MAP,
-                &FILEMON_PATH_UNLINK_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_PATH_UNLINK_BINNAME_MAP,
+                    &FILEMON_PATH_UNLINK_BINPATH_MAP,
+                    &FILEMON_PATH_UNLINK_BINPREFIX_MAP,
+                    &FILEMON_PATH_UNLINK_PBINNAME_MAP,
+                    &FILEMON_PATH_UNLINK_PBINPATH_MAP,
+                    &FILEMON_PATH_UNLINK_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_UNLINK_NAME_MAP,
@@ -791,28 +903,33 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Path symlink rules maps
@@ -855,7 +972,10 @@ static FILEMON_PATH_SYMLINK_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "path_symlink")]
 pub fn path_symlink_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_symlink)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_symlink);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -933,25 +1053,39 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
 
         // Get filtering attributes
         // File name is not used in symlink, just copy old path for compatibility
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, &event.old_path as *const _);
+        let _ = fill_name_map!(FILEMON_FILE_NAME_MAP, &event.old_path as *const _);
 
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.old_path);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, &event.old_path);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.old_path);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.old_path);
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let _ = fill_parent_keys!(proc);
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -961,21 +1095,27 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_PATH_SYMLINK_BINNAME_MAP,
-                &FILEMON_PATH_SYMLINK_BINPATH_MAP,
-                &FILEMON_PATH_SYMLINK_BINPREFIX_MAP,
-                &FILEMON_PATH_SYMLINK_PBINNAME_MAP,
-                &FILEMON_PATH_SYMLINK_PBINPATH_MAP,
-                &FILEMON_PATH_SYMLINK_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_PATH_SYMLINK_BINNAME_MAP,
+                    &FILEMON_PATH_SYMLINK_BINPATH_MAP,
+                    &FILEMON_PATH_SYMLINK_BINPREFIX_MAP,
+                    &FILEMON_PATH_SYMLINK_PBINNAME_MAP,
+                    &FILEMON_PATH_SYMLINK_PBINPATH_MAP,
+                    &FILEMON_PATH_SYMLINK_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(PathFilter::new(
                     &FILEMON_PATH_SYMLINK_NAME_MAP,
@@ -989,29 +1129,33 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 // Path chmod rules maps
@@ -1057,7 +1201,10 @@ static FILEMON_PATH_CHMOD_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "path_chmod")]
 pub fn path_chmod_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_chmod)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_chmod);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1115,30 +1262,53 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         // Get filtering attributes
         // Get file name
         let d_name = core_read_kernel!(p, dentry, d_name, name).ok_or(-1i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
+        let _ = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, &event.path);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
-        let mut chomd_value = ImodeValue {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = FILEMON_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.imode = ImodeValue {
             imode: event.i_mode,
             rule_idx: 0,
         };
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let _ = fill_parent_keys!(proc);
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
+            let keys = get_key!(FILEMON_KEYS_HEAP);
+            let chomd_value = &mut keys.imode;
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -1149,21 +1319,27 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_PATH_CHMOD_BINNAME_MAP,
-                &FILEMON_PATH_CHMOD_BINPATH_MAP,
-                &FILEMON_PATH_CHMOD_BINPREFIX_MAP,
-                &FILEMON_PATH_CHMOD_PBINNAME_MAP,
-                &FILEMON_PATH_CHMOD_PBINPATH_MAP,
-                &FILEMON_PATH_CHMOD_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_PATH_CHMOD_BINNAME_MAP,
+                    &FILEMON_PATH_CHMOD_BINPATH_MAP,
+                    &FILEMON_PATH_CHMOD_BINPREFIX_MAP,
+                    &FILEMON_PATH_CHMOD_PBINNAME_MAP,
+                    &FILEMON_PATH_CHMOD_PBINPATH_MAP,
+                    &FILEMON_PATH_CHMOD_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(ChmodFilter::new(
                     &FILEMON_PATH_CHMOD_NAME_MAP,
@@ -1173,35 +1349,39 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     file_name,
                     file_path,
                     file_prefix,
-                    &chomd_value,
+                    chomd_value,
                 ))?;
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 // Path chown rules maps
@@ -1250,7 +1430,10 @@ static FILEMON_PATH_CHOWN_GID_MAP: HashMap<UIDKey, u8> = HashMap::with_max_entri
 
 #[lsm(hook = "path_chown")]
 pub fn path_chown_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_chown)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_chown);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1309,38 +1492,62 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
         // Get filtering attributes
         // Get file name
         let d_name = core_read_kernel!(p, dentry, d_name, name).ok_or(-1i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
+        let _ = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, &event.path);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
+        let _ = fill_parent_keys!(proc);
 
         // Get UID
-        let mut owner_uid = UIDKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = FILEMON_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.owner_uid = UIDKey {
             rule_idx: 0,
             value: event.uid,
         };
 
         // Get GID
-        let mut owner_gid = UIDKey {
+        keys.owner_gid = UIDKey {
             rule_idx: 0,
             value: event.gid,
         };
 
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
+            let keys = get_key!(FILEMON_KEYS_HEAP);
+            let owner_uid = &mut keys.owner_uid;
+            let owner_gid = &mut keys.owner_gid;
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -1352,21 +1559,27 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_PATH_CHOWN_BINNAME_MAP,
-                &FILEMON_PATH_CHOWN_BINPATH_MAP,
-                &FILEMON_PATH_CHOWN_BINPREFIX_MAP,
-                &FILEMON_PATH_CHOWN_PBINNAME_MAP,
-                &FILEMON_PATH_CHOWN_PBINPATH_MAP,
-                &FILEMON_PATH_CHOWN_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_PATH_CHOWN_BINNAME_MAP,
+                    &FILEMON_PATH_CHOWN_BINPATH_MAP,
+                    &FILEMON_PATH_CHOWN_BINPREFIX_MAP,
+                    &FILEMON_PATH_CHOWN_PBINNAME_MAP,
+                    &FILEMON_PATH_CHOWN_PBINPATH_MAP,
+                    &FILEMON_PATH_CHOWN_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(ChownFilter::new(
                     &FILEMON_PATH_CHOWN_NAME_MAP,
@@ -1377,41 +1590,48 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     file_name,
                     file_path,
                     file_prefix,
-                    &owner_uid,
-                    &owner_gid,
+                    owner_uid,
+                    owner_gid,
                 ))?;
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 #[lsm(hook = "sb_mount")]
 pub fn sb_mount_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_sb_mount)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_sb_mount);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1501,12 +1721,21 @@ fn is_null_pointer<T>(addr: *const T) -> bool {
     // Check if the address is null. I don't know why, but checking
     // the null pointer with `is_null()` or explicitly comparing address to `0`
     // leads to a wrong behavior of ebpf program despite of correct ebpf bytecode.
-    addr.addr() < 2
+    //
+    // Since kernel 7.0 the file argument of mmap_file is trusted_ptr_or_null,
+    // and the verifier prohibits pointer arithmetic on it until it is
+    // null-checked. Comparing with `2` is not recognized as a null check, so
+    // an explicit one is required too. black_box keeps LLVM from merging both
+    // checks into a single `< 2` comparison.
+    addr.is_null() || core::hint::black_box(addr).addr() < 2
 }
 
 #[lsm(hook = "mmap_file")]
 pub fn mmap_file_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_mmap_file)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_mmap_file);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1579,7 +1808,7 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
         // Get file name
         // <VERIFIER_ISSUE>
         // is_null_pointer instead of is_null().
-        let file_name = if !is_null_pointer(fp.as_ptr()) {
+        let _ = if !is_null_pointer(fp.as_ptr()) {
             let d_name = core_read_kernel!(fp, f_path, dentry, d_name, name).ok_or(-1i32)?;
             fill_name_map!(FILEMON_FILE_NAME_MAP, d_name)
         } else {
@@ -1587,31 +1816,55 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
         };
 
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, &event.path);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
-        let mut prot_mode = ProtModeValue {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = FILEMON_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.prot_mode = ProtModeValue {
             prot_mode: event.prot,
             rule_idx: 0,
         };
 
-        let mut flags = MmapFlagsValue {
+        keys.mmap_flags = MmapFlagsValue {
             flags: event.flags,
             rule_idx: 0,
         };
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_parent_keys!(proc);
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
+            let keys = get_key!(FILEMON_KEYS_HEAP);
+            let prot_mode = &mut keys.prot_mode;
+            let flags = &mut keys.mmap_flags;
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -1623,21 +1876,27 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_MMAP_FILE_BINNAME_MAP,
-                &FILEMON_MMAP_FILE_BINPATH_MAP,
-                &FILEMON_MMAP_FILE_BINPREFIX_MAP,
-                &FILEMON_MMAP_FILE_PBINNAME_MAP,
-                &FILEMON_MMAP_FILE_PBINPATH_MAP,
-                &FILEMON_MMAP_FILE_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_MMAP_FILE_BINNAME_MAP,
+                    &FILEMON_MMAP_FILE_BINPATH_MAP,
+                    &FILEMON_MMAP_FILE_BINPREFIX_MAP,
+                    &FILEMON_MMAP_FILE_PBINNAME_MAP,
+                    &FILEMON_MMAP_FILE_PBINPATH_MAP,
+                    &FILEMON_MMAP_FILE_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(MmapFileFilter::new(
                     &FILEMON_MMAP_FILE_NAME_MAP,
@@ -1648,36 +1907,40 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                     file_name,
                     file_path,
                     file_prefix,
-                    &prot_mode,
-                    &flags,
+                    prot_mode,
+                    flags,
                 ))?;
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 // File ioctl rules maps
@@ -1723,7 +1986,10 @@ static FILEMON_FILE_IOCTL_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "file_ioctl")]
 pub fn file_ioctl_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_FILE, true, try_file_ioctl)
+    let exit_code = event_capture!(ctx, MSG_FILE, true, try_file_ioctl);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -1784,30 +2050,44 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
         // Get filtering attributes
         // Get file name
         let d_name = core_read_kernel!(fp, f_path, dentry, d_name, name).ok_or(-1i32)?;
-        let file_name = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
+        let _ = fill_name_map!(FILEMON_FILE_NAME_MAP, d_name);
 
         // Get file path
-        let file_path = fill_path_map!(FILEMON_PATH_MAP, &event.path);
+        let _ = fill_path_map!(FILEMON_PATH_MAP, &event.path);
 
         // Get file prefix
-        let file_prefix = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
+        let _ = fill_prefix_map!(FILEMON_PATH_PREFIX_MAP, &event.path);
 
         // Get binary name
-        let binary_name = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
+        let _ = fill_name_map!(FILEMON_BINARY_FILE_NAME_MAP, &proc.filename);
 
         // Get binary path
-        let binary_path = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
+        let _ = fill_path_map!(FILEMON_BINARY_PATH_MAP, &proc.binary_path);
 
         // Get binary prefix
-        let binary_prefix = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
+        let _ = fill_prefix_map!(FILEMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        let (parent_name, parent_path, parent_prefix) = fill_parent_keys!(proc);
+        let _ = fill_parent_keys!(proc);
         // Get Cmd
         let mut cmd = CmdKey {
             rule_idx: 0,
             value: event.cmd,
         };
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
+            // <VERIFIER_ISSUE>
+            // Get filter keys inside the rule callback instead of capturing
+            // them: captured pointers bloat the closure context and the main
+            // frame, which exceeds the combined 512 bytes stack limit.
+            let file_name = get_key!(FILEMON_FILE_NAME_MAP);
+            let file_path = get_key!(FILEMON_PATH_MAP);
+            let file_prefix = get_key!(FILEMON_PATH_PREFIX_MAP);
+            let binary_name = get_key!(FILEMON_BINARY_FILE_NAME_MAP);
+            let binary_path = get_key!(FILEMON_BINARY_PATH_MAP);
+            let binary_prefix = get_key!(FILEMON_BINARY_PATH_PREFIX_MAP);
+            let parent_name = get_key!(FILEMON_PARENT_FILE_NAME_MAP);
+            let parent_path = get_key!(FILEMON_PARENT_PATH_MAP);
+            let parent_prefix = get_key!(FILEMON_PARENT_PATH_PREFIX_MAP);
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -1818,21 +2098,27 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
             parent_name.rule_idx = idx as u8;
             parent_path.rule_idx = idx as u8;
             parent_prefix.data.rule_idx = idx as u8;
-            let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
-                &FILEMON_FILE_IOCTL_BINNAME_MAP,
-                &FILEMON_FILE_IOCTL_BINPATH_MAP,
-                &FILEMON_FILE_IOCTL_BINPREFIX_MAP,
-                &FILEMON_FILE_IOCTL_PBINNAME_MAP,
-                &FILEMON_FILE_IOCTL_PBINPATH_MAP,
-                &FILEMON_FILE_IOCTL_PBINPREFIX_MAP,
-                binary_name,
-                binary_path,
-                binary_prefix,
-                parent_name,
-                parent_path,
-                parent_prefix,
-            ))?;
-            let scope_passed = scope_filter.check_predicate(&rule.scope)?;
+            // <VERIFIER_ISSUE>
+            // Limit the scope filter lifetime, so its stack slots are reused by
+            // the event filter. Otherwise the rule callback frame exceeds the
+            // combined 512 bytes stack limit.
+            let scope_passed = {
+                let mut scope_filter = interpreter::Interpreter::new(ParentScopeFilter::new(
+                    &FILEMON_FILE_IOCTL_BINNAME_MAP,
+                    &FILEMON_FILE_IOCTL_BINPATH_MAP,
+                    &FILEMON_FILE_IOCTL_BINPREFIX_MAP,
+                    &FILEMON_FILE_IOCTL_PBINNAME_MAP,
+                    &FILEMON_FILE_IOCTL_PBINPATH_MAP,
+                    &FILEMON_FILE_IOCTL_PBINPREFIX_MAP,
+                    binary_name,
+                    binary_path,
+                    binary_prefix,
+                    parent_name,
+                    parent_path,
+                    parent_prefix,
+                ))?;
+                scope_filter.check_predicate(&rule.scope)?
+            };
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(FileIoctlFilter::new(
                     &FILEMON_FILE_IOCTL_NAME_MAP,
@@ -1848,29 +2134,33 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-
-    Err(0)
 }
 
 #[inline(always)]
