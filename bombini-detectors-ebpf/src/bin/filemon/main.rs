@@ -431,7 +431,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -446,7 +446,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
                     file_prefix,
                     access_mode,
                     creation_flags,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -664,7 +664,7 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -675,7 +675,7 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                     file_name,
                     file_path,
                     file_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -887,7 +887,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -898,7 +898,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
                     file_name,
                     file_path,
                     file_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1113,7 +1113,7 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -1124,7 +1124,7 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                     file_name,
                     file_path,
                     file_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1337,7 +1337,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -1350,7 +1350,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     file_path,
                     file_prefix,
                     chomd_value,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1577,7 +1577,7 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -1592,7 +1592,7 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
                     file_prefix,
                     owner_uid,
                     owner_gid,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1894,7 +1894,7 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -1909,7 +1909,7 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
                     file_prefix,
                     prot_mode,
                     flags,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -2116,7 +2116,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -2129,7 +2129,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
                     file_path,
                     file_prefix,
                     &cmd,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {

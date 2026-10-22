@@ -327,7 +327,7 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfMapFilter::new(
                     &KERNELMON_BPF_MAP_ID_MAP,
@@ -338,7 +338,7 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                     &*bpf_map_type,
                     &*bpf_name,
                     &*bpf_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -536,7 +536,7 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfMapFilter::new(
                     &KERNELMON_BPF_MAP_CREATE_ID_STUB_MAP,
@@ -547,7 +547,7 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &*bpf_map_type,
                     &*bpf_name,
                     &*bpf_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -735,7 +735,7 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
                     &KERNELMON_BPF_PROG_ID_MAP,
@@ -746,7 +746,7 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                     &*bpf_prog_type,
                     &*bpf_name,
                     &*bpf_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -933,7 +933,7 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
                     &KERNELMON_BPF_PROG_LOAD_STUB_ID_MAP,
@@ -944,7 +944,7 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                     &*bpf_prog_type,
                     &*bpf_name,
                     &*bpf_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1108,7 +1108,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
                     &KERNELMON_BPF_PROG_LOAD_STUB_ID_MAP,
@@ -1119,7 +1119,7 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
                     &*bpf_prog_type,
                     &*bpf_name,
                     &*bpf_prefix,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {

@@ -642,14 +642,14 @@ fn try_execve_sandbox(
                 parent_name,
                 parent_path,
                 parent_prefix,
-            ))?;
+            ));
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if scope_passed {
                 let mut args_filter = interpreter::Interpreter::new(SchedProcessExecFilter::new(
                     &PROCMON_EXECVE_SANDBOX_ARG_MAP,
                     &PROCMON_EXECVE_SANDBOX_PROCESS_ARGS_MAP,
                     idx as u8,
-                ))?;
+                ));
                 let args_passed = args_filter.check_predicate(&rule.event)?;
                 if args_passed == deny_list {
                     let ret = bpf_send_signal(9);
@@ -1007,7 +1007,7 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 parent_name,
                 parent_path,
                 parent_prefix,
-            ))?;
+            ));
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
@@ -1015,7 +1015,7 @@ fn try_setuid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &PROCMON_SETUID_EUID_MAP,
                     &proc_uid,
                     &proc_euid,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1178,7 +1178,7 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 parent_name,
                 parent_path,
                 parent_prefix,
-            ))?;
+            ));
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(UidFilter::new(
@@ -1186,7 +1186,7 @@ fn try_setgid_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &PROCMON_SETGID_EGID_MAP,
                     &proc_gid,
                     &proc_egid,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1348,7 +1348,7 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 parent_name,
                 parent_path,
                 parent_prefix,
-            ))?;
+            ));
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(CapFilter::new(
@@ -1356,7 +1356,7 @@ fn try_capset_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                     &PROCMON_CAPSET_PCAP_MAP,
                     &proc_ecap,
                     &proc_pcap,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1498,7 +1498,7 @@ fn try_prctl_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                 parent_name,
                 parent_path,
                 parent_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                 result = Ok(0);
@@ -1639,7 +1639,7 @@ fn try_create_user_ns_capture(
                 parent_name,
                 parent_path,
                 parent_prefix,
-            ))?;
+            ));
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if scope_passed {
                 let mut event_filter = interpreter::Interpreter::new(CredFilter::new(
@@ -1647,7 +1647,7 @@ fn try_create_user_ns_capture(
                     &PROCMON_USERNS_EUID_MAP,
                     &proc_ecap,
                     &proc_euid,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
@@ -1779,7 +1779,7 @@ fn try_ptrace_access_check_capture(
                 parent_name,
                 parent_path,
                 parent_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 result = enrich_ptrace_access_check_info(msg, proc, &ctx);
                 return Ok(true);
@@ -1992,7 +1992,7 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                     parent_name,
                     parent_path,
                     parent_prefix,
-                ))?;
+                ));
                 scope_filter.check_predicate(&rule.scope)?
             };
             if scope_passed {
@@ -2009,7 +2009,7 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                     proc_euid,
                     proc_egid,
                     proc_ecap,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
