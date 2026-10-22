@@ -20,13 +20,13 @@ pub struct Interpreter<T> {
 }
 
 impl<T: CheckIn> Interpreter<T> {
-    pub fn new(hook_attributes: T) -> Result<Self, i32> {
-        // <VERIFIER_ISSUE>
-        // Keep construction infallible, so the Result is optimized out.
-        // Otherwise the i32 error payload overlaps a map pointer of the hook
-        // attributes and LLVM stores that pointer as two 32-bit halves, which
-        // the verifier rejects as map_ptr arithmetic.
-        Ok(Self { hook_attributes })
+    // <VERIFIER_ISSUE>
+    // Construction must stay infallible; do not wrap it in Result. An i32
+    // error payload overlaps a map pointer of the hook attributes and LLVM
+    // stores that pointer as two 32-bit halves, which the verifier rejects
+    // as map_ptr arithmetic.
+    pub fn new(hook_attributes: T) -> Self {
+        Self { hook_attributes }
     }
 
     #[inline(always)]
@@ -35,7 +35,7 @@ impl<T: CheckIn> Interpreter<T> {
             return Ok(true);
         }
 
-        let mut ctx = LoopContext {
+        let mut ctx = PredicateLoopContext {
             stack: stack::Stack::new()?,
             hook_attributes: &self.hook_attributes,
             predicate,
@@ -50,8 +50,8 @@ impl<T: CheckIn> Interpreter<T> {
         unsafe {
             bpf_loop(
                 MAX_RULE_OPERATIONS as u32,
-                execute_op_callback::<T> as *mut fn(u64, *mut c_void) -> i64 as *mut c_void,
-                &mut ctx as *mut LoopContext<T> as *mut c_void,
+                rule_op_callback::<T> as *mut fn(u64, *mut c_void) -> i64 as *mut c_void,
+                &mut ctx as *mut PredicateLoopContext<T> as *mut c_void,
                 0,
             );
         }
@@ -75,12 +75,12 @@ pub fn for_each_rule<F>(rules: &[Rule; MAX_RULES_COUNT], f: F) -> Result<(), i32
 where
     F: FnMut(usize, &Rule) -> Result<bool, i32>,
 {
-    let mut ctx = RuleLoopContext { rules, f, error: 0 };
+    let mut ctx = RulesLoopContext { rules, f, error: 0 };
     unsafe {
         bpf_loop(
             MAX_RULES_COUNT as u32,
-            rule_callback::<F> as *mut fn(u64, *mut c_void) -> i64 as *mut c_void,
-            &mut ctx as *mut RuleLoopContext<F> as *mut c_void,
+            rules_loop_callback::<F> as *mut fn(u64, *mut c_void) -> i64 as *mut c_void,
+            &mut ctx as *mut RulesLoopContext<F> as *mut c_void,
             0,
         );
     }
@@ -90,17 +90,17 @@ where
     Ok(())
 }
 
-struct RuleLoopContext<'a, F> {
+struct RulesLoopContext<'a, F> {
     rules: &'a [Rule; MAX_RULES_COUNT],
     f: F,
     error: i32,
 }
 
-unsafe fn rule_callback<F>(idx: u64, data: *mut c_void) -> i64
+unsafe fn rules_loop_callback<F>(idx: u64, data: *mut c_void) -> i64
 where
     F: FnMut(usize, &Rule) -> Result<bool, i32>,
 {
-    let ctx = unsafe { &mut *(data as *mut RuleLoopContext<F>) };
+    let ctx = unsafe { &mut *(data as *mut RulesLoopContext<F>) };
     let idx = idx as usize;
     if idx >= MAX_RULES_COUNT {
         return 1;
@@ -119,17 +119,17 @@ where
     }
 }
 
-struct LoopContext<'a, T> {
+struct PredicateLoopContext<'a, T> {
     stack: stack::Stack<bool>,
     hook_attributes: &'a T,
     predicate: &'a Predicate,
     error: i32,
 }
 
-impl<T: CheckIn> LoopContext<'_, T> {
+impl<T: CheckIn> PredicateLoopContext<'_, T> {
     /// Executes a single operation. Returns false when the predicate is over.
     #[inline(always)]
-    fn execute_op(&mut self, idx: usize) -> Result<bool, i32> {
+    fn execute_rule_op(&mut self, idx: usize) -> Result<bool, i32> {
         match &self.predicate[idx] {
             RuleOp::Fin => return Ok(false),
             RuleOp::And => {
@@ -160,13 +160,13 @@ impl<T: CheckIn> LoopContext<'_, T> {
     }
 }
 
-unsafe fn execute_op_callback<T: CheckIn>(idx: u64, data: *mut c_void) -> i64 {
-    let ctx = unsafe { &mut *(data as *mut LoopContext<T>) };
+unsafe fn rule_op_callback<T: CheckIn>(idx: u64, data: *mut c_void) -> i64 {
+    let ctx = unsafe { &mut *(data as *mut PredicateLoopContext<T>) };
     let idx = idx as usize;
     if idx >= MAX_RULE_OPERATIONS {
         return 1;
     }
-    match ctx.execute_op(idx) {
+    match ctx.execute_rule_op(idx) {
         Ok(true) => 0,
         Ok(false) => 1,
         Err(e) => {

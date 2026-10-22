@@ -366,7 +366,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(SocketCreateFilter::new(
@@ -376,7 +376,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                     &family_key,
                     &socket_type_key,
                     &socket_flags_key,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if core::hint::black_box(passed) {
                     if sandbox.is_none() {
@@ -542,7 +542,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     let scope_passed = scope_filter.check_predicate(&rule.scope)?;
                     if scope_passed {
                         let mut event_filter =
@@ -551,7 +551,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                                 &NETMON_SOCKET_CONNECT_DST_PORT_MAP,
                                 ip_dst,
                                 &port_dst,
-                            ))?;
+                            ));
                         let passed = event_filter.check_predicate(&rule.event)?;
                         if passed {
                             if sandbox.is_none() {
@@ -640,7 +640,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     let scope_passed = scope_filter.check_predicate(&rule.scope)?;
                     if scope_passed {
                         let mut event_filter =
@@ -649,7 +649,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                                 &NETMON_SOCKET_CONNECT_DST_PORT_MAP,
                                 ip_dst,
                                 &port_dst,
-                            ))?;
+                            ));
                         let passed = event_filter.check_predicate(&rule.event)?;
                         if passed {
                             if sandbox.is_none() {
@@ -869,7 +869,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                     &NETMON_EGRESS_SRC_IPV4_MAP,
@@ -880,7 +880,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     ip_dst,
                     &port_src,
                     &port_dst,
-                ))?;
+                ));
                 if event_filter.check_predicate(&rule.event)? {
                     let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
@@ -980,7 +980,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                     &NETMON_EGRESS_SRC_IPV6_MAP,
@@ -991,7 +991,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     ip_dst,
                     &port_src,
                     &port_dst,
-                ))?;
+                ));
                 if event_filter.check_predicate(&rule.event)? {
                     let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
@@ -1156,7 +1156,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     if scope_filter.check_predicate(&rule.scope)? {
                         let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                             &NETMON_INGRESS_SRC_IPV4_MAP,
@@ -1167,7 +1167,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             ip_dst,
                             &port_src,
                             &port_dst,
-                        ))?;
+                        ));
                         if event_filter.check_predicate(&rule.event)? {
                             let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
@@ -1231,7 +1231,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     if scope_filter.check_predicate(&rule.scope)? {
                         let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                             &NETMON_INGRESS_SRC_IPV6_MAP,
@@ -1242,7 +1242,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             ip_dst,
                             &port_src,
                             &port_dst,
-                        ))?;
+                        ));
                         if event_filter.check_predicate(&rule.event)? {
                             let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
