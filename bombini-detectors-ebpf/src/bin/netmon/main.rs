@@ -51,8 +51,7 @@ use bombini_detectors_ebpf::{
         netmon::ip::{Ipv4Filter, Ipv6Filter},
         scope::ScopeFilter,
     },
-    interpreter::{self, rule::IsEmpty},
-    util,
+    interpreter, util,
 };
 
 #[map]
@@ -274,7 +273,10 @@ const SOCK_TYPE_MASK: u32 = 0xf;
 
 #[lsm(hook = "socket_create")]
 pub fn socket_create_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_NETWORK, true, try_socket_create)
+    let exit_code = event_capture!(ctx, MSG_NETWORK, true, try_socket_create);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -349,7 +351,8 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             family_key.rule_idx = idx as u32;
             socket_type_key.rule_idx = idx as u32;
             socket_flags_key.rule_idx = idx as u8;
@@ -363,7 +366,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             let scope_passed = scope_filter.check_predicate(&rule.scope)?;
             if core::hint::black_box(scope_passed) {
                 let mut event_filter = interpreter::Interpreter::new(SocketCreateFilter::new(
@@ -373,33 +376,38 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                     &family_key,
                     &socket_type_key,
                     &socket_flags_key,
-                ))?;
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if core::hint::black_box(passed) {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Socket connect rules maps
@@ -438,7 +446,10 @@ pub fn socket_connect_capture(ctx: LsmContext) -> i32 {
         return 0;
     }
 
-    event_capture!(ctx, MSG_NETWORK, true, try_socket_connect)
+    let exit_code = event_capture!(ctx, MSG_NETWORK, true, try_socket_connect);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -517,7 +528,8 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 let binary_prefix =
                     fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+                let mut result: Result<i32, i32> = Err(0);
+                interpreter::for_each_rule(rule_array, |idx, rule| {
                     ip_dst.data.rule_idx = idx as u8;
                     port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
@@ -530,7 +542,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     let scope_passed = scope_filter.check_predicate(&rule.scope)?;
                     if scope_passed {
                         let mut event_filter =
@@ -539,31 +551,37 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                                 &NETMON_SOCKET_CONNECT_DST_PORT_MAP,
                                 ip_dst,
                                 &port_dst,
-                            ))?;
+                            ));
                         let passed = event_filter.check_predicate(&rule.event)?;
                         if passed {
                             if sandbox.is_none() {
                                 enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                                return Ok(0);
+                                result = Ok(0);
+                                return Ok(true);
                             }
                             let deny_list = sandbox.unwrap();
                             if deny_list {
                                 enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                                 msg.blocked = true;
-                                return Ok(-1);
+                                result = Ok(-1);
+                                return Ok(true);
                             }
                             // allow list is satisfied: do not send event
-                            return Err(0);
+                            result = Err(0);
+                            return Ok(true);
                         } else if let Some(deny_list) = sandbox
                             && !deny_list
                         {
                             // allow list is not satisfied: send event
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             msg.blocked = true;
-                            return Ok(-1);
+                            result = Ok(-1);
+                            return Ok(true);
                         }
                     }
-                }
+                    Ok(false)
+                })?;
+                result
             }
             AddressFamily::AF_INET6 => {
                 let sockaddr_in6 = co_re::sockaddr_in6::from_ptr(ctx.arg(1));
@@ -608,7 +626,8 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 let binary_prefix =
                     fill_prefix_map!(NETMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
 
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+                let mut result: Result<i32, i32> = Err(0);
+                interpreter::for_each_rule(rule_array, |idx, rule| {
                     ip_dst.data.rule_idx = idx as u8;
                     port_dst.rule_idx = idx as u16;
                     binary_name.rule_idx = idx as u8;
@@ -621,7 +640,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     let scope_passed = scope_filter.check_predicate(&rule.scope)?;
                     if scope_passed {
                         let mut event_filter =
@@ -630,38 +649,41 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                                 &NETMON_SOCKET_CONNECT_DST_PORT_MAP,
                                 ip_dst,
                                 &port_dst,
-                            ))?;
+                            ));
                         let passed = event_filter.check_predicate(&rule.event)?;
                         if passed {
                             if sandbox.is_none() {
                                 enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                                return Ok(0);
+                                result = Ok(0);
+                                return Ok(true);
                             }
                             let deny_list = sandbox.unwrap();
                             if deny_list {
                                 enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                                 msg.blocked = true;
-                                return Ok(-1);
+                                result = Ok(-1);
+                                return Ok(true);
                             }
                             // allow list is satisfied: do not send event
-                            return Err(0);
+                            result = Err(0);
+                            return Ok(true);
                         } else if let Some(deny_list) = sandbox
                             && !deny_list
                         {
                             // allow list is not satisfied: send event
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             msg.blocked = true;
-                            return Ok(-1);
+                            result = Ok(-1);
+                            return Ok(true);
                         }
                     }
-                }
+                    Ok(false)
+                })?;
+                result
             }
-            _ => {
-                return Err(-1);
-            }
+            _ => Err(-1),
         }
     }
-    Err(0)
 }
 
 // Attribute filter maps begin
@@ -830,7 +852,9 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
             port: event.dport,
         };
 
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let cookie = event.cookie;
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             ip_src.data.rule_idx = idx as u8;
             ip_dst.data.rule_idx = idx as u8;
             port_src.rule_idx = idx as u16;
@@ -845,7 +869,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                     &NETMON_EGRESS_SRC_IPV4_MAP,
@@ -856,16 +880,18 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     ip_dst,
                     &port_src,
                     &port_dst,
-                ))?;
+                ));
                 if event_filter.check_predicate(&rule.event)? {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, idx as u8, 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    result = Ok(0);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 #[fexit(function = "tcp_v6_connect")]
@@ -937,7 +963,9 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
             port: event.dport,
         };
 
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let cookie = event.cookie;
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             ip_src.data.rule_idx = idx as u8;
             ip_dst.data.rule_idx = idx as u8;
             port_src.rule_idx = idx as u16;
@@ -952,7 +980,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                     &NETMON_EGRESS_SRC_IPV6_MAP,
@@ -963,16 +991,18 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     ip_dst,
                     &port_src,
                     &port_dst,
-                ))?;
+                ));
                 if event_filter.check_predicate(&rule.event)? {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, idx as u8, 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                    return Ok(0);
+                    result = Ok(0);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 #[fexit(function = "tcp_close")]
 pub fn tcp_close(ctx: FExitContext) -> i32 {
@@ -1109,7 +1139,9 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     port: event.dport,
                 };
 
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+                let cookie = event.cookie;
+                let mut result: Result<i32, i32> = Err(0);
+                interpreter::for_each_rule(rule_array, |idx, rule| {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
                     port_src.rule_idx = idx as u16;
@@ -1124,7 +1156,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     if scope_filter.check_predicate(&rule.scope)? {
                         let mut event_filter = interpreter::Interpreter::new(Ipv4Filter::new(
                             &NETMON_INGRESS_SRC_IPV4_MAP,
@@ -1135,15 +1167,17 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             ip_dst,
                             &port_src,
                             &port_dst,
-                        ))?;
+                        ));
                         if event_filter.check_predicate(&rule.event)? {
-                            let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, idx as u8, 0);
+                            let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                            return Ok(0);
+                            result = Ok(0);
+                            return Ok(true);
                         }
                     }
-                }
-                Err(0)
+                    Ok(false)
+                })?;
+                result
             }
             AF_INET6 => {
                 let p = &mut msg.event as *mut NetworkEventVariant as *mut u8;
@@ -1180,7 +1214,9 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                     port: event.dport,
                 };
 
-                for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+                let cookie = event.cookie;
+                let mut result: Result<i32, i32> = Err(0);
+                interpreter::for_each_rule(rule_array, |idx, rule| {
                     ip_src.data.rule_idx = idx as u8;
                     ip_dst.data.rule_idx = idx as u8;
                     port_src.rule_idx = idx as u16;
@@ -1195,7 +1231,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                         binary_name,
                         binary_path,
                         binary_prefix,
-                    ))?;
+                    ));
                     if scope_filter.check_predicate(&rule.scope)? {
                         let mut event_filter = interpreter::Interpreter::new(Ipv6Filter::new(
                             &NETMON_INGRESS_SRC_IPV6_MAP,
@@ -1206,16 +1242,17 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             ip_dst,
                             &port_src,
                             &port_dst,
-                        ))?;
+                        ));
                         if event_filter.check_predicate(&rule.event)? {
-                            let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, idx as u8, 0);
+                            let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                            return Ok(0);
+                            result = Ok(0);
+                            return Ok(true);
                         }
                     }
-                }
-
-                Err(0)
+                    Ok(false)
+                })?;
+                result
             }
             _ => Err(0),
         }

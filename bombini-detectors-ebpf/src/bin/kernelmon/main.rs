@@ -34,7 +34,7 @@ use bombini_detectors_ebpf::{
         kernelmon::{bpfmap::BpfMapFilter, bpfprog::BpfProgFilter},
         scope::ScopeFilter,
     },
-    interpreter::{self, rule::IsEmpty},
+    interpreter,
     uapi::BpfProgLoadAttr,
     util,
 };
@@ -42,6 +42,19 @@ use bombini_detectors_ebpf::{
 // Detector config
 #[map]
 static KERNELMON_CONFIG: Array<KernelMonKernelConfig> = Array::with_max_entries(1, 0);
+
+// Bpf filter keys heap
+#[repr(C)]
+struct BpfFilterKeys {
+    id: BpfIdKey,
+    map_type: BpfMapTypeKey,
+    prog_type: BpfProgTypeKey,
+    name: BpfNameKey,
+    prefix: Key<BpfPrefixKey>,
+}
+
+#[map]
+static KERNELMON_BPF_KEYS_HEAP: PerCpuArray<BpfFilterKeys> = PerCpuArray::with_max_entries(1, 0);
 
 // Helpers
 #[map]
@@ -195,7 +208,10 @@ static KERNELMON_BPF_MAP_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "bpf_map")]
 pub fn bpf_map_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_KERNEL, true, try_bpf_map)
+    let exit_code = event_capture!(ctx, MSG_KERNEL, true, try_bpf_map);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -251,30 +267,41 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
 
         // Get filtering attributes
         // Get bpf map id
-        let mut bpf_id = BpfIdKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = KERNELMON_BPF_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.id = BpfIdKey {
             rule_idx: 0,
             value: event.id,
         };
+        let bpf_id = &mut keys.id;
 
         // Get bpf map type
-        let mut bpf_map_type = BpfMapTypeKey {
+        keys.map_type = BpfMapTypeKey {
             rule_idx: 0,
             map_type: event.map_type,
         };
+        let bpf_map_type = &mut keys.map_type;
 
         // Get bpf map name
-        let mut bpf_name = BpfNameKey {
+        keys.name = BpfNameKey {
             rule_idx: 0,
             name: event.name,
         };
+        let bpf_name = &mut keys.name;
 
-        let mut bpf_prefix = Key {
+        keys.prefix = Key {
             prefix_len: (MAX_BPFNAME_SIZE * 8) as u32,
             data: BpfPrefixKey {
                 name: event.name,
                 rule_idx: 0,
             },
         };
+        let bpf_prefix = &mut keys.prefix;
 
         // Get binary name
         let binary_name = fill_name_map!(KERNELMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -284,7 +311,8 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             bpf_id.rule_idx = idx as u32;
             bpf_map_type.rule_idx = idx as u32;
             bpf_name.rule_idx = idx as u8;
@@ -299,44 +327,49 @@ fn try_bpf_map(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfMapFilter::new(
                     &KERNELMON_BPF_MAP_ID_MAP,
                     &KERNELMON_BPF_MAP_TYPE_MAP,
                     &KERNELMON_BPF_MAP_NAME_MAP,
                     &KERNELMON_BPF_MAP_PREFIX_MAP,
-                    &bpf_id,
-                    &bpf_map_type,
-                    &bpf_name,
-                    &bpf_prefix,
-                ))?;
+                    &*bpf_id,
+                    &*bpf_map_type,
+                    &*bpf_name,
+                    &*bpf_prefix,
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Bpf map rules maps
@@ -443,30 +476,41 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         // Get filtering attributes
         // Just stubbing the id, since it is not assigned at creation time
-        let mut bpf_id = BpfIdKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = KERNELMON_BPF_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.id = BpfIdKey {
             rule_idx: 0,
             value: 0,
         };
+        let bpf_id = &mut keys.id;
 
         // Get bpf map type
-        let mut bpf_map_type = BpfMapTypeKey {
+        keys.map_type = BpfMapTypeKey {
             rule_idx: 0,
             map_type: event.map_type,
         };
+        let bpf_map_type = &mut keys.map_type;
 
         // Get bpf map name
-        let mut bpf_name = BpfNameKey {
+        keys.name = BpfNameKey {
             rule_idx: 0,
             name: event.name,
         };
+        let bpf_name = &mut keys.name;
 
-        let mut bpf_prefix = Key {
+        keys.prefix = Key {
             prefix_len: (MAX_BPFNAME_SIZE * 8) as u32,
             data: BpfPrefixKey {
                 name: event.name,
                 rule_idx: 0,
             },
         };
+        let bpf_prefix = &mut keys.prefix;
 
         // Get binary name
         let binary_name = fill_name_map!(KERNELMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -476,7 +520,8 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             bpf_id.rule_idx = idx as u32;
             bpf_map_type.rule_idx = idx as u32;
             bpf_name.rule_idx = idx as u8;
@@ -491,44 +536,49 @@ fn try_bpf_map_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfMapFilter::new(
                     &KERNELMON_BPF_MAP_CREATE_ID_STUB_MAP,
                     &KERNELMON_BPF_MAP_CREATE_TYPE_MAP,
                     &KERNELMON_BPF_MAP_CREATE_NAME_MAP,
                     &KERNELMON_BPF_MAP_CREATE_PREFIX_MAP,
-                    &bpf_id,
-                    &bpf_map_type,
-                    &bpf_name,
-                    &bpf_prefix,
-                ))?;
+                    &*bpf_id,
+                    &*bpf_map_type,
+                    &*bpf_name,
+                    &*bpf_prefix,
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Bpf prog rules maps
@@ -562,7 +612,10 @@ static KERNELMON_BPF_PROG_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 
 #[lsm(hook = "bpf_prog")]
 pub fn bpf_prog_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_KERNEL, true, try_bpf_prog)
+    let exit_code = event_capture!(ctx, MSG_KERNEL, true, try_bpf_prog);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -622,30 +675,41 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
 
         // Get filtering attributes
         // Get bpf map id
-        let mut bpf_id = BpfIdKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = KERNELMON_BPF_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.id = BpfIdKey {
             rule_idx: 0,
             value: event.id,
         };
+        let bpf_id = &mut keys.id;
 
         // Get bpf map type
-        let mut bpf_prog_type = BpfProgTypeKey {
+        keys.prog_type = BpfProgTypeKey {
             rule_idx: 0,
             prog_type: event.prog_type,
         };
+        let bpf_prog_type = &mut keys.prog_type;
 
         // Get bpf map name
-        let mut bpf_name = BpfNameKey {
+        keys.name = BpfNameKey {
             rule_idx: 0,
             name: event.name,
         };
+        let bpf_name = &mut keys.name;
 
-        let mut bpf_prefix = Key {
+        keys.prefix = Key {
             prefix_len: (MAX_BPFNAME_SIZE * 8) as u32,
             data: BpfPrefixKey {
                 name: event.name,
                 rule_idx: 0,
             },
         };
+        let bpf_prefix = &mut keys.prefix;
 
         // Get binary name
         let binary_name = fill_name_map!(KERNELMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -655,7 +719,8 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             bpf_id.rule_idx = idx as u32;
             bpf_prog_type.rule_idx = idx as u32;
             bpf_name.rule_idx = idx as u8;
@@ -670,44 +735,49 @@ fn try_bpf_prog(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
                     &KERNELMON_BPF_PROG_ID_MAP,
                     &KERNELMON_BPF_PROG_TYPE_MAP,
                     &KERNELMON_BPF_PROG_NAME_MAP,
                     &KERNELMON_BPF_PROG_PREFIX_MAP,
-                    &bpf_id,
-                    &bpf_prog_type,
-                    &bpf_name,
-                    &bpf_prefix,
-                ))?;
+                    &*bpf_id,
+                    &*bpf_prog_type,
+                    &*bpf_name,
+                    &*bpf_prefix,
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // Bpf prog rules maps
@@ -746,7 +816,10 @@ static KERNELMON_BPF_PROG_LOAD_BINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 // For 6.9 kernel and later we use bpf_prog_load
 #[lsm(hook = "bpf_prog_load")]
 pub fn bpf_prog_load_capture(ctx: LsmContext) -> i32 {
-    event_capture!(ctx, MSG_KERNEL, true, try_bpf_prog_load)
+    let exit_code = event_capture!(ctx, MSG_KERNEL, true, try_bpf_prog_load);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -800,30 +873,41 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
 
         // Get filtering attributes
         // Stub bpf prog id
-        let mut bpf_id = BpfIdKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = KERNELMON_BPF_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.id = BpfIdKey {
             rule_idx: 0,
             value: 0,
         };
+        let bpf_id = &mut keys.id;
 
         // Get bpf map type
-        let mut bpf_prog_type = BpfProgTypeKey {
+        keys.prog_type = BpfProgTypeKey {
             rule_idx: 0,
             prog_type: event.prog_type,
         };
+        let bpf_prog_type = &mut keys.prog_type;
 
         // Get bpf map name
-        let mut bpf_name = BpfNameKey {
+        keys.name = BpfNameKey {
             rule_idx: 0,
             name: event.name,
         };
+        let bpf_name = &mut keys.name;
 
-        let mut bpf_prefix = Key {
+        keys.prefix = Key {
             prefix_len: (MAX_BPFNAME_SIZE * 8) as u32,
             data: BpfPrefixKey {
                 name: event.name,
                 rule_idx: 0,
             },
         };
+        let bpf_prefix = &mut keys.prefix;
 
         // Get binary name
         let binary_name = fill_name_map!(KERNELMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -833,7 +917,8 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             bpf_id.rule_idx = idx as u32;
             bpf_prog_type.rule_idx = idx as u32;
             bpf_name.rule_idx = idx as u8;
@@ -848,44 +933,49 @@ fn try_bpf_prog_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
                     &KERNELMON_BPF_PROG_LOAD_STUB_ID_MAP,
                     &KERNELMON_BPF_PROG_LOAD_TYPE_MAP,
                     &KERNELMON_BPF_PROG_LOAD_NAME_MAP,
                     &KERNELMON_BPF_PROG_LOAD_PREFIX_MAP,
-                    &bpf_id,
-                    &bpf_prog_type,
-                    &bpf_name,
-                    &bpf_prefix,
-                ))?;
+                    &*bpf_id,
+                    &*bpf_prog_type,
+                    &*bpf_name,
+                    &*bpf_prefix,
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 // For 6.8 kernel and earlier we use security_bpf because security_bpf_prog_alloc does not provide any useful information compared to bpf_prog_load
@@ -898,7 +988,10 @@ pub fn bpf_prog_old_load_capture(ctx: LsmContext) -> i32 {
         return 0;
     }
 
-    event_capture!(ctx, MSG_KERNEL, true, try_bpf_prog_old_load)
+    let exit_code = event_capture!(ctx, MSG_KERNEL, true, try_bpf_prog_old_load);
+    // <VERIFIER_ISSUE>
+    // Verifier cannot determine that return value is in [-4096, 0]
+    if exit_code != 0 { -1 } else { 0 }
 }
 
 fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i32> {
@@ -955,30 +1048,41 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
 
         // Get filtering attributes
         // Stub bpf prog id
-        let mut bpf_id = BpfIdKey {
+        // <VERIFIER_ISSUE>
+        // Keep filter keys off the stack: the rule loop and predicate
+        // bpf_loop callbacks add their frames to the combined 512 bytes limit.
+        let Some(keys) = KERNELMON_BPF_KEYS_HEAP.get_ptr_mut(0) else {
+            return Err(-1);
+        };
+        let keys = &mut *keys;
+        keys.id = BpfIdKey {
             rule_idx: 0,
             value: 0,
         };
+        let bpf_id = &mut keys.id;
 
         // Get bpf map type
-        let mut bpf_prog_type = BpfProgTypeKey {
+        keys.prog_type = BpfProgTypeKey {
             rule_idx: 0,
             prog_type: event.prog_type,
         };
+        let bpf_prog_type = &mut keys.prog_type;
 
         // Get bpf map name
-        let mut bpf_name = BpfNameKey {
+        keys.name = BpfNameKey {
             rule_idx: 0,
             name: event.name,
         };
+        let bpf_name = &mut keys.name;
 
-        let mut bpf_prefix = Key {
+        keys.prefix = Key {
             prefix_len: (MAX_BPFNAME_SIZE * 8) as u32,
             data: BpfPrefixKey {
                 name: event.name,
                 rule_idx: 0,
             },
         };
+        let bpf_prefix = &mut keys.prefix;
 
         // Get binary name
         let binary_name = fill_name_map!(KERNELMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -988,7 +1092,8 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
 
         // Get binary prefix
         let binary_prefix = fill_prefix_map!(KERNELMON_BINARY_PATH_PREFIX_MAP, &proc.binary_path);
-        for (idx, rule) in rule_array.iter().take_while(|x| !x.is_empty()).enumerate() {
+        let mut result: Result<i32, i32> = Err(0);
+        interpreter::for_each_rule(rule_array, |idx, rule| {
             bpf_id.rule_idx = idx as u32;
             bpf_prog_type.rule_idx = idx as u32;
             bpf_name.rule_idx = idx as u8;
@@ -1003,44 +1108,49 @@ fn try_bpf_prog_old_load(ctx: LsmContext, generic_event: &mut GenericEvent) -> R
                 binary_name,
                 binary_path,
                 binary_prefix,
-            ))?;
+            ));
             if scope_filter.check_predicate(&rule.scope)? {
                 let mut event_filter = interpreter::Interpreter::new(BpfProgFilter::new(
                     &KERNELMON_BPF_PROG_LOAD_STUB_ID_MAP,
                     &KERNELMON_BPF_PROG_LOAD_TYPE_MAP,
                     &KERNELMON_BPF_PROG_LOAD_NAME_MAP,
                     &KERNELMON_BPF_PROG_LOAD_PREFIX_MAP,
-                    &bpf_id,
-                    &bpf_prog_type,
-                    &bpf_name,
-                    &bpf_prefix,
-                ))?;
+                    &*bpf_id,
+                    &*bpf_prog_type,
+                    &*bpf_name,
+                    &*bpf_prefix,
+                ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
                     if sandbox.is_none() {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
-                        return Ok(0);
+                        result = Ok(0);
+                        return Ok(true);
                     }
                     let deny_list = sandbox.unwrap();
                     if deny_list {
                         enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                         msg.blocked = true;
-                        return Ok(-1);
+                        result = Ok(-1);
+                        return Ok(true);
                     }
                     // allow list is satisfied: do not send event
-                    return Err(0);
+                    result = Err(0);
+                    return Ok(true);
                 } else if let Some(deny_list) = sandbox
                     && !deny_list
                 {
                     // allow list is not satisfied: send event
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     msg.blocked = true;
-                    return Ok(-1);
+                    result = Ok(-1);
+                    return Ok(true);
                 }
             }
-        }
+            Ok(false)
+        })?;
+        result
     }
-    Err(0)
 }
 
 #[inline(always)]
