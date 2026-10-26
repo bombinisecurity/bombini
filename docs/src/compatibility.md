@@ -1,7 +1,7 @@
 # Compatibility
 
-Bombini supports the following Linux kernel versions: **6.2, 6.8 and 6.14**.
-However, it might work on all 6+ kernels.
+Bombini supports the following Linux kernel versions: **6.2, 6.8, 6.14 and 7.0**.
+However, it might work on any kernel starting from 6.2.
 
 ## Requirements    
 
