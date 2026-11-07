@@ -89,7 +89,7 @@ impl Monitor {
 
         let ring_buf_events_lost = self.userspace_events_lost.clone();
         tokio::spawn(async move {
-            let mut poll = AsyncFd::new(ring_buf).unwrap();
+            let mut poll = unsafe { AsyncFd::register(ring_buf) }.unwrap();
             loop {
                 let mut guard = poll.readable_mut().await.unwrap();
                 let ring_buf = guard.get_inner_mut();
