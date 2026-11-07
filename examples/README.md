@@ -24,7 +24,7 @@ cp examples/filemon-rules.yaml /tmp/bombini-example/filemon.yaml
 docker run --pid=host --rm -it --privileged \
   -v /tmp/bombini-example:/usr/local/lib/bombini/config:ro \
   -v /sys/fs/bpf:/sys/fs/bpf \
-  ghcr.io/bombinisecurity/bombini:v1.1.0
+  ghcr.io/bombinisecurity/bombini:v1.2.0
 ```
 
 Then run the trigger from the table in another terminal. Rule syntax is described in

@@ -14,7 +14,7 @@ Start Bombini from the repository root (the image is built for x86_64):
 docker run --pid=host --rm -it --privileged \
   -v $PWD/examples/quickstart:/usr/local/lib/bombini/config:ro \
   -v /sys/fs/bpf:/sys/fs/bpf \
-  ghcr.io/bombinisecurity/bombini:v1.1.0
+  ghcr.io/bombinisecurity/bombini:v1.2.0
 ```
 
 Generate events in another terminal:

@@ -3,7 +3,7 @@
 First pull `bombini` image:
 
 ```bash
-docker pull ghcr.io/bombinisecurity/bombini:v1.1.0
+docker pull ghcr.io/bombinisecurity/bombini:v1.2.0
 ```
 
 `bombini.yaml` manifest has bombini ConfigMap with all configuration setup. By default, only ProcMon
@@ -26,7 +26,7 @@ Events can be found in bombini k8s log.
 Pull `bombini` image:
 
 ```bash
-docker pull ghcr.io/bombinisecurity/bombini:v1.1.0
+docker pull ghcr.io/bombinisecurity/bombini:v1.2.0
 ```
 
 Install [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).
@@ -45,7 +45,7 @@ kind create cluster --config ./kind-config.yaml --name bombini-test-cluster
 Load bombini image in kind cluster:
 
 ```bash
-kind load docker-image ghcr.io/bombinisecurity/bombini:v1.1.0 --name bombini-test-cluster
+kind load docker-image ghcr.io/bombinisecurity/bombini:v1.2.0 --name bombini-test-cluster
 ```
 
 Start bombini:

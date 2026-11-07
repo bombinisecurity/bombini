@@ -3,7 +3,7 @@
 You can get a tarball with installation scripts for bombini systemd service:
 
 ```bash
-wget https://github.com/bombinisecurity/bombini/releases/download/v1.1.0/bombini-v1.1.0.tar.gz
+wget https://github.com/bombinisecurity/bombini/releases/download/v1.2.0/bombini-v1.2.0.tar.gz
 ```
 
 ## Install / Uninstall
@@ -11,7 +11,7 @@ wget https://github.com/bombinisecurity/bombini/releases/download/v1.1.0/bombini
 Unpack bombini tarball:
 
 ```bash
-tar -xvf bombini-v1.1.0.tar.gz
+tar -xvf bombini-v1.2.0.tar.gz
 ```
 
 If you need config customization then update detector configs in `bombini/usr/local/lib/bombini/config`.
