@@ -1,0 +1,171 @@
+# FileMon rules: file and filesystem access.
+#
+# Audit by default: `sandbox.enabled` is false on every hook here, so matching
+# events are reported and nothing is blocked. To enforce a hook, flip
+# `sandbox.enabled` to true on it; `deny_list: true` then blocks the rules
+# below and allows everything else.
+#
+# `path_prefix` is a prefix match, so write directories without a trailing
+# slash: "/etc" also matches "/etc/shadow".
+---
+lists:
+  - list: shells
+    items: ["ash", "bash", "csh", "dash", "ksh", "sh", "tcsh", "zsh"]
+  - list: sensitive_files
+    items: ["/etc/shadow", "/etc/gshadow", "/etc/sudoers", "/etc/pam.conf"]
+  - list: sensitive_dirs
+    items: ["/etc/sudoers.d", "/etc/pam.d", "/etc/ssh", "/root/.ssh"]
+  # Device nodes that are opened with O_CREAT in normal operation, mostly by
+  # shell redirections to /dev/null.
+  - list: allowed_dev_files
+    items: ["/dev/null", "/dev/zero", "/dev/full", "/dev/random", "/dev/urandom",
+            "/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/tty", "/dev/ptmx",
+            "/dev/console"]
+  # Processes allowed to read the files above. Keep this list short: every
+  # entry is a blind spot.
+  - list: trusted_readers
+    items: ["chage", "chpasswd", "cron", "crond", "getent", "login", "newgrp",
+            "nscd", "passwd", "sg", "sshd", "su", "sudo", "systemd",
+            "unix_chkpwd", "useradd", "userdel", "usermod"]
+  # Kernel knobs that turn directly into root: they decide what runs on the
+  # next core dump, what the kernel executes for an unknown binary format,
+  # and what it runs on a uevent. Writing them is a container escape and LPE
+  # primitive, not a normal operation.
+  - list: kernel_surfaces
+    items: ["/proc/sys/kernel/core_pattern", "/proc/sys/kernel/modprobe",
+            "/sys/kernel/uevent_helper", "/proc/sysrq-trigger"]
+
+file_open:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # Credential stores read by anything else than the account tooling (T1555).
+    - rule: SensitiveFileReadByUntrusted
+      scope: NOT binary_name in trusted_readers
+      event: access_mode == "O_RDONLY" AND
+        (path in sensitive_files OR path_prefix in sensitive_dirs)
+
+    # The classic persistence step after a foothold (T1098.004).
+    - rule: AuthorizedKeysWrite
+      event: name == "authorized_keys" AND access_mode in ["O_WRONLY", "O_RDWR"]
+
+    # O_TRUNC is the flag that wipes a log file in place (T1070).
+    # The parentheses are required: AND binds tighter than OR, so the bare
+    # form would match every /var/log open regardless of the flag.
+    - rule: LogFileTruncateOnOpen
+      event: (path_prefix == "/var/log" OR path == "/dev/log" OR
+        name in ["syslog", "auth.log", "secure", "messages"]) AND
+        creation_flags == "O_TRUNC"
+
+    # Rootkits hide here, and /dev is no place for regular files (T1543).
+    #
+    # The classic device nodes must be excluded: a shell redirect to
+    # /dev/null passes O_CREAT, so without the exclusion every
+    # `cmd 2>/dev/null` would be reported.
+    - rule: FileCreatedInDev
+      event: path_prefix == "/dev" AND
+        creation_flags in ["O_CREAT", "O_TMPFILE"] AND
+        NOT path in allowed_dev_files
+
+    # Persistence via cron (T1053.003).
+    - rule: CronJobScheduled
+      event: path_prefix in ["/etc/cron", "/var/spool/cron"]
+
+    # Startup hooks run on every shell or interpreter start (T1546.004).
+    - rule: ShellStartupFileModified
+      scope: NOT binary_name in shells
+      event: name in [".bashrc", ".bash_profile", ".bash_login", ".profile",
+        ".zshrc", ".zshenv", ".zprofile", ".cshrc", ".tcshrc"] OR
+        path in ["/etc/profile", "/etc/bash.bashrc", "/etc/bashrc",
+        "/etc/csh.cshrc", "/etc/csh.login"]
+
+    # Private keys and known hosts (T1005).
+    - rule: SshDirectoryReadByNonSsh
+      scope: NOT binary_name in ["ssh", "scp", "sftp", "sftp-server", "ssh-agent",
+                                 "ssh-add", "ssh-keygen", "ssh-keyscan",
+                                 "ssh-keysign", "git", "rsync"]
+      event: access_mode == "O_RDONLY" AND path_prefix in ["/root/.ssh"]
+
+    # Covers /proc/sys and /sys, which path rules scoped to /etc do not reach.
+    - rule: KernelSurfaceWrite
+      event: path in kernel_surfaces AND access_mode in ["O_WRONLY", "O_RDWR"]
+
+    # Classic rootkit persistence: the loader reads this file on every
+    # dynamically linked program start. Legitimate writes are close to zero.
+    - rule: LdPreloadWrite
+      event: path == "/etc/ld.so.preload" AND access_mode in ["O_WRONLY", "O_RDWR"]
+
+    # Bombini-specific. The detector rules live in pinned maps under the
+    # maps_pin_path from config.yaml; replacing them disables detection
+    # without touching the agent. Keep this prefix in sync with that setting.
+    - rule: AgentMapTamper
+      scope: NOT binary_name == "bombini"
+      event: path_prefix == "/sys/fs/bpf/bombini"
+
+# `path_unlink` needs kernel 6.8 or greater (see docs/src/configuration/filemon.md).
+path_unlink:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # Evidence removal (T1070).
+    - rule: ShellHistoryDeleted
+      event: name in [".bash_history", ".zsh_history", ".sh_history",
+                      ".fish_history", ".mysql_history", ".psql_history"]
+
+    # Ransomware and wipers (T1485).
+    - rule: LogFileDeleted
+      event: path_prefix == "/var/log"
+
+# `path_chmod` needs kernel 6.8 or greater.
+path_chmod:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # The bit itself is the signal (T1548.001); `mode` matches if any of the
+    # listed bits is set.
+    - rule: SetuidBitSet
+      event: mode in ["S_ISUID", "S_ISGID"] AND path_prefix in ["/tmp", "/var/tmp", "/dev/shm", "/home", "/root"]
+
+    # Turning a system binary writable lets any local user replace it
+    # (T1222.002).
+    - rule: SystemBinaryMadeWritable
+      event: path_prefix in ["/bin", "/sbin", "/usr/bin", "/usr/sbin",
+                             "/usr/local/bin", "/usr/local/sbin"] AND
+        mode in ["S_IWOTH", "S_IWGRP"]
+
+# `mmap_file` needs kernel 6.2 or greater.
+#
+# Note on mask attributes: within one `in [...]` the values are OR-ed into a
+# single mask, and the kernel matches when *any* of the bits is set. Writing
+# `prot_mode in ["PROT_EXEC", "PROT_WRITE"]` therefore means "exec **or**
+# write", and combining both as two `AND`-ed conditions fails to compile as
+# always-false.
+mmap_file:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # An executable mapping out of a world-writable path is how fileless
+    # droppers stage code.
+    - rule: ExecutableMapOfWritablePath
+      event: path_prefix in ["/tmp", "/var/tmp", "/dev/shm"] AND
+        prot_mode == "PROT_EXEC"
+
+# `path_truncate` needs kernel 6.8 or greater.
+path_truncate:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # Truncation of an audit trail, the syscall counterpart of LogFileDeleted.
+    - rule: LogFileTruncated
+      event: path_prefix == "/var/log"
+

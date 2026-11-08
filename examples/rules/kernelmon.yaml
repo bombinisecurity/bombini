@@ -1,0 +1,41 @@
+# KernelMon rules: eBPF map and program activity.
+#
+# Profile the BPF tooling on the host before enabling these: every BPF-based
+# agent (Bombini included) loads programs.
+#
+# Start with `bpf_prog_load` and `bpf_prog` only: they fire when a program is
+# loaded or pinned, which is the narrow event. `bpf_map` and `bpf_map_create`
+# fire on ordinary map traffic and are extremely noisy.
+
+bpf_prog_load:
+  enabled: true
+  rules:
+    # A tracing/LSM program loaded by something other than a known agent is
+    # the shape of a kernel rootkit.
+    - rule: TracingProgramLoadedByUnknownTool
+      scope: NOT binary_name in ["bombini", "bpftrace", "bpftool", "bcc",
+                                 "falco", "tetragon", "tracee", "perf"]
+      event: type in ["BPF_PROG_TYPE_TRACING", "BPF_PROG_TYPE_LSM",
+                      "BPF_PROG_TYPE_KPROBE", "BPF_PROG_TYPE_TRACEPOINT"]
+
+bpf_prog:
+  enabled: true
+  rules:
+    # A process that is not an agent obtaining a program descriptor can
+    # detach or replace it, which is how a rootkit survives an agent restart.
+    - rule: ProgramAccessedByUnknownTool
+      scope: NOT binary_name in ["bombini", "bpftool", "falco", "tetragon",
+                                 "tracee"]
+      event: type in ["BPF_PROG_TYPE_TRACING", "BPF_PROG_TYPE_LSM",
+                      "BPF_PROG_TYPE_KPROBE"]
+
+# Left disabled: too noisy without a profile of the host. Enable after the
+# first two hooks have shown which tools legitimately create maps.
+bpf_map_create:
+  enabled: false
+  rules:
+    - rule: MapCreatedByUnknownTool
+      scope: NOT binary_name in ["bombini", "bpftrace", "bpftool", "bcc",
+                                 "falco", "tetragon", "tracee"]
+      event: type in ["BPF_MAP_TYPE_HASH", "BPF_MAP_TYPE_ARRAY",
+                      "BPF_MAP_TYPE_RINGBUF", "BPF_MAP_TYPE_PERF_EVENT_ARRAY"]

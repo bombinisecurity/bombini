@@ -1,0 +1,188 @@
+# ProcMon rules: process starts and credential changes.
+#
+# Audit by default: `sandbox.enabled` is false on every hook, so matching
+# events are reported and nothing is blocked. To enforce a hook, flip
+# `sandbox.enabled` to true on it; `deny_list: true` then blocks the rules
+# below and allows everything else.
+#
+# The one exception is `sched_process_exec`: that hook exists only to block
+# (it kills the process with SIGKILL) and ignores `sandbox.enabled`, so it is
+# left disabled as a whole instead.
+---
+lists:
+  - list: shells
+    items: ["ash", "bash", "csh", "dash", "ksh", "sh", "tcsh", "zsh"]
+  - list: server_binaries
+    items: ["apache2", "httpd", "java", "lighttpd", "mariadbd", "mongod",
+            "mysqld", "nginx", "node", "php-fpm", "postgres", "redis-server"]
+  - list: user_mgmt_binaries
+    items: ["addgroup", "adduser", "chage", "chfn", "chpasswd", "chsh",
+            "delgroup", "deluser", "gpasswd", "groupadd", "groupdel",
+            "groupmod", "newusers", "passwd", "useradd", "userdel", "usermod",
+            "vigr", "vipw"]
+  # https://gtfobins.github.io/#+shell%20+SUID%20+Sudo
+  - list: gtfobins
+    items: ["aa-exec", "awk", "busctl", "busybox", "cabal", "choom", "cpio",
+            "csh", "csvtool", "debugfs", "distcc", "docker", "ed", "emacs",
+            "env", "expect", "find", "flock", "gawk", "gdb", "genie", "gimp",
+            "gtester", "hping3", "ionice", "ispell", "jjs", "jrunscript",
+            "julia", "ld.so", "less", "logsave", "lua", "make", "mawk",
+            "minicom", "more", "msgfilter", "multitime", "nawk", "ncftp",
+            "nice", "nmap", "node", "nohup", "openvpn", "pandoc", "perf",
+            "perl", "pexec", "pg", "php", "python3.12", "rc", "rlwrap", "rsync",
+            "ruby3.0", "run-parts", "rview", "rvim", "scanmem", "sed",
+            "setarch", "setlock", "softlimit", "sqlite3", "ssh-agent",
+            "sshpass", "start-stop-daemon", "stdbuf", "strace", "taskset",
+            "tclsh", "time", "timeout", "unshare", "vagrant", "view", "vim",
+            "vimdiff", "watch", "wget", "xargs", "xdotool"]
+
+# `setuid` reports the credentials a process switches to. Every `sudo`, `su`
+# and login run ends up here, so the well-known ones are excluded by scope.
+setuid:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # Drop the scope to also report sudo, su, sshd and the login chain
+    # (T1548.001).
+    - rule: SetuidToRoot
+      scope: NOT binary_name in ["sudo", "su", "doas", "pkexec", "login",
+                                 "sshd", "systemd", "cron", "crond", "polkitd",
+                                 "unix_chkpwd"]
+      event: euid == 0
+
+setgid:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # Same idea as SetuidToRoot, for group switches.
+    - rule: SetgidToRoot
+      scope: NOT binary_name in ["sudo", "su", "doas", "login", "sshd",
+                                 "systemd", "cron", "crond"]
+      event: egid == 0
+
+capset:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # A list in `ecaps` matches if *any* of the capabilities is set.
+    #
+    # sudo, su and the login chain raise the full set by design, so they are
+    # scoped out; what is left is a process granting itself capabilities
+    # without going through the usual path.
+    - rule: PrivilegedCapabilitiesRaised
+      scope: NOT binary_name in ["sudo", "su", "doas", "pkexec", "login",
+                                 "sshd", "systemd", "polkitd"]
+      event: ecaps in ["CAP_SYS_ADMIN", "CAP_SYS_MODULE", "CAP_SYS_PTRACE",
+                       "CAP_SYS_RAWIO", "CAP_DAC_READ_SEARCH", "CAP_DAC_OVERRIDE",
+                       "CAP_NET_ADMIN", "CAP_BPF", "CAP_PERFMON"]
+
+create_user_ns:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # Unprivileged user namespaces are the entry point of most recent kernel
+    # LPE chains.
+    - rule: UnprivilegedUserNamespace
+      event: NOT ecaps == "CAP_SYS_ADMIN"
+
+# `ptrace_access_check` is a bare hook: only `scope` is supported, there are
+# no event attributes to filter on. The rule reports the tool, not the target.
+ptrace_access_check:
+  enabled: true
+  rules:
+    # Add your own debuggers and profilers here to keep the noise down
+    # (T1055.008).
+    - rule: ProcessInspectionTool
+      scope: binary_name in ["gdb", "gdbserver", "lldb", "lldb-server", "perf",
+                             "rr", "strace", "ltrace"]
+
+# `bprm_check` reports the binary being executed; `scope` is the process that
+# calls exec.
+bprm_check:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # A shell below a service process is how most RCEs and webshells show up
+    # (T1059.004).
+    - rule: ShellSpawnedByServer
+      scope: binary_name in server_binaries
+      event: name in shells
+
+    # Same, but restricted to a root shell: the unambiguous case.
+    - rule: RootShellSpawnedByServer
+      scope: binary_name in server_binaries
+      event: name in shells AND euid == 0
+
+    # Dropped payloads land in world-writable paths that survive container
+    # restarts (T1059.004).
+    - rule: ExecFromWritablePath
+      event: path_prefix in ["/tmp", "/var/tmp", "/dev/shm", "/run/shm"]
+
+    # GTFOBins shell escapes: a privileged tool that spawns a root shell
+    # instead of doing its job. Flip `sandbox.enabled` on this hook to block
+    # the exec instead of only reporting it.
+    - rule: GtfobinsShellEscape
+      scope: binary_name in gtfobins
+      event: name in ["sh", "bash", "dash", "zsh"] AND euid == 0
+
+    # Account creation and password changes, a common persistence step (T1098).
+    - rule: UserManagementToolExec
+      event: name in user_mgmt_binaries
+
+    # Network tools are not suspicious by themselves; correlate with the netmon
+    # pack (T1059).
+    - rule: NetworkToolExec
+      event: name in ["ncat", "nc", "netcat", "nmap", "socat", "tcpdump",
+                      "tshark", "tunshell"]
+
+    # A direct child of sshd that is not a shell or an SSH subsystem: tunnelling
+    # tools and ForceCommand scripts show up here. Expect to tune the list for
+    # ForceCommand setups.
+    - rule: SshdSpawnsNonShell
+      scope: parent_binary_name == "sshd"
+      event: NOT name in ["sh", "bash", "dash", "zsh", "ksh", "csh", "tcsh",
+                          "sftp-server", "ssh-keysign", "scp", "sftp"]
+
+    # `kubectl exec` / `docker exec` expressed through process lineage: a shell
+    # whose parent is the
+    # container runtime. Bombini has no container or tty fields, so the
+    # parent name stands in for them.
+    - rule: ContainerShellExec
+      scope: parent_binary_name in ["runc", "crun", "containerd-shim", "conmon"]
+      event: name in shells
+
+# `sched_process_exec` is the only hook that can kill a process (SIGKILL). It
+# always enforces: `sandbox.enabled: false` is ignored and the matching
+# process is still killed, so the hook is disabled as a whole instead.
+# Flip `enabled` to turn the blocking on.
+sched_process_exec:
+  enabled: false
+  sandbox:
+    enabled: true
+    deny_list: true
+  rules:
+    # Arguments are matched independently of their position: `argN in [...]`
+    # is true when *any* argument is in the list, so this blocks
+    # `rm -r /etc/passwd` whatever the order of the flags is.
+    - rule: DenyRmRecursiveOnPasswd
+      scope: binary_name == "rm"
+      event: arg0 in ["-r", "-rf", "-fr"] AND arg1 in ["/etc/passwd"]
+
+    # Blocks `rm -r` on the root. The list holds the top-level directories as
+    # well as "/", because the shell expands `rm -rf /*` into them before exec
+    # and the literal "/*" never reaches the kernel.
+    - rule: DenyRmRecursiveOnRoot
+      scope: binary_name == "rm"
+      event: arg0 in ["-r", "-R", "-rf", "-fr", "-Rf", "-fR"] AND
+        arg1 in ["/", "/bin", "/boot", "/etc", "/home", "/lib", "/root",
+                 "/usr", "/var"]
