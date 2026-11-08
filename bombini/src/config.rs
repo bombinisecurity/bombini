@@ -135,22 +135,28 @@ mod tests {
 
     #[test]
     fn example_rules_compile() {
-        // Each example is a single detector config named <detector>-<topic>.yaml
-        for entry in std::fs::read_dir(repo_path("examples")).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_none_or(|ext| ext != "yaml") {
-                continue;
+        // Each example is a single detector config named <detector>.yaml or
+        // <detector>-<topic>.yaml. The rule library lives in examples/rules;
+        // examples/quickstart has its own test below, since it needs config.yaml.
+        for dir_name in ["examples", "examples/rules"] {
+            for entry in std::fs::read_dir(repo_path(dir_name)).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension().is_none_or(|ext| ext != "yaml") {
+                    continue;
+                }
+                let file_name = path.file_name().unwrap().to_string_lossy();
+                // <detector>.yaml in the rule library, <detector>-<topic>.yaml elsewhere
+                let stem = path.file_stem().unwrap().to_string_lossy();
+                let detector = stem.split('-').next().unwrap();
+                let dir = TempDir::new().unwrap();
+                std::fs::copy(&path, dir.path().join(format!("{detector}.yaml"))).unwrap();
+                // procmon is always loaded, an empty config means defaults
+                if detector != "procmon" {
+                    std::fs::write(dir.path().join("procmon.yaml"), "").unwrap();
+                }
+                check_config_dir(dir.path(), vec![detector.to_string()])
+                    .unwrap_or_else(|e| panic!("{dir_name}/{file_name}: {e:#}"));
             }
-            let file_name = path.file_name().unwrap().to_string_lossy();
-            let detector = file_name.split('-').next().unwrap();
-            let dir = TempDir::new().unwrap();
-            std::fs::copy(&path, dir.path().join(format!("{detector}.yaml"))).unwrap();
-            // procmon is always loaded, an empty config means defaults
-            if detector != "procmon" {
-                std::fs::write(dir.path().join("procmon.yaml"), "").unwrap();
-            }
-            check_config_dir(dir.path(), vec![detector.to_string()])
-                .unwrap_or_else(|e| panic!("{file_name}: {e:#}"));
         }
     }
 
