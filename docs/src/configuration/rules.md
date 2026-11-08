@@ -293,6 +293,28 @@ Rules can be compiled without starting the agent, see
 bombini --validate examples/filemon-macros.yaml
 ```
 
+## Rule Library
+
+The repository ships a rule library in
+[`examples/rules`](https://github.com/bombinisecurity/bombini/tree/main/examples/rules), one
+file per detector (`procmon.yaml`, `filemon.yaml`, `netmon.yaml`, `kernelmon.yaml`), so the
+directory can be used as a config directory together with a `config.yaml`.
+
+The rules are based on the [Falco](https://github.com/falcosecurity/rules) default rules and
+[Tetragon](https://github.com/cilium/tetragon/tree/main/examples/tracingpolicy) tracing
+policies, but they are not a one-to-one port: Bombini has no container, tty or command-line
+fields outside `sched_process_exec`, so each rule is rewritten in terms of binary and parent
+names, paths, flags, capabilities and addresses. The comment above a rule says what it detects
+and gives the ATT&CK technique. Some rules have no counterpart in either project, for example blocking writes to
+`/proc/sys/kernel/core_pattern` or detecting access to Bombini's own pinned maps.
+
+The library runs in audit mode by default: every hook that supports a sandbox has
+`sandbox.enabled: false`, so matches are reported with `"blocked":false` and nothing is
+denied. Enable the sandbox per hook once the events show no legitimate matches. The exception
+is `sched_process_exec`: it always enforces and ignores `sandbox.enabled` (see
+[ProcMon](procmon.md#sched_process_exec)), so the library ships it with
+`enabled: false` for the whole hook.
+
 ## Sandbox Mode
 
 Bombini supports sandboxing for ProcMon, FileMon and NetMon detectors, allowing to define fine-grained access control policies that are enforced directly in-kernel via eBPF LSM hooks. When enabled, sandboxing evaluates rules in enforcement mode: matching events can be allowed or denied based on the configured policy. In allow-list mode, `event` restrictions are tied to the `scope` of the event. If there is no `scope` restriction, the `event` restriction is applied to the entire host.

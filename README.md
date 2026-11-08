@@ -143,6 +143,9 @@ Bombini prints events to stdout as JSON lines. This is the blocked exec:
 
 More ready-made policies, such as [GTFOBins](./examples/procmon-gtfobins.yaml) shell escapes
 and [privilege escalation](./examples/procmon-privilege-raise.yaml), are in [examples](./examples).
+The [rule library](./examples/rules) has one file per detector, based on the Falco default
+rules and Tetragon tracing policies and adapted to Bombini, plus rules only Bombini can
+express. It runs in audit mode by default: flip `sandbox.enabled` on a hook to enforce it.
 
 ## Detectors
 
