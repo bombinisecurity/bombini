@@ -33,7 +33,7 @@ base64 = "0.23.0"
 arc-swap = "1.9.2"
 futures-util = { version = "0.3.32", optional = true }
 # rustls with ring: the release build is statically linked against musl
-kube = { version = "4.2.0", default-features = false, features = ["client", "runtime", "rustls-tls", "ring"], optional = true }
+kube = { version = "5.0.0", default-features = false, features = ["client", "runtime", "rustls-tls", "ring"], optional = true }
 k8s-openapi = { version = "0.28.0", features = ["v1_32"], optional = true }
 
 [dev-dependencies]
