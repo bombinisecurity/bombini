@@ -1,0 +1,80 @@
+# NetMon rules: TCP connections and sockets.
+#
+# Audit by default: `sandbox.enabled` is false wherever the hook supports a
+# sandbox (`socket_create`, `socket_connect`). The TCP hooks `egress` and
+# `ingress` only report.
+#
+# Address lists are parsed as CIDR. Two rules follow from how the kernel
+# evaluates them:
+#
+#   * an `ipv4_*` attribute is false on an IPv6 event and vice versa, so a
+#     negated address check must be written as a conjunction of negations.
+#     `NOT ipv4_dst in X OR NOT ipv6_dst in Y` matches *every* IPv6 event,
+#     because the IPv4 half is vacuously true there. `AND` is the form that
+#     reduces to the check for the family of the event.
+#   * a positive check (`ipv4_dst in [...]`) needs no such care: it is simply
+#     false on the other family.
+---
+lists:
+  - list: private_v4
+    items: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8",
+            "169.254.0.0/16"]
+  - list: private_v6
+    items: ["::1", "fc00::/7", "fe80::/10"]
+
+egress:
+  enabled: true
+  rules:
+    # Traffic leaving the private ranges and the loopback. Link-local is in
+    # `private_v4` on purpose: it holds the cloud metadata endpoint, which gets
+    # its own rule below.
+    - rule: EgressOutsidePrivateNetwork
+      event: NOT ipv4_dst in private_v4 AND NOT ipv6_dst in private_v6
+
+    # Stealing the instance role this way is the most common cloud escalation
+    # (T1552.005).
+    - rule: CloudMetadataAccess
+      event: ipv4_dst in ["169.254.169.254", "169.254.170.2", "100.100.100.200"]
+
+    # Common cryptominer pool ports.
+    - rule: MiningPoolPort
+      event: port_dst in [3333, 3334, 3335, 3336, 3357, 4444, 5555, 5730, 7777,
+                          8333, 8888, 9999, 14433, 14444, 45560]
+
+    # A reverse shell driven over ssh shows up as ssh to a port that is not 22
+    # (T1059).
+    - rule: SshToNonStandardPort
+      scope: binary_name == "ssh"
+      event: port_dst in [80, 88, 443, 4444, 8080, 8443]
+
+# `socket_connect` carries both families and supports sandbox mode, so it is
+# the hook to use for enforcement. It is left off here because it reports the
+# same connections as `egress` above: enable it *instead* of `egress` to get a
+# single event per connection, then flip `sandbox.enabled` to block.
+socket_connect:
+  enabled: false
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    - rule: ConnectOutsidePrivateNetwork
+      event: NOT ipv4_dst in private_v4 AND NOT ipv6_dst in private_v6
+
+# `socket_create` reports socket(2) calls. Raw and packet sockets are the ones
+# worth watching: they need privileges and are what packet sniffers and ARP
+# spoofers use.
+socket_create:
+  enabled: true
+  sandbox:
+    enabled: false
+    deny_list: true
+  rules:
+    # Packet sockets are used for ARP spoofing and sniffing (T1557.002).
+    - rule: PacketSocketCreated
+      event: family == "AF_PACKET"
+
+    # Raw IP sockets bypass the TCP/IP stack. The family filter matters:
+    # AF_NETLINK with SOCK_RAW is how systemd and iproute2 talk to the kernel,
+    # so without it every netlink socket would be reported.
+    - rule: RawSocketCreated
+      event: family in ["AF_INET", "AF_INET6"] AND type in ["SOCK_RAW", "SOCK_PACKET"]
