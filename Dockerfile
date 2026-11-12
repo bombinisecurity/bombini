@@ -1,4 +1,4 @@
-FROM rust:1.95.0 AS bombini-builder
+FROM rust:1.99.1 AS bombini-builder
 
 # musl-tools: ring, the rustls crypto provider, compiles C for musl
 RUN apt update && apt install -y  bpftool clang libbpf-dev musl-tools
