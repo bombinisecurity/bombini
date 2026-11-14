@@ -59,7 +59,7 @@ impl Attribute for PathAttribute {
             } else {
                 key.path.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
             }
-            let _ = path_map.insert(key, value, 0);
+            let _ = path_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -101,7 +101,7 @@ impl Attribute for NameAttribute {
             } else {
                 key.name.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
             }
-            let _ = name_map.insert(key, value, 0);
+            let _ = name_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -190,7 +190,7 @@ impl Attribute for BinaryPathAttribute {
             } else {
                 key.path.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
             }
-            let _ = path_map.insert(key, value, 0);
+            let _ = path_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -236,7 +236,7 @@ impl Attribute for BinaryNameAttribute {
             } else {
                 key.name.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
             }
-            let _ = name_map.insert(key, value, 0);
+            let _ = name_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -328,7 +328,7 @@ impl Attribute for ParentBinaryPathAttribute {
             } else {
                 key.path.clone_from_slice(&path_bytes[..MAX_FILE_PATH]);
             }
-            let _ = path_map.insert(key, value, 0);
+            let _ = path_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -373,7 +373,7 @@ impl Attribute for ParentBinaryNameAttribute {
             } else {
                 key.name.clone_from_slice(&name_bytes[..MAX_FILENAME_SIZE]);
             }
-            let _ = name_map.insert(key, value, 0);
+            let _ = name_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -482,7 +482,7 @@ impl Attribute for AccessModeAttribute {
                 rule_idx: rule_idx as u32,
                 access_mode: *mode,
             };
-            let _ = access_mode_map.insert(key, value, 0);
+            let _ = access_mode_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -544,7 +544,7 @@ impl Attribute for CreationFlagsAttribute {
                 rule_idx,
                 in_idx: *in_idx,
             };
-            let _ = creation_flags.insert(key, value, 0);
+            let _ = creation_flags.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -582,7 +582,7 @@ impl Attribute for UIDAttribute {
                 rule_idx: rule_idx as u32,
                 value: *uid,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -617,7 +617,7 @@ impl Attribute for EUIDAttribute {
                 rule_idx: rule_idx as u32,
                 value: *uid,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -652,7 +652,7 @@ impl Attribute for GIDAttribute {
                 rule_idx: rule_idx as u32,
                 value: *uid,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -687,7 +687,7 @@ impl Attribute for EGIDAttribute {
                 rule_idx: rule_idx as u32,
                 value: *uid,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -722,7 +722,7 @@ impl Attribute for CmdAttribute {
                 rule_idx: rule_idx as u32,
                 value: *uid,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -778,7 +778,7 @@ impl Attribute for ImodeAttribute {
                 rule_idx,
                 in_idx: *in_idx,
             };
-            let _ = mode_map.insert(key, value, 0);
+            let _ = mode_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -837,7 +837,7 @@ impl Attribute for ProtModeAttribute {
                 rule_idx,
                 in_idx: *in_idx,
             };
-            let _ = prot_map.insert(key, value, 0);
+            let _ = prot_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -896,7 +896,7 @@ impl Attribute for MmapFlagsAttribute {
                 rule_idx,
                 in_idx: *in_idx,
             };
-            let _ = flags_map.insert(key, value, 0);
+            let _ = flags_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -957,7 +957,7 @@ impl Attribute for ECapsAttribute {
                 rule_idx,
                 in_idx: *in_idx,
             };
-            let _ = ecap_map.insert(key, value, 0);
+            let _ = ecap_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1015,7 +1015,7 @@ impl Attribute for PCapsAttribute {
                 rule_idx,
                 in_idx: *in_idx,
             };
-            let _ = ecap_map.insert(key, value, 0);
+            let _ = ecap_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1303,7 +1303,7 @@ impl Attribute for PortSrcAttribute {
                 rule_idx: rule_idx as u16,
                 port: *port,
             };
-            let _ = port_src_map.insert(key, value, 0);
+            let _ = port_src_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1364,7 +1364,7 @@ impl Attribute for PortDstAttribute {
                 rule_idx: rule_idx as u16,
                 port: *port,
             };
-            let _ = port_src_map.insert(key, value, 0);
+            let _ = port_src_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1410,7 +1410,7 @@ impl Attribute for BpfNameAttribute {
             } else {
                 key.name.clone_from_slice(&name_bytes[..MAX_BPFNAME_SIZE]);
             }
-            let _ = name_map.insert(key, value, 0);
+            let _ = name_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1491,7 +1491,7 @@ impl Attribute for BpfIdAttribute {
                 rule_idx: rule_idx as u32,
                 value: *uid,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1526,7 +1526,7 @@ impl Attribute for BpfMapTypeAttribute {
                 rule_idx: rule_idx as u32,
                 map_type: *map_type,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1561,7 +1561,7 @@ impl Attribute for BpfProgTypeAttribute {
                 rule_idx: rule_idx as u32,
                 prog_type: *prog_type,
             };
-            let _ = uid_map.insert(key, value, 0);
+            let _ = uid_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1596,7 +1596,7 @@ impl Attribute for SockFamilyAttribute {
                 rule_idx: rule_idx as u32,
                 family: *family,
             };
-            let _ = family_map.insert(key, value, 0);
+            let _ = family_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1634,7 +1634,7 @@ impl Attribute for SockTypeAttribute {
                 rule_idx: rule_idx as u32,
                 socket_type: *socket_type,
             };
-            let _ = type_map.insert(key, value, 0);
+            let _ = type_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1690,7 +1690,7 @@ impl Attribute for SockFlagsAttribute {
                 rule_idx,
                 in_idx: *in_idx,
             };
-            let _ = flags_map.insert(key, value, 0);
+            let _ = flags_map.insert(&key, value, 0);
         }
         Ok(())
     }
@@ -1760,7 +1760,7 @@ impl Attribute for ArgAttribute {
                 let len = bytes.len();
                 dst[..len].copy_from_slice(bytes);
             });
-            let _ = arg_map.insert(key, args, 0);
+            let _ = arg_map.insert(&key, &args, 0);
         }
         Ok(())
     }

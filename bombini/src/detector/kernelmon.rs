@@ -135,6 +135,7 @@ impl KernelMon {
     {
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
+        super::reuse_shared_pinned_maps(ebpf_loader_ref, maps_pin_path.as_ref())?;
 
         let (hooks, detector_config) = build_hooks(&config)?;
 
@@ -202,7 +203,7 @@ impl Detector for KernelMon {
     fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, KernelMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("KERNELMON_CONFIG").unwrap())?;
-        let _ = config_map.set(0, self.config, 0);
+        let _ = config_map.set(0, &self.config, 0);
 
         init_all_kernelmon_filter_maps(&self.hooks, &mut self.ebpf)?;
         Ok(())

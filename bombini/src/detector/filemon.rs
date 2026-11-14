@@ -104,6 +104,7 @@ impl FileMon {
     {
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
+        super::reuse_shared_pinned_maps(ebpf_loader_ref, maps_pin_path.as_ref())?;
 
         let (hooks, detector_config) = build_hooks(&config)?;
 
@@ -259,7 +260,7 @@ impl Detector for FileMon {
     fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, FileMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("FILEMON_CONFIG").unwrap())?;
-        let _ = config_map.set(0, self.config, 0);
+        let _ = config_map.set(0, &self.config, 0);
         init_all_filemon_maps(&self.hooks, &mut self.ebpf)?;
         Ok(())
     }
@@ -349,7 +350,7 @@ fn init_all_filemon_maps(
 
     let mut zero_map: Array<_, [u8; MAX_FILE_PATH]> =
         Array::try_from(ebpf.map_mut("ZERO_PATH_MAP").unwrap())?;
-    zero_map.set(0, [0; MAX_FILE_PATH], 0)?;
+    zero_map.set(0, &[0; MAX_FILE_PATH], 0)?;
 
     Ok(())
 }
