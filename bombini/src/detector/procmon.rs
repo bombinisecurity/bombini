@@ -309,7 +309,7 @@ impl Detector for ProcMon {
     fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, ProcMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("PROCMON_CONFIG").unwrap())?;
-        let _ = config_map.set(0, self.config, 0);
+        let _ = config_map.set(0, &self.config, 0);
 
         let current_processes = process::all_processes().unwrap();
         let mut proc_map: HashMap<_, u32, ProcInfo> =
@@ -319,7 +319,7 @@ impl Detector for ProcMon {
             .filter(|p| p.is_alive())
             .filter_map(|p| ProcInfo::from_procfs(&p))
             .for_each(|p| {
-                let _ = proc_map.insert(p.pid, p, 0);
+                let _ = proc_map.insert(&p.pid, &p, 0);
             });
 
         init_all_procmon_filter_maps(&self.hooks, &mut self.ebpf)?;
@@ -400,11 +400,11 @@ fn init_all_procmon_filter_maps(
 
     let mut zero_map: Array<_, [u8; PAGE_SIZE]> =
         Array::try_from(ebpf.map_mut("ZERO_MAP").unwrap())?;
-    zero_map.set(0, [0; PAGE_SIZE], 0)?;
+    zero_map.set(0, &[0; PAGE_SIZE], 0)?;
 
     let mut zero_map: Array<_, [u8; MAX_EVENT_SIZE]> =
         Array::try_from(ebpf.map_mut(ZERO_EVENT_MAP).unwrap())?;
-    zero_map.set(0, [0; MAX_EVENT_SIZE], 0)?;
+    zero_map.set(0, &[0; MAX_EVENT_SIZE], 0)?;
 
     Ok(())
 }
