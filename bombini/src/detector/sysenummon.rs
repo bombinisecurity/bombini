@@ -83,6 +83,7 @@ impl SysEnumMon {
 
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
+        super::reuse_shared_pinned_maps(ebpf_loader_ref, maps_pin_path.as_ref())?;
         if !names.is_empty() {
             ebpf_loader_ref.map_max_entries("SYSENUMMON_NAME_MAP", names.len() as u32);
         }
@@ -109,7 +110,7 @@ impl Detector for SysEnumMon {
     fn map_initialize(&mut self) -> Result<(), DetectorError> {
         let mut config_map: Array<_, SysEnumMonKernelConfig> =
             Array::try_from(self.ebpf.map_mut("SYSENUMMON_CONFIG").unwrap())?;
-        let _ = config_map.set(0, self.config, 0);
+        let _ = config_map.set(0, &self.config, 0);
 
         let mut name_map: EbpfHashMap<_, [u8; MAX_FILENAME_SIZE], u8> =
             EbpfHashMap::try_from(self.ebpf.map_mut("SYSENUMMON_NAME_MAP").unwrap())?;
@@ -134,7 +135,7 @@ impl Detector for SysEnumMon {
         }
         let mut zero_map: Array<_, [u8; PAGE_SIZE]> =
             Array::try_from(self.ebpf.map_mut("ZERO_MAP").unwrap())?;
-        let _ = zero_map.set(0, [0; PAGE_SIZE], 0);
+        let _ = zero_map.set(0, &[0; PAGE_SIZE], 0);
         Ok(())
     }
 

@@ -264,7 +264,7 @@ where
     fn store_predicates(&self, ebpf: &mut Ebpf, rule_map_name: &str) -> Result<(), anyhow::Error> {
         let mut map: Array<_, BinaryRules> = Array::try_from(ebpf.map_mut(rule_map_name).unwrap())?;
         if self.rules.is_empty() {
-            let _ = map.set(0, BinaryRules(None), 0);
+            let _ = map.set(0, &BinaryRules(None), 0);
             return Ok(());
         }
         let mut rules = [BinaryRule {
@@ -277,7 +277,7 @@ where
                 event: rule.event_predicate.predicate(),
             };
         }
-        let _ = map.set(0, BinaryRules(Some(rules)), 0);
+        let _ = map.set(0, &BinaryRules(Some(rules)), 0);
         Ok(())
     }
 

@@ -20,6 +20,7 @@ impl IOUringMon {
     {
         let mut ebpf_loader = EbpfLoader::new();
         let ebpf_loader_ref = ebpf_loader.default_map_pin_directory(maps_pin_path.as_ref());
+        super::reuse_shared_pinned_maps(ebpf_loader_ref, maps_pin_path.as_ref())?;
         let ebpf = ebpf_loader_ref.load_file(obj_path.as_ref())?;
         Ok(IOUringMon { ebpf })
     }
