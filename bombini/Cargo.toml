@@ -27,7 +27,7 @@ chrono = { version = "0.4.44", features = ["alloc"] }
 schemars = {version = "1.2.1", optional = true }
 lalrpop-util = {version = "0.23.1", features = ["lexer", "unicode"] }
 file-rotate = "0.8.0"
-prometheus-client = "0.25.0"
+prometheus-client = "0.26.0"
 axum = "0.8.9"
 base64 = "0.23.0"
 arc-swap = "1.9.2"
