@@ -1934,22 +1934,20 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
         let Some(keys) = PROCMON_BPRM_CHECK_KEYS_HEAP.get_ptr_mut(0) else {
             return Err(-1);
         };
-        let keys = &mut *keys;
-        keys.euid = UIDKey {
-            rule_idx: 0,
-            value: cred.euid(),
-        };
-        keys.egid = UIDKey {
-            rule_idx: 0,
-            value: cred.egid(),
-        };
-        keys.ecap = CapValue {
-            rule_idx: 0,
-            caps: Capabilities::from_bits_retain(cred.cap_effective()),
-        };
-        let proc_euid = &keys.euid;
-        let proc_egid = &keys.egid;
-        let proc_ecap = &keys.ecap;
+        unsafe {
+            (*keys).euid = UIDKey {
+                rule_idx: 0,
+                value: cred.euid(),
+            };
+            (*keys).egid = UIDKey {
+                rule_idx: 0,
+                value: cred.egid(),
+            };
+            (*keys).ecap = CapValue {
+                rule_idx: 0,
+                caps: Capabilities::from_bits_retain(cred.cap_effective()),
+            };
+        }
 
         // Get binary name
         let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -1965,6 +1963,10 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
 
         let mut result: Result<i32, i32> = Err(0);
         interpreter::for_each_rule(rule_array, |idx, rule| {
+            let keys = unsafe { &mut *keys };
+            keys.euid.rule_idx = idx as u32;
+            keys.egid.rule_idx = idx as u32;
+            keys.ecap.rule_idx = idx as u8;
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -2006,9 +2008,9 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                     file_name,
                     file_path,
                     file_prefix,
-                    proc_euid,
-                    proc_egid,
-                    proc_ecap,
+                    &keys.euid,
+                    &keys.egid,
+                    &keys.ecap,
                 ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {

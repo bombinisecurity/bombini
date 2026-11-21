@@ -436,6 +436,47 @@ bprm_check:
 }
 
 #[test]
+fn test_6_2_procmon_bprm_check_rule_idx() {
+    let config_contents = r#"
+bprm_check:
+  enabled: true
+  rules:
+  - rule: BprmUnrelatedRule
+    event: path_prefix == "/nonexistent-bombini-rule-idx"
+  - rule: BprmSecondRuleEuid
+    scope: binary_name == "xargs"
+    event: name == "bash" AND euid == 0
+"#;
+
+    let mut bombini = BombiniBuilder::new()
+        .detector("procmon", Some(config_contents))
+        .events_timeout(3)
+        .launch()
+        .unwrap();
+
+    let mut gtfo_proc = Command::new("sudo")
+        .args(["xargs", "-a", "/dev/null", "/bin/bash"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("can't start ls");
+
+    // Wait Events being processed
+    let events = bombini
+        .wait_for_events("\"rule\":\"BprmSecondRuleEuid\"", 1)
+        .unwrap();
+    bombini.stop();
+
+    let _ = signal::kill(Pid::from_raw(gtfo_proc.id() as i32), Signal::SIGKILL);
+    let _ = gtfo_proc.wait().unwrap();
+
+    print_example_events!(&events);
+    assert_eq!(events.matches("\"rule\":\"BprmSecondRuleEuid\"").count(), 1);
+    assert_eq!(events.matches("\"rule\":\"BprmUnrelatedRule\"").count(), 0);
+}
+
+#[test]
 fn test_6_2_procmon_bprm_check_parent_binary() {
     let config_contents = r#"
 bprm_check:
