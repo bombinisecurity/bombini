@@ -90,7 +90,7 @@ impl CheckIn for BprmCheckFilter<'_> {
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
             id if id == Attributes::EGID as u8 => unsafe {
-                let Some(mask_path) = self.egid_map.get(self.keys.euid) else {
+                let Some(mask_path) = self.egid_map.get(self.keys.egid) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
