@@ -1744,7 +1744,7 @@ fn try_ptrace_access_check_capture(
 
     unsafe {
         let Some(ref rule_array) = rules.0 else {
-            return enrich_ptrace_access_check_info(msg, proc, &ctx);
+            return enrich_ptrace_access_check_info(msg, proc, &ctx, None);
         };
 
         // Get binary name
@@ -1781,7 +1781,7 @@ fn try_ptrace_access_check_capture(
                 parent_prefix,
             ));
             if scope_filter.check_predicate(&rule.scope)? {
-                result = enrich_ptrace_access_check_info(msg, proc, &ctx);
+                result = enrich_ptrace_access_check_info(msg, proc, &ctx, Some(idx as u8));
                 return Ok(true);
             }
             Ok(false)
@@ -2041,7 +2041,10 @@ fn enrich_ptrace_access_check_info(
     msg: &mut ProcessMsg,
     proc: &ProcInfo,
     ctx: &LsmContext,
+    rule_idx: Option<u8>,
 ) -> Result<i32, i32> {
+    msg.rule_idx = rule_idx;
+
     let ProcessEventVariant::PtraceAccessCheck(ref mut event) = msg.event else {
         return Err(-1);
     };
