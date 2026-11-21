@@ -133,7 +133,7 @@ bprm_check:
     # the exec instead of only reporting it.
     - rule: GtfobinsShellEscape
       scope: binary_name in gtfobins
-      event: name in ["sh", "bash", "dash", "zsh"] AND euid == 0
+      event: name in shells AND euid == 0
 
     # Account creation and password changes, a common persistence step (T1098).
     - rule: UserManagementToolExec
