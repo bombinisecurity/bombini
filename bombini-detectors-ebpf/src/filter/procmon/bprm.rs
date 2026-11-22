@@ -11,6 +11,13 @@ use aya_ebpf::maps::{LpmTrie, lpm_trie::Key};
 use bombini_common::config::rule::{FileNameMapKey, PathMapKey, PathPrefixMapKey};
 
 #[repr(C)]
+pub struct BprmCheckKeys {
+    pub euid: UIDKey,
+    pub egid: UIDKey,
+    pub ecap: CapValue,
+}
+
+#[repr(C)]
 pub struct BprmCheckFilter<'a> {
     pub name_map: &'a HashMap<FileNameMapKey, u8>,
     pub path_map: &'a HashMap<PathMapKey, u8>,
@@ -22,9 +29,7 @@ pub struct BprmCheckFilter<'a> {
     pub name: &'a FileNameMapKey,
     pub path: &'a PathMapKey,
     pub prefix: &'a Key<PathPrefixMapKey>,
-    pub euid: &'a UIDKey,
-    pub egid: &'a UIDKey,
-    pub ecap: &'a CapValue,
+    pub keys: &'a BprmCheckKeys,
 }
 
 impl<'a> BprmCheckFilter<'a> {
@@ -40,9 +45,7 @@ impl<'a> BprmCheckFilter<'a> {
         name: &'a FileNameMapKey,
         path: &'a PathMapKey,
         prefix: &'a Key<PathPrefixMapKey>,
-        euid: &'a UIDKey,
-        egid: &'a UIDKey,
-        ecap: &'a CapValue,
+        keys: &'a BprmCheckKeys,
     ) -> Self {
         Self {
             name_map,
@@ -54,9 +57,7 @@ impl<'a> BprmCheckFilter<'a> {
             name,
             path,
             prefix,
-            euid,
-            egid,
-            ecap,
+            keys,
         }
     }
 }
@@ -83,26 +84,26 @@ impl CheckIn for BprmCheckFilter<'_> {
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             }
             id if id == Attributes::EUID as u8 => unsafe {
-                let Some(mask_path) = self.euid_map.get(self.euid) else {
+                let Some(mask_path) = self.euid_map.get(self.keys.euid) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
             id if id == Attributes::EGID as u8 => unsafe {
-                let Some(mask_path) = self.egid_map.get(self.euid) else {
+                let Some(mask_path) = self.egid_map.get(self.keys.euid) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
             id if id == Attributes::ECAPS as u8 => unsafe {
                 let ecap_key = CapKey {
-                    rule_idx: self.ecap.rule_idx,
+                    rule_idx: self.keys.ecap.rule_idx,
                     in_idx: in_op_idx,
                 };
                 let Some(caps) = self.ecap_map.get(ecap_key) else {
                     return Ok(false);
                 };
-                Ok(*caps & self.ecap.caps != Capabilities::empty())
+                Ok(*caps & self.keys.ecap.caps != Capabilities::empty())
             },
             _ => Err(-1),
         }

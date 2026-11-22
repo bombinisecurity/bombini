@@ -50,7 +50,7 @@ use bombini_detectors_ebpf::{
     event_map::trace_error,
     filter::{
         procmon::{
-            bprm::BprmCheckFilter,
+            bprm::{BprmCheckFilter, BprmCheckKeys},
             cred::{CapFilter, CapValue, CredFilter, UidFilter},
             exec::SchedProcessExecFilter,
         },
@@ -1838,13 +1838,6 @@ static PROCMON_BPRM_CHECK_PBINPREFIX_MAP: LpmTrie<PathPrefixMapKey, u8> =
 // Filter maps end
 
 // Bprm_check filter keys heap
-#[repr(C)]
-struct BprmCheckKeys {
-    euid: UIDKey,
-    egid: UIDKey,
-    ecap: CapValue,
-}
-
 #[map]
 static PROCMON_BPRM_CHECK_KEYS_HEAP: PerCpuArray<BprmCheckKeys> =
     PerCpuArray::with_max_entries(1, 0);
@@ -1916,13 +1909,6 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
         // Get filtering attributes
         // Get file name
         let d_name = core_read_kernel!(file, f_path, dentry, d_name, name).ok_or(-1i32)?;
-        let file_name = fill_name_map!(PROCMON_FILE_NAME_MAP, d_name);
-
-        // Get file path
-        let file_path = fill_path_map!(PROCMON_PATH_MAP, &event.binary);
-
-        // Get file prefix
-        let file_prefix = fill_prefix_map!(PROCMON_PATH_PREFIX_MAP, &event.binary);
 
         hack_dynptr_for_verifier();
 
@@ -1947,9 +1933,15 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
             rule_idx: 0,
             caps: Capabilities::from_bits_retain(cred.cap_effective()),
         };
-        let proc_euid = &keys.euid;
-        let proc_egid = &keys.egid;
-        let proc_ecap = &keys.ecap;
+
+        // Get file name
+        let file_name = fill_name_map!(PROCMON_FILE_NAME_MAP, d_name);
+
+        // Get file path
+        let file_path = fill_path_map!(PROCMON_PATH_MAP, &event.binary);
+
+        // Get file prefix
+        let file_prefix = fill_prefix_map!(PROCMON_PATH_PREFIX_MAP, &event.binary);
 
         // Get binary name
         let binary_name = fill_name_map!(PROCMON_BINARY_FILE_NAME_MAP, &proc.filename);
@@ -1965,6 +1957,9 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
 
         let mut result: Result<i32, i32> = Err(0);
         interpreter::for_each_rule(rule_array, |idx, rule| {
+            keys.euid.rule_idx = idx as u32;
+            keys.egid.rule_idx = idx as u32;
+            keys.ecap.rule_idx = idx as u8;
             file_name.rule_idx = idx as u8;
             file_path.rule_idx = idx as u8;
             file_prefix.data.rule_idx = idx as u8;
@@ -2006,9 +2001,7 @@ fn try_bprm_check_capture(ctx: LsmContext, generic_event: &mut GenericEvent) -> 
                     file_name,
                     file_path,
                     file_prefix,
-                    proc_euid,
-                    proc_egid,
-                    proc_ecap,
+                    keys,
                 ));
                 let passed = event_filter.check_predicate(&rule.event)?;
                 if passed {
