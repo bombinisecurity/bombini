@@ -4,7 +4,7 @@ version = "1.2.0"
 edition = "2024"
 
 [dependencies]
-aya-ebpf = "0.2.0"
+aya-ebpf = "0.3.0"
 bombini-common = { path = "../bombini-common" }
 bitflags = "2.12.1"
 paste = "1"
