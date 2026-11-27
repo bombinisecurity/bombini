@@ -54,7 +54,7 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<&'static mut GenericEve
             };
             bpf_dynptr_from_mem(
                 event_ref as *mut _ as *mut _,
-                core::mem::size_of::<GenericEvent>() as u32,
+                core::mem::size_of::<GenericEvent>() as u64,
                 0,
                 &mut tmp as *mut _,
             );
@@ -62,7 +62,7 @@ pub fn rb_event_init(msg_code: u8, zero: bool) -> Result<&'static mut GenericEve
                 &tmp as *const _,
                 0,
                 zero_ptr as *mut _,
-                core::mem::size_of::<GenericEvent>() as u32,
+                core::mem::size_of::<GenericEvent>() as u64,
                 0,
             );
         }
