@@ -84,13 +84,13 @@ impl CheckIn for BprmCheckFilter<'_> {
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             }
             id if id == Attributes::EUID as u8 => unsafe {
-                let Some(mask_path) = self.euid_map.get(self.keys.euid) else {
+                let Some(mask_path) = self.euid_map.get(&self.keys.euid) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
             },
             id if id == Attributes::EGID as u8 => unsafe {
-                let Some(mask_path) = self.egid_map.get(self.keys.egid) else {
+                let Some(mask_path) = self.egid_map.get(&self.keys.egid) else {
                     return Ok(false);
                 };
                 Ok(*mask_path & (1 << in_op_idx) != 0)
@@ -100,7 +100,7 @@ impl CheckIn for BprmCheckFilter<'_> {
                     rule_idx: self.keys.ecap.rule_idx,
                     in_idx: in_op_idx,
                 };
-                let Some(caps) = self.ecap_map.get(ecap_key) else {
+                let Some(caps) = self.ecap_map.get(&ecap_key) else {
                     return Ok(false);
                 };
                 Ok(*caps & self.keys.ecap.caps != Capabilities::empty())

@@ -82,7 +82,7 @@ macro_rules! fill_name_map {
         };
         bpf_dynptr_from_mem(
             &mut name.name as *mut u8 as *mut _,
-            MAX_FILENAME_SIZE as u32,
+            MAX_FILENAME_SIZE as u64,
             0,
             &mut tmp as *mut _,
         );
@@ -90,7 +90,7 @@ macro_rules! fill_name_map {
             &tmp as *const _,
             0,
             zero_ptr as *mut _,
-            MAX_FILENAME_SIZE as u32,
+            MAX_FILENAME_SIZE as u64,
             0,
         );
         bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| -1i32)?;
@@ -114,7 +114,7 @@ macro_rules! fill_path_map {
         };
         bpf_dynptr_from_mem(
             &mut path.path as *mut u8 as *mut _,
-            MAX_FILE_PATH as u32,
+            MAX_FILE_PATH as u64,
             0,
             &mut tmp as *mut _,
         );
@@ -122,7 +122,7 @@ macro_rules! fill_path_map {
             &tmp as *const _,
             0,
             zero_ptr as *mut _,
-            MAX_FILE_PATH as u32,
+            MAX_FILE_PATH as u64,
             0,
         );
         bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| -1i32)?;
@@ -145,7 +145,7 @@ macro_rules! fill_prefix_map {
         };
         bpf_dynptr_from_mem(
             prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
-            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+            core::mem::size_of_val(&prefix.data.path_prefix) as u64,
             0,
             &mut tmp as *mut _,
         );
@@ -153,7 +153,7 @@ macro_rules! fill_prefix_map {
             &tmp as *const _,
             0,
             zero_ptr as *mut _,
-            core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+            core::mem::size_of_val(&prefix.data.path_prefix) as u64,
             0,
         );
         bpf_probe_read_kernel_buf($src as *const u8, &mut prefix.data.path_prefix)
@@ -297,7 +297,7 @@ fn try_open(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i3
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -556,7 +556,7 @@ fn try_truncate(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -761,7 +761,7 @@ fn try_unlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, 
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -984,7 +984,7 @@ fn try_symlink(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32,
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1213,7 +1213,7 @@ fn try_chmod(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1442,7 +1442,7 @@ fn try_chown(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32, i
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1640,7 +1640,7 @@ fn try_sb_mount(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i32
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1744,7 +1744,7 @@ fn try_mmap_file(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i3
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1998,7 +1998,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
     };
 
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -2167,7 +2167,7 @@ fn try_file_ioctl(ctx: LsmContext, generic_event: &mut GenericEvent) -> Result<i
 fn enrich_with_proc_info_and_rule_idx(msg: &mut FileMsg, proc: &ProcInfo, rule_idx: Option<u8>) {
     msg.rule_idx = rule_idx;
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;
     }

@@ -90,7 +90,7 @@ macro_rules! fill_name_map {
         };
         bpf_dynptr_from_mem(
             &mut name.name as *mut u8 as *mut _,
-            MAX_FILENAME_SIZE as u32,
+            MAX_FILENAME_SIZE as u64,
             0,
             &mut tmp as *mut _,
         );
@@ -98,7 +98,7 @@ macro_rules! fill_name_map {
             &tmp as *const _,
             0,
             zero_ptr as *mut _,
-            MAX_FILENAME_SIZE as u32,
+            MAX_FILENAME_SIZE as u64,
             0,
         );
         bpf_probe_read_kernel_str_bytes($src as *const u8, &mut name.name).map_err(|_| -1i32)?;
@@ -122,7 +122,7 @@ macro_rules! fill_path_map {
         };
         bpf_dynptr_from_mem(
             &mut path.path as *mut u8 as *mut _,
-            MAX_FILE_PATH as u32,
+            MAX_FILE_PATH as u64,
             0,
             &mut tmp as *mut _,
         );
@@ -130,7 +130,7 @@ macro_rules! fill_path_map {
             &tmp as *const _,
             0,
             zero_ptr as *mut _,
-            MAX_FILE_PATH as u32,
+            MAX_FILE_PATH as u64,
             0,
         );
         bpf_probe_read_kernel_str_bytes($src as *const u8, &mut path.path).map_err(|_| -1i32)?;
@@ -154,7 +154,7 @@ macro_rules! fill_prefix_map {
             };
             bpf_dynptr_from_mem(
                 prefix.data.path_prefix.as_mut_ptr() as *mut u8 as *mut _,
-                core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+                core::mem::size_of_val(&prefix.data.path_prefix) as u64,
                 0,
                 &mut tmp as *mut _,
             );
@@ -162,7 +162,7 @@ macro_rules! fill_prefix_map {
                 &tmp as *const _,
                 0,
                 zero_ptr as *mut _,
-                core::mem::size_of_val(&prefix.data.path_prefix) as u32,
+                core::mem::size_of_val(&prefix.data.path_prefix) as u64,
                 0,
             );
         }
@@ -192,7 +192,7 @@ macro_rules! fill_ip_map {
         let mut tmp = bpf_dynptr { __opaque: [0, 0] };
         bpf_dynptr_from_mem(
             ip.data.ip_addr.as_mut_ptr() as *mut u8 as *mut _,
-            core::mem::size_of_val(&ip.data.ip_addr) as u32,
+            core::mem::size_of_val(&ip.data.ip_addr) as u64,
             0,
             &mut tmp as *mut _,
         );
@@ -200,7 +200,7 @@ macro_rules! fill_ip_map {
             &tmp as *const _,
             0,
             zero_ptr as *mut _,
-            core::mem::size_of_val(&ip.data.ip_addr) as u32,
+            core::mem::size_of_val(&ip.data.ip_addr) as u64,
             0,
         );
         bpf_probe_read_kernel_buf($src as *const u8, &mut ip.data.ip_addr).map_err(|_| -1i32)?;
@@ -284,7 +284,7 @@ fn try_socket_create(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resul
         return Err(-1);
     };
     let pid = ctx.tgid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -457,7 +457,7 @@ fn try_socket_connect(ctx: LsmContext, generic_event: &mut GenericEvent) -> Resu
         return Err(-1);
     };
     let pid = ctx.tgid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -790,7 +790,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(-1);
     };
     let pid = ctx.tgid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -818,7 +818,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
 
         let Some(ref rule_array) = rules.0 else {
             // Put 255 if we don't have any rules
-            let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 255u8, 0);
+            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
@@ -882,7 +882,7 @@ fn try_tcp_v4_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     &port_dst,
                 ));
                 if event_filter.check_predicate(&rule.event)? {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&cookie, &(idx as u8), 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     result = Ok(0);
                     return Ok(true);
@@ -904,7 +904,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         return Err(-1);
     };
     let pid = ctx.tgid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -931,7 +931,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
         }
 
         let Some(ref rule_array) = rules.0 else {
-            let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 255u8, 0);
+            let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
             enrich_with_proc_info_and_rule_idx(msg, proc, None);
             return Ok(0);
         };
@@ -993,7 +993,7 @@ fn try_tcp_v6_connect(ctx: FExitContext, generic_event: &mut GenericEvent) -> Re
                     &port_dst,
                 ));
                 if event_filter.check_predicate(&rule.event)? {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&cookie, &(idx as u8), 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                     result = Ok(0);
                     return Ok(true);
@@ -1014,7 +1014,7 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
         return Err(-1);
     };
     let pid = ctx.tgid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1029,11 +1029,11 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     return Err(-1);
                 };
                 let _ = parse_v4_sock(event, s);
-                let Some(rule_idx) = NETMON_SOCK_COOKIE_MAP.get(event.cookie) else {
+                let Some(rule_idx) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
                     // There is no previous connection, so it is not an error
                     return Err(0);
                 };
-                let _ = NETMON_SOCK_COOKIE_MAP.remove(event.cookie);
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 let rule_idx = if *rule_idx != 255u8 {
                     Some(*rule_idx)
                 } else {
@@ -1050,11 +1050,11 @@ fn try_tcp_close(ctx: FExitContext, generic_event: &mut GenericEvent) -> Result<
                     return Err(-1);
                 };
                 parse_v6_sock(event, s)?;
-                let Some(rule_idx) = NETMON_SOCK_COOKIE_MAP.get(event.cookie) else {
+                let Some(rule_idx) = NETMON_SOCK_COOKIE_MAP.get(&event.cookie) else {
                     // There is no previous connection, so it is not an error
                     return Err(0);
                 };
-                let _ = NETMON_SOCK_COOKIE_MAP.remove(event.cookie);
+                let _ = NETMON_SOCK_COOKIE_MAP.remove(&event.cookie);
                 let rule_idx = if *rule_idx != 255u8 {
                     Some(*rule_idx)
                 } else {
@@ -1079,7 +1079,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
         return Err(-1);
     };
     let pid = ctx.tgid();
-    let proc = unsafe { PROCMON_PROC_MAP.get(pid) };
+    let proc = unsafe { PROCMON_PROC_MAP.get(&pid) };
     let Some(proc) = proc else {
         return Err(-1);
     };
@@ -1114,7 +1114,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 }
 
                 let Some(ref rule_array) = rules.0 else {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 255u8, 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, None);
                     return Ok(0);
                 };
@@ -1169,7 +1169,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             &port_dst,
                         ));
                         if event_filter.check_predicate(&rule.event)? {
-                            let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
+                            let _ = NETMON_SOCK_COOKIE_MAP.insert(&cookie, &(idx as u8), 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             result = Ok(0);
                             return Ok(true);
@@ -1191,7 +1191,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                 }
 
                 let Some(ref rule_array) = rules.0 else {
-                    let _ = NETMON_SOCK_COOKIE_MAP.insert(event.cookie, 255u8, 0);
+                    let _ = NETMON_SOCK_COOKIE_MAP.insert(&event.cookie, &255u8, 0);
                     enrich_with_proc_info_and_rule_idx(msg, proc, None);
                     return Ok(0);
                 };
@@ -1244,7 +1244,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
                             &port_dst,
                         ));
                         if event_filter.check_predicate(&rule.event)? {
-                            let _ = NETMON_SOCK_COOKIE_MAP.insert(cookie, idx as u8, 0);
+                            let _ = NETMON_SOCK_COOKIE_MAP.insert(&cookie, &(idx as u8), 0);
                             enrich_with_proc_info_and_rule_idx(msg, proc, Some(idx as u8));
                             result = Ok(0);
                             return Ok(true);
@@ -1263,7 +1263,7 @@ fn try_inet_csk_accept(ctx: FExitContext, generic_event: &mut GenericEvent) -> R
 fn enrich_with_proc_info_and_rule_idx(msg: &mut NetworkMsg, proc: &ProcInfo, rule_idx: Option<u8>) {
     msg.rule_idx = rule_idx;
 
-    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(proc.ppid) } {
+    if let Some(parent) = unsafe { PROCMON_PROC_MAP.get(&proc.ppid) } {
         msg.parent.pid = parent.pid;
         msg.parent.start = parent.start;
     }
